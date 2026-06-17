@@ -3,8 +3,8 @@ import { getRecettes, deleteRecette, getRecetteById } from './recettes.js'
 
 let filtres = {}
 
-function renderList() {
-  const recettes  = getRecettes(filtres)
+async function renderList() {
+  const recettes  = await getRecettes(filtres)
   const container = document.getElementById('recettesList')
   if (!container) return
   container.innerHTML = recettes.length === 0
@@ -24,8 +24,8 @@ function renderList() {
   })
 }
 
-function ouvrirDetail(id) {
-  const r = getRecetteById(id)
+async function ouvrirDetail(id) {
+  const r = await getRecetteById(id)
   if (!r) return
   document.getElementById('detailContent').innerHTML = `
     <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${r.nom}</h2>
@@ -53,27 +53,27 @@ function ouvrirDetail(id) {
       <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${r.id}">🗑 Supprimer</button>
     </div>`
   document.getElementById('modalDetail').classList.remove('hidden')
-  document.getElementById('btnDeleteRecette').addEventListener('click', () => {
+  document.getElementById('btnDeleteRecette').addEventListener('click', async () => {
     if (confirm(`Supprimer "${r.nom}" ?`)) {
-      deleteRecette(id)
+      await deleteRecette(id)
       document.getElementById('modalDetail').classList.add('hidden')
-      renderList()
+      await renderList()
     }
   })
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  renderList()
+document.addEventListener('DOMContentLoaded', async () => {
+  await renderList()
   document.getElementById('closeDetail')?.addEventListener('click', () =>
     document.getElementById('modalDetail').classList.add('hidden'))
-  document.getElementById('filtreVeg')?.addEventListener('click', (e) => {
+  document.getElementById('filtreVeg')?.addEventListener('click', async (e) => {
     filtres.vegetarien = !filtres.vegetarien
     e.target.classList.toggle('active')
-    renderList()
+    await renderList()
   })
-  document.getElementById('filtreRapide')?.addEventListener('click', (e) => {
+  document.getElementById('filtreRapide')?.addEventListener('click', async (e) => {
     filtres.maxMinutes = filtres.maxMinutes ? null : 30
     e.target.classList.toggle('active')
-    renderList()
+    await renderList()
   })
 })

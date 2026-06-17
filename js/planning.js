@@ -1,5 +1,5 @@
 // js/planning.js
-import { KEYS, load, save } from './storage.js'
+import { dbGetPlanning, dbUpsertPlanning } from './db.js'
 
 export const JOURS   = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
 export const MOMENTS = ['midi','soir']
@@ -13,46 +13,33 @@ export function getSemaineKey(date = new Date()) {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
 }
 
-export function getPlanning(semaineKey) {
-  const all = load(KEYS.planning, {})
-  if (!all[semaineKey]) {
-    all[semaineKey] = {}
-    JOURS.forEach(j => { all[semaineKey][j] = { midi: null, soir: null } })
-  }
-  return all[semaineKey]
+export async function getPlanning(semaineKey) {
+  return await dbGetPlanning(semaineKey)
 }
 
-export function assignerRepas(semaineKey, jour, moment, recetteId, portions) {
-  const all = load(KEYS.planning, {})
-  if (!all[semaineKey]) all[semaineKey] = {}
-  if (!all[semaineKey][jour]) all[semaineKey][jour] = { midi: null, soir: null }
-  all[semaineKey][jour][moment] = recetteId ? { id: recetteId, portions } : null
-  save(KEYS.planning, all)
+export async function assignerRepas(semaineKey, jour, moment, recetteId, portions) {
+  await dbUpsertPlanning(semaineKey, jour, moment, recetteId, portions)
 }
 
-export function supprimerRepas(semaineKey, jour, moment) {
-  assignerRepas(semaineKey, jour, moment, null, null)
+export async function supprimerRepas(semaineKey, jour, moment) {
+  await dbUpsertPlanning(semaineKey, jour, moment, null, null)
 }
 
-export function importerSemaineIA(semaineKey, semaineIA, addRecetteFn) {
-  const all = load(KEYS.planning, {})
-  all[semaineKey] = {}
-  Object.entries(semaineIA).forEach(([jour, repas]) => {
-    all[semaineKey][jour] = {}
-    Object.entries(repas).forEach(([moment, recette]) => {
+export async function importerSemaineIA(semaineKey, semaineIA, addRecetteFn) {
+  for (const [jour, repas] of Object.entries(semaineIA)) {
+    for (const [moment, recette] of Object.entries(repas)) {
       if (recette) {
-        const id = addRecetteFn(recette)
-        all[semaineKey][jour][moment] = { id, portions: recette.portions || 2 }
+        const id = await addRecetteFn(recette)
+        await dbUpsertPlanning(semaineKey, jour, moment, id, recette.portions || 2)
       } else {
-        all[semaineKey][jour][moment] = null
+        await dbUpsertPlanning(semaineKey, jour, moment, null, null)
       }
-    })
-  })
-  save(KEYS.planning, all)
+    }
+  }
 }
 
-export function getJoursAvecRepas(semaineKey) {
-  const planning = getPlanning(semaineKey)
+export async function getJoursAvecRepas(semaineKey) {
+  const planning = await dbGetPlanning(semaineKey)
   return JOURS.flatMap(jour =>
     MOMENTS.filter(m => planning[jour]?.[m]?.id).map(m => ({ jour, moment: m, ...planning[jour][m] }))
   )

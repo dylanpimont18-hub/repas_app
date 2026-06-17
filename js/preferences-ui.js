@@ -13,18 +13,18 @@ function renderCatChips() {
     `<button class="chip ${id === categorieActive ? 'active' : ''}" data-cat="${id}">${cat.emoji} ${cat.label}</button>`
   ).join('')
   c.querySelectorAll('[data-cat]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       categorieActive = btn.dataset.cat
       renderCatChips()
-      chargerFile()
+      await chargerFile()
     })
   })
 }
 
-function chargerFile() {
-  fileAttente = getANoter(profilActif, categorieActive)
+async function chargerFile() {
+  fileAttente = await getANoter(profilActif, categorieActive)
   afficherProchain()
-  updateProgress()
+  await updateProgress()
 }
 
 function afficherProchain() {
@@ -41,7 +41,7 @@ function afficherProchain() {
   card.style.display = ''
   btns.style.display = ''
   finished.style.display = 'none'
-  const ing = fileAttente[0]
+  const ing      = fileAttente[0]
   const cardEmoji = document.getElementById('cardEmoji')
   const cardNom   = document.getElementById('cardNom')
   const cardCat   = document.getElementById('cardCat')
@@ -50,8 +50,8 @@ function afficherProchain() {
   if (cardCat)   cardCat.textContent   = CATEGORIES[ing.categorie]?.label || ''
 }
 
-function updateProgress() {
-  const ratio = getProgression(profilActif, categorieActive)
+async function updateProgress() {
+  const ratio = await getProgression(profilActif, categorieActive)
   const fill  = document.getElementById('progressFill')
   const label = document.getElementById('progressLabel')
   if (fill)  fill.style.width = `${Math.round(ratio * 100)}%`
@@ -61,26 +61,26 @@ function updateProgress() {
     `${CATEGORIES[categorieActive].label} — ${done} / ${total} notés`
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   renderCatChips()
 
   document.querySelectorAll('[data-profil]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       profilActif = btn.dataset.profil
       document.querySelectorAll('[data-profil]').forEach(b => b.classList.remove('active'))
       btn.classList.add('active')
-      chargerFile()
+      await chargerFile()
     })
   })
 
-  document.getElementById('prefButtons')?.addEventListener('click', (e) => {
+  document.getElementById('prefButtons')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-niveau]')
     if (!btn || fileAttente.length === 0) return
     const ing = fileAttente.shift()
-    setPreference(profilActif, ing.id, btn.dataset.niveau)
+    await setPreference(profilActif, ing.id, btn.dataset.niveau)
     afficherProchain()
-    updateProgress()
+    await updateProgress()
   })
 
-  chargerFile()
+  await chargerFile()
 })

@@ -7,7 +7,7 @@ const VIERZON = { lat: 47.22, lon: 2.07 }
 // ── Météo ────────────────────────────────────────────────────────────
 export async function getMeteo() {
   try {
-    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${VIERZON.lat}&lon=${VIERZON.lon}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric&lang=fr`
+    const url  = `https://api.openweathermap.org/data/2.5/forecast?lat=${VIERZON.lat}&lon=${VIERZON.lon}&appid=${CONFIG.OPENWEATHER_API_KEY}&units=metric&lang=fr`
     const res  = await fetch(url)
     const data = await res.json()
     if (data.cod !== '200') throw new Error(data.message)
@@ -29,10 +29,10 @@ export function getSaison() {
 }
 
 // ── Prompt helpers ───────────────────────────────────────────────────
-function buildProfilTexte(qui) {
-  const adore = getProfilFiltre(qui, 'j_adore').map(id => getById(id)?.nom).filter(Boolean)
-  const aime  = getProfilFiltre(qui, 'j_aime').map(id => getById(id)?.nom).filter(Boolean)
-  const naime = getProfilFiltre(qui, 'j_aime_pas').map(id => getById(id)?.nom).filter(Boolean)
+async function buildProfilTexte(qui) {
+  const adore = (await getProfilFiltre(qui, 'j_adore')).map(id => getById(id)?.nom).filter(Boolean)
+  const aime  = (await getProfilFiltre(qui, 'j_aime')).map(id => getById(id)?.nom).filter(Boolean)
+  const naime = (await getProfilFiltre(qui, 'j_aime_pas')).map(id => getById(id)?.nom).filter(Boolean)
   return [
     `Profil ${qui === 'dylan' ? 'Dylan' : 'Sa femme'} :`,
     adore.length ? `  - Adore : ${adore.join(', ')}` : '',
@@ -41,9 +41,9 @@ function buildProfilTexte(qui) {
   ].filter(Boolean).join('\n')
 }
 
-function buildPromptSemaine({ pourQui, meteo, contraintes }) {
-  const profilsDylan = buildProfilTexte('dylan')
-  const profilsFemme = pourQui === 'deux' ? buildProfilTexte('femme') : ''
+async function buildPromptSemaine({ pourQui, meteo, contraintes }) {
+  const profilsDylan = await buildProfilTexte('dylan')
+  const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
   const opts = [
     contraintes.vegetarien ? '- Végétarien : tous les plats sans viande ni poisson' : '',
     contraintes.rapide     ? '- Rapide : tous les plats < 30 min au total'          : '',
@@ -98,9 +98,9 @@ Chaque <recette> :
 }`
 }
 
-function buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes }) {
-  const profilsDylan = buildProfilTexte('dylan')
-  const profilsFemme = pourQui === 'deux' ? buildProfilTexte('femme') : ''
+async function buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes }) {
+  const profilsDylan = await buildProfilTexte('dylan')
+  const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
   const dispos = ingredientsDispos.length
     ? `Ingrédients déjà achetés cette semaine (à privilégier) : ${ingredientsDispos.join(', ')}`
     : ''
@@ -153,9 +153,9 @@ function parseJSON(text) {
 
 // ── API publique ─────────────────────────────────────────────────────
 export async function genererSemaine({ pourQui, meteo, contraintes }) {
-  return parseJSON(await callClaude(buildPromptSemaine({ pourQui, meteo, contraintes })))
+  return parseJSON(await callClaude(await buildPromptSemaine({ pourQui, meteo, contraintes })))
 }
 
 export async function genererDerniereMinute({ pourQui, ingredientsDispos = [], contraintes = {} }) {
-  return parseJSON(await callClaude(buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes })))
+  return parseJSON(await callClaude(await buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes })))
 }

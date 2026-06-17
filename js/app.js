@@ -1,5 +1,7 @@
 // js/app.js
-import { KEYS, load, save } from './storage.js'
+import { load, save } from './storage.js'
+import { KEYS }       from './storage.js'
+import { dbGetSession, dbSignOut } from './db.js'
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme)
@@ -38,17 +40,18 @@ export async function renderModalFlash() {
   const content = document.getElementById('modalContent')
   if (!content) return
 
-  const { genererDerniereMinute }                                        = await import('./ai.js')
+  const { genererDerniereMinute }                                       = await import('./ai.js')
   const { getJoursAvecRepas, getSemaineKey: gsk, JOURS, MOMENTS,
-          assignerRepas }                                                 = await import('./planning.js')
-  const { getRecetteById, addRecette }                                   = await import('./recettes.js')
+          assignerRepas }                                                = await import('./planning.js')
+  const { getRecetteById, addRecette }                                  = await import('./recettes.js')
 
-  const semaineKey        = gsk()
+  const semaineKey = gsk()
+  const repasExist = await getJoursAvecRepas(semaineKey)
   const ingredientsDispos = [...new Set(
-    getJoursAvecRepas(semaineKey).flatMap(r => {
-      const rec = getRecetteById(r.id)
+    (await Promise.all(repasExist.map(async r => {
+      const rec = await getRecetteById(r.id)
       return rec ? rec.ingredients.map(i => i.nom) : []
-    })
+    }))).flat()
   )]
 
   let pourQui    = 'deux'
@@ -97,10 +100,10 @@ export async function renderModalFlash() {
 
     content.querySelector('#flashAjouter')?.addEventListener('click', async () => {
       if (!recetteGen) return
-      const id      = addRecette(recetteGen)
+      const id      = await addRecette(recetteGen)
       const sk      = gsk()
       const { getPlanning } = await import('./planning.js')
-      const planning = getPlanning(sk)
+      const planning = await getPlanning(sk)
       let   slot     = null
       for (const j of JOURS) {
         for (const m of MOMENTS) {
@@ -108,7 +111,7 @@ export async function renderModalFlash() {
         }
         if (slot) break
       }
-      if (slot) assignerRepas(sk, slot.jour, slot.moment, id, recetteGen.portions || 2)
+      if (slot) await assignerRepas(sk, slot.jour, slot.moment, id, recetteGen.portions || 2)
       document.getElementById('modalFlash').classList.add('hidden')
     })
   }
@@ -130,9 +133,21 @@ function initModalFlash() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.add('hidden') })
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initLogout() {
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
+    await dbSignOut()
+    window.location.href = 'login.html'
+  })
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Guard : rediriger vers login si non connecté
+  const session = await dbGetSession()
+  if (!session) { window.location.href = 'login.html'; return }
+
   initTheme()
   initBurger()
   highlightActiveLink()
   initModalFlash()
+  initLogout()
 })

@@ -1,5 +1,6 @@
 // js/courses.js
-import { KEYS, load, save } from './storage.js'
+import { load, save } from './storage.js'
+import { KEYS }       from './storage.js'
 import { getPlanning, JOURS, MOMENTS } from './planning.js'
 import { getRecetteById }              from './recettes.js'
 
@@ -30,22 +31,28 @@ function categoriser(nom) {
   return 'Divers'
 }
 
-export function genererListeCourses(semaineKey) {
-  const planning = getPlanning(semaineKey)
+export async function genererListeCourses(semaineKey) {
+  const planning = await getPlanning(semaineKey)
   const agregat  = {}
 
-  JOURS.forEach(jour => {
-    MOMENTS.forEach(moment => {
-      const slot    = planning[jour]?.[moment]
-      if (!slot?.id) return
-      const recette = getRecetteById(slot.id)
-      if (!recette) return
-      const facteur = (slot.portions || 2) / (recette.portions || 2)
-      recette.ingredients.forEach(ing => {
-        const k = ing.nom.toLowerCase().trim()
-        if (!agregat[k]) agregat[k] = { nom: ing.nom, quantites: [], categorie: categoriser(ing.nom) }
-        agregat[k].quantites.push({ valeur: ing.quantite, facteur })
-      })
+  // Collecter tous les slots remplis
+  const slots = []
+  JOURS.forEach(jour => MOMENTS.forEach(moment => {
+    const slot = planning[jour]?.[moment]
+    if (slot?.id) slots.push({ ...slot, jour, moment })
+  }))
+
+  // Récupérer toutes les recettes en parallèle
+  const recettes = await Promise.all(slots.map(s => getRecetteById(s.id)))
+
+  slots.forEach((slot, i) => {
+    const recette = recettes[i]
+    if (!recette) return
+    const facteur = (slot.portions || 2) / (recette.portions || 2)
+    recette.ingredients.forEach(ing => {
+      const k = ing.nom.toLowerCase().trim()
+      if (!agregat[k]) agregat[k] = { nom: ing.nom, quantites: [], categorie: categoriser(ing.nom) }
+      agregat[k].quantites.push({ valeur: ing.quantite, facteur })
     })
   })
 
@@ -57,8 +64,8 @@ export function genererListeCourses(semaineKey) {
   return groupes
 }
 
+// État des cases à cocher — reste en localStorage (préférence par appareil)
 export function getEtatCourses() { return load(KEYS.coursesEtat, {}) }
-
 export function toggleCourse(nom) {
   const etat = getEtatCourses()
   const k    = nom.toLowerCase().trim()
@@ -66,5 +73,4 @@ export function toggleCourse(nom) {
   save(KEYS.coursesEtat, etat)
   return etat[k]
 }
-
 export function resetCourses() { save(KEYS.coursesEtat, {}) }

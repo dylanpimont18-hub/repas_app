@@ -12,12 +12,12 @@ const ICONE = {
   'Divers':                '🛒',
 }
 
-function render() {
+async function render() {
   const semaineKey = getSemaineKey()
-  const labelEl = document.getElementById('labelSemaineCourses')
+  const labelEl    = document.getElementById('labelSemaineCourses')
   if (labelEl) labelEl.textContent = semaineKey
 
-  const groupes = genererListeCourses(semaineKey)
+  const groupes = await genererListeCourses(semaineKey)
   const etat    = getEtatCourses()
 
   const html = ORDRE.filter(cat => groupes[cat]?.length).map(cat => `
@@ -37,14 +37,14 @@ function render() {
   if (list) {
     list.innerHTML = html || '<p class="text-muted">Aucun repas planifié cette semaine.</p>'
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', () => { toggleCourse(cb.dataset.nom); render() })
+      cb.addEventListener('change', async () => { toggleCourse(cb.dataset.nom); await render() })
     })
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  render()
-  document.getElementById('btnResetCourses')?.addEventListener('click', () => {
-    if (confirm('Réinitialiser les cases à cocher ?')) { resetCourses(); render() }
+document.addEventListener('DOMContentLoaded', async () => {
+  await render()
+  document.getElementById('btnResetCourses')?.addEventListener('click', async () => {
+    if (confirm('Réinitialiser les cases à cocher ?')) { resetCourses(); await render() }
   })
 })

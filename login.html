@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repas — Connexion</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-box { width: 100%; max-width: 380px; padding: 2.5rem; }
+    .login-field { margin-bottom: 1rem; }
+    .login-field label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; }
+    .login-field input {
+      width: 100%; padding: 0.65rem 0.9rem; box-sizing: border-box;
+      border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+      font-size: 0.9rem; background: var(--color-bg); color: var(--color-text);
+    }
+    .login-field input:focus { outline: 2px solid var(--color-primary); border-color: var(--color-primary); }
+    .login-error { color: #c0392b; font-size: 0.85rem; text-align: center; margin-top: 0.75rem; min-height: 1.2rem; }
+  </style>
+</head>
+<body>
+  <div class="card login-box">
+    <h1 style="font-family:var(--font-serif);font-size:1.6rem;text-align:center;margin-bottom:0.25rem;">🍽️ Repas</h1>
+    <p class="text-muted text-sm" style="text-align:center;margin-bottom:2rem;">Connexion au compte familial</p>
+
+    <div class="login-field">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" placeholder="ton@email.com" autocomplete="email">
+    </div>
+    <div class="login-field" style="margin-bottom:1.5rem;">
+      <label for="loginPassword">Mot de passe</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button class="btn btn-primary btn-full" id="btnLogin">Se connecter</button>
+    <p class="login-error" id="loginError"></p>
+  </div>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/auth-login.js"></script>
+</body>
+</html>

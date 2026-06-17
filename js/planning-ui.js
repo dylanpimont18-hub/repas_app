@@ -19,11 +19,20 @@ function getSemaineDecalee(offset) {
   return getSemaineKey(d)
 }
 
-function renderGrid() {
-  const planning = getPlanning(semaineKey)
-  const grid     = document.getElementById('planningGrid')
+async function renderGrid() {
+  const planning    = await getPlanning(semaineKey)
+  const labelEl     = document.getElementById('labelSemaine')
+  if (labelEl) labelEl.textContent = semaineKey
+
+  // Pre-fetch toutes les recettes de la semaine en parallèle
+  const ids = [...new Set(
+    JOURS.flatMap(j => MOMENTS.map(m => planning[j]?.[m]?.id).filter(Boolean))
+  )]
+  const recettesArr = await Promise.all(ids.map(id => getRecetteById(id)))
+  const recettesMap = Object.fromEntries(ids.map((id, i) => [id, recettesArr[i]]))
+
+  const grid = document.getElementById('planningGrid')
   if (!grid) return
-  document.getElementById('labelSemaine').textContent = semaineKey
 
   let html = '<div class="planning-header-cell"></div>'
   JOURS.forEach(j => { html += `<div class="planning-header-cell">${JOURS_LABEL[j]}</div>` })
@@ -32,7 +41,7 @@ function renderGrid() {
     html += `<div class="planning-label-cell"><span>${moment === 'midi' ? '☀️' : '🌙'}</span><span>${moment}</span></div>`
     JOURS.forEach(jour => {
       const slot    = planning[jour]?.[moment]
-      const recette = slot?.id ? getRecetteById(slot.id) : null
+      const recette = slot?.id ? recettesMap[slot.id] : null
       html += `<div class="planning-cell" data-jour="${jour}" data-moment="${moment}">`
       html += recette
         ? `<span class="meal-tag" title="${recette.nom}">${recette.nom}</span>`
@@ -50,11 +59,12 @@ function renderGrid() {
   })
 }
 
-function ouvrirSelectRecette() {
+async function ouvrirSelectRecette() {
   const modal = document.getElementById('modalRecetteSelect')
   const list  = document.getElementById('recetteSelectList')
   if (!modal || !list) return
-  const r = getRecettes()
+
+  const r = await getRecettes()
   list.innerHTML = r.length === 0
     ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette — générez-en d\'abord via IA.</p>'
     : r.map(x => `
@@ -62,19 +72,20 @@ function ouvrirSelectRecette() {
           <div class="recipe-name">${x.nom}</div>
           <div class="recipe-meta"><span>⏱ ${x.temps_prep + x.temps_cuisson} min</span>${x.vegetarien ? '<span>🌿</span>' : ''}</div>
         </div>`).join('')
+
   list.querySelectorAll('[data-id]').forEach(card => {
-    card.addEventListener('click', () => {
-      assignerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment, card.dataset.id, 2)
+    card.addEventListener('click', async () => {
+      await assignerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment, card.dataset.id, 2)
       modal.classList.add('hidden')
-      renderGrid()
+      await renderGrid()
     })
   })
   list.insertAdjacentHTML('beforeend',
     `<button class="btn btn-ghost btn-sm" id="btnViderSlot" style="margin-top:0.5rem;">🗑 Vider ce créneau</button>`)
-  document.getElementById('btnViderSlot')?.addEventListener('click', () => {
-    supprimerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment)
+  document.getElementById('btnViderSlot')?.addEventListener('click', async () => {
+    await supprimerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment)
     modal.classList.add('hidden')
-    renderGrid()
+    await renderGrid()
   })
   modal.classList.remove('hidden')
 }
@@ -122,11 +133,11 @@ async function initModalGen() {
     if (btnLancer) btnLancer.disabled = true
     if (status) status.textContent = '⏳ Génération en cours (30-60s)…'
     try {
-      const meteo  = modal._meteo || { avgTemp: 20, saison: getSemaineKey() ? 'été' : 'été', description: '' }
+      const meteo  = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
       const result = await genererSemaine({ pourQui, meteo, contraintes })
-      importerSemaineIA(semaineKey, result.semaine, addRecette)
+      await importerSemaineIA(semaineKey, result.semaine, addRecette)
       modal.classList.add('hidden')
-      renderGrid()
+      await renderGrid()
       if (status) status.textContent = ''
     } catch (e) {
       if (status) status.textContent = `Erreur : ${e.message}`
@@ -137,17 +148,17 @@ async function initModalGen() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  renderGrid()
+  await renderGrid()
   await initModalGen()
-  document.getElementById('btnPrevWeek')?.addEventListener('click', () => {
+  document.getElementById('btnPrevWeek')?.addEventListener('click', async () => {
     semaineOffset--
     semaineKey = getSemaineDecalee(semaineOffset)
-    renderGrid()
+    await renderGrid()
   })
-  document.getElementById('btnNextWeek')?.addEventListener('click', () => {
+  document.getElementById('btnNextWeek')?.addEventListener('click', async () => {
     semaineOffset++
     semaineKey = getSemaineDecalee(semaineOffset)
-    renderGrid()
+    await renderGrid()
   })
   document.getElementById('closeRecetteSelect')?.addEventListener('click', () =>
     document.getElementById('modalRecetteSelect')?.classList.add('hidden'))

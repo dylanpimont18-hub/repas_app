@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repas — Planning</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">🍽️ Repas</a>
+    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a href="planning.html" class="active">📅 Planning</a>
+      <a href="recettes.html">📖 Recettes</a>
+      <a href="preferences.html">❤️ Préférences</a>
+      <a href="courses.html">🛒 Courses</a>
+    </div>
+    <span class="nav-spacer"></span>
+    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
+  </nav>
+
+  <div class="modal-overlay hidden" id="modalFlash">
+    <div class="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <main class="main">
+    <div class="section-header">
+      <h1 class="page-title">📅 Planning</h1>
+      <div class="flex gap-sm">
+        <button class="btn btn-secondary btn-sm" id="btnPrevWeek">← Semaine préc.</button>
+        <span id="labelSemaine" class="text-sm text-muted" style="align-self:center;"></span>
+        <button class="btn btn-secondary btn-sm" id="btnNextWeek">Semaine suiv. →</button>
+        <button class="btn btn-primary btn-sm"   id="btnGenererSemaine">✨ Générer par IA</button>
+      </div>
+    </div>
+    <div class="planning-grid" id="planningGrid"></div>
+
+    <div class="modal-overlay hidden" id="modalRecetteSelect">
+      <div class="modal">
+        <button class="modal-close" id="closeRecetteSelect">✕</button>
+        <p class="modal-title">Choisir une recette</p>
+        <div id="recetteSelectList" style="max-height:360px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="modalGenSemaine">
+      <div class="modal">
+        <button class="modal-close" id="closeGenSemaine">✕</button>
+        <p class="modal-title">✨ Générer ma semaine</p>
+        <div style="margin-bottom:1rem;">
+          <p class="text-sm text-muted" style="margin-bottom:0.5rem;">Pour qui ?</p>
+          <div class="flex gap-sm">
+            <button class="chip active" data-pour="deux">Nous deux</button>
+            <button class="chip"        data-pour="dylan">Moi seul</button>
+          </div>
+        </div>
+        <div style="margin-bottom:1rem;" id="meteoDisplay"></div>
+        <div style="margin-bottom:1.25rem;">
+          <p class="text-sm text-muted" style="margin-bottom:0.5rem;">Options</p>
+          <div class="flex gap-sm" style="flex-wrap:wrap;">
+            <button class="chip" data-opt="vegetarien">🌿 Végétarien</button>
+            <button class="chip" data-opt="rapide">⚡ Rapide</button>
+            <button class="chip" data-opt="budget">💰 Budget</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les 14 repas</button>
+        <p class="text-sm text-muted" style="margin-top:0.75rem;text-align:center;" id="genStatus"></p>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/planning-ui.js"></script>
+</body>
+</html>

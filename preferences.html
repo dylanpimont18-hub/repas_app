@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repas — Préférences</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">🍽️ Repas</a>
+    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a href="planning.html">📅 Planning</a>
+      <a href="recettes.html">📖 Recettes</a>
+      <a href="preferences.html" class="active">❤️ Préférences</a>
+      <a href="courses.html">🛒 Courses</a>
+    </div>
+    <span class="nav-spacer"></span>
+    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
+  </nav>
+
+  <div class="modal-overlay hidden" id="modalFlash">
+    <div class="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <main class="main">
+    <h1 class="page-title">❤️ Préférences</h1>
+    <p class="page-subtitle">Notez vos ingrédients pour que l'IA génère des recettes adaptées.</p>
+
+    <div class="flex gap-sm" style="margin-bottom:1.5rem;">
+      <button class="chip active" data-profil="dylan">Dylan</button>
+      <button class="chip"        data-profil="femme">Ma femme</button>
+    </div>
+
+    <div class="flex gap-sm" style="flex-wrap:wrap;margin-bottom:2rem;" id="catChips"></div>
+
+    <div style="margin-bottom:2rem;">
+      <p class="text-sm text-muted" id="progressLabel"></p>
+      <div class="progress-bar" style="margin-top:0.4rem;">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="flex-center" style="flex-direction:column;gap:1.5rem;min-height:300px;">
+      <div class="ingredient-card" id="ingredientCard">
+        <div class="emoji" id="cardEmoji">🌿</div>
+        <div class="nom"   id="cardNom">Chargement…</div>
+        <div class="cat"   id="cardCat"></div>
+      </div>
+      <div class="pref-buttons" id="prefButtons">
+        <button class="pref-btn pref-btn-naime"  data-niveau="j_aime_pas">😞 Non</button>
+        <button class="pref-btn pref-btn-neutre" data-niveau="neutre">😐 Neutre</button>
+        <button class="pref-btn pref-btn-aime"   data-niveau="j_aime">😊 J'aime</button>
+        <button class="pref-btn pref-btn-adore"  data-niveau="j_adore">❤️ J'adore</button>
+      </div>
+      <p class="text-muted text-sm" id="catFinished" style="display:none;">✅ Catégorie complète !</p>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/preferences-ui.js"></script>
+</body>
+</html>

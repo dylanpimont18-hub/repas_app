@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repas — Accueil</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">🍽️ Repas</a>
+    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a href="planning.html">📅 Planning</a>
+      <a href="recettes.html">📖 Recettes</a>
+      <a href="preferences.html">❤️ Préférences</a>
+      <a href="courses.html">🛒 Courses</a>
+    </div>
+    <span class="nav-spacer"></span>
+    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
+  </nav>
+
+  <div class="modal-overlay hidden" id="modalFlash">
+    <div class="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <main class="main">
+    <h1 class="page-title" style="font-size:2rem;">🍽️ Bonjour !</h1>
+    <p class="page-subtitle" id="dashSubtitle">Que voulez-vous manger cette semaine ?</p>
+
+    <div class="dashboard-grid" style="margin-bottom:2.5rem;">
+      <a href="planning.html" class="dashboard-tile">
+        <span class="tile-icon">📅</span>
+        <span class="tile-label">Planning</span>
+        <span class="text-xs text-muted">Organiser la semaine</span>
+      </a>
+      <a href="preferences.html" class="dashboard-tile">
+        <span class="tile-icon">❤️</span>
+        <span class="tile-label">Préférences</span>
+        <span class="text-xs text-muted">Ingrédients aimés / détestés</span>
+      </a>
+      <a href="recettes.html" class="dashboard-tile">
+        <span class="tile-icon">📖</span>
+        <span class="tile-label">Recettes</span>
+        <span id="tileRecettesCount" class="text-xs text-muted">Bibliothèque</span>
+      </a>
+      <a href="courses.html" class="dashboard-tile">
+        <span class="tile-icon">🛒</span>
+        <span class="tile-label">Courses</span>
+        <span class="text-xs text-muted">Liste de la semaine</span>
+      </a>
+    </div>
+
+    <div class="section-header">
+      <h2 class="section-title">Cette semaine</h2>
+      <a href="planning.html" class="btn btn-ghost btn-sm">Voir le planning →</a>
+    </div>
+    <div id="dashSemaine" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;"></div>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

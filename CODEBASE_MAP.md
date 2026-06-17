@@ -74,3 +74,8 @@ Gestion du planificateur hebdomadaire.
 Génération et gestion de la liste de courses.
 - `genererListe(semaine)` — agrège les ingrédients du planning avec quantités ajustées
 - `grouperParCategorie(liste)` — regroupe par catégorie de supermarché
+
+## js/dashboard.js
+Contrôleur du tableau de bord d'accueil.
+- Affiche le nombre total de recettes dans la bibliothèque
+- Affiche un aperçu du planning de la semaine actuelle (midi/soir chaque jour)

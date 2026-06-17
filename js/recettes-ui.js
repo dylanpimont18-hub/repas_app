@@ -64,6 +64,23 @@ async function ouvrirDetail(id) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await renderList()
+
+  // Gestion navigation depuis le planning
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('from') === 'planning') {
+    document.getElementById('backBanner')?.classList.remove('hidden')
+  }
+  const targetId = params.get('id')
+  if (targetId) {
+    await ouvrirDetail(targetId)
+    // Mettre en évidence la carte correspondante une fois la liste rendue
+    const card = document.querySelector(`[data-id="${targetId}"]`)
+    if (card) {
+      card.style.outline = '2px solid var(--color-primary)'
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
   document.getElementById('closeDetail')?.addEventListener('click', () =>
     document.getElementById('modalDetail').classList.add('hidden'))
   document.getElementById('filtreVeg')?.addEventListener('click', async (e) => {

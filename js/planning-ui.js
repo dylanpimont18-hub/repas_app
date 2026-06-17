@@ -13,6 +13,59 @@ let slotEnCours   = null
 let pourQui       = 'deux'
 let contraintes   = {}
 
+// ── Popover contextuel ──
+let popoverEl = null
+
+function creerPopover() {
+  const el = document.createElement('div')
+  el.className = 'planning-popover'
+  el.style.display = 'none'
+  document.body.appendChild(el)
+  document.addEventListener('click', (e) => {
+    if (popoverEl && !popoverEl.contains(e.target)) fermerPopover()
+  }, true)
+  return el
+}
+
+function fermerPopover() {
+  if (popoverEl) popoverEl.style.display = 'none'
+}
+
+function ouvrirPopover(cellEl, recetteId) {
+  if (!popoverEl) popoverEl = creerPopover()
+  const rect = cellEl.getBoundingClientRect()
+
+  popoverEl.innerHTML = `
+    <button data-action="voir">👁 Voir la recette</button>
+    <button data-action="changer">✏️ Changer</button>
+    <button data-action="supprimer" class="pop-delete">🗑 Supprimer</button>`
+
+  popoverEl.querySelector('[data-action="voir"]').addEventListener('click', () => {
+    fermerPopover()
+    window.location.href = `recettes.html?id=${recetteId}&from=planning`
+  })
+  popoverEl.querySelector('[data-action="changer"]').addEventListener('click', () => {
+    fermerPopover()
+    ouvrirSelectRecette()
+  })
+  popoverEl.querySelector('[data-action="supprimer"]').addEventListener('click', async () => {
+    fermerPopover()
+    await supprimerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment)
+    await renderGrid()
+  })
+
+  popoverEl.style.display = 'flex'
+
+  // Positionner sans déborder de l'écran
+  const pw = 160, ph = 110
+  let top  = rect.bottom + 4
+  let left = rect.left
+  if (top + ph > window.innerHeight) top = rect.top - ph - 4
+  if (left + pw > window.innerWidth)  left = window.innerWidth - pw - 8
+  popoverEl.style.top  = `${top}px`
+  popoverEl.style.left = `${left}px`
+}
+
 function getSemaineDecalee(offset) {
   const d = new Date()
   d.setDate(d.getDate() + offset * 7)
@@ -52,9 +105,16 @@ async function renderGrid() {
 
   grid.innerHTML = html
   grid.querySelectorAll('.planning-cell').forEach(cell => {
-    cell.addEventListener('click', () => {
+    cell.addEventListener('click', (e) => {
+      e.stopPropagation()
       slotEnCours = { jour: cell.dataset.jour, moment: cell.dataset.moment }
-      ouvrirSelectRecette()
+      const slot = planning[cell.dataset.jour]?.[cell.dataset.moment]
+      if (slot?.id) {
+        ouvrirPopover(cell, slot.id)
+      } else {
+        fermerPopover()
+        ouvrirSelectRecette()
+      }
     })
   })
 }

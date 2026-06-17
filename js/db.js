@@ -32,6 +32,12 @@ export async function dbGetProfil(profilNom) {
 }
 
 export async function dbSetPreference(profilNom, ingredientId, niveau) {
+  if (niveau === null) {
+    const { error } = await supabase.from('preferences').delete()
+      .eq('profil_nom', profilNom).eq('ingredient_id', ingredientId)
+    if (error) throw error
+    return
+  }
   const { error } = await supabase
     .from('preferences')
     .upsert(

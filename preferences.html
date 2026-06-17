@@ -34,33 +34,45 @@
     <h1 class="page-title">❤️ Préférences</h1>
     <p class="page-subtitle">Notez vos ingrédients pour que l'IA génère des recettes adaptées.</p>
 
-    <div class="flex gap-sm" style="margin-bottom:1.5rem;">
-      <button class="chip active" data-profil="dylan">Dylan</button>
-      <button class="chip"        data-profil="femme">Ma femme</button>
-    </div>
-
-    <div class="flex gap-sm" style="flex-wrap:wrap;margin-bottom:2rem;" id="catChips"></div>
-
-    <div style="margin-bottom:2rem;">
-      <p class="text-sm text-muted" id="progressLabel"></p>
-      <div class="progress-bar" style="margin-top:0.4rem;">
-        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+      <div class="flex gap-sm">
+        <button class="chip active" data-profil="dylan">Dylan</button>
+        <button class="chip"        data-profil="femme">Ma femme</button>
+      </div>
+      <div class="view-toggle">
+        <button class="active" id="btnVueCartes">🃏 Cartes</button>
+        <button id="btnVueTableau">📋 Tableau</button>
       </div>
     </div>
 
-    <div class="flex-center" style="flex-direction:column;gap:1.5rem;min-height:300px;">
-      <div class="ingredient-card" id="ingredientCard">
-        <div class="emoji" id="cardEmoji">🌿</div>
-        <div class="nom"   id="cardNom">Chargement…</div>
-        <div class="cat"   id="cardCat"></div>
+    <!-- Vue Cartes -->
+    <div id="vueCartes">
+      <div class="flex gap-sm" style="flex-wrap:wrap;margin-bottom:2rem;" id="catChips"></div>
+      <div style="margin-bottom:2rem;">
+        <p class="text-sm text-muted" id="progressLabel"></p>
+        <div class="progress-bar" style="margin-top:0.4rem;">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
       </div>
-      <div class="pref-buttons" id="prefButtons">
-        <button class="pref-btn pref-btn-naime"  data-niveau="j_aime_pas">😞 Non</button>
-        <button class="pref-btn pref-btn-neutre" data-niveau="neutre">😐 Neutre</button>
-        <button class="pref-btn pref-btn-aime"   data-niveau="j_aime">😊 J'aime</button>
-        <button class="pref-btn pref-btn-adore"  data-niveau="j_adore">❤️ J'adore</button>
+      <div class="flex-center" style="flex-direction:column;gap:1.5rem;min-height:300px;">
+        <div class="ingredient-card" id="ingredientCard">
+          <div class="emoji" id="cardEmoji">🌿</div>
+          <div class="nom"   id="cardNom">Chargement…</div>
+          <div class="cat"   id="cardCat"></div>
+        </div>
+        <div class="pref-buttons" id="prefButtons">
+          <button class="pref-btn pref-btn-naime"  data-niveau="j_aime_pas">😞 Non</button>
+          <button class="pref-btn pref-btn-neutre" data-niveau="neutre">😐 Neutre</button>
+          <button class="pref-btn pref-btn-aime"   data-niveau="j_aime">😊 J'aime</button>
+          <button class="pref-btn pref-btn-adore"  data-niveau="j_adore">❤️ J'adore</button>
+        </div>
+        <p class="text-muted text-sm" id="catFinished" style="display:none;">✅ Catégorie complète !</p>
       </div>
-      <p class="text-muted text-sm" id="catFinished" style="display:none;">✅ Catégorie complète !</p>
+    </div>
+
+    <!-- Vue Tableau -->
+    <div id="vueTableau" style="display:none;overflow-x:auto;">
+      <table class="pref-table" id="prefTable"></table>
     </div>
   </main>
 

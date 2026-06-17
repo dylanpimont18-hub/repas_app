@@ -1,0 +1,76 @@
+<h2>Générateur IA — quelle interface ?</h2>
+<p class="subtitle">Comment demander une recette à Claude ?</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem;">
+
+  <!-- Option A : Formulaire paramétré -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1rem;background:#f9f2e8;">
+      <div style="background:white;border-radius:10px;padding:14px;border:1px solid #e8ddd0;">
+        <div style="font-size:11px;font-weight:700;color:#c97d4e;margin-bottom:10px;">✨ Générer une recette</div>
+
+        <!-- Pour qui -->
+        <div style="margin-bottom:8px;">
+          <div style="font-size:9px;color:#888;margin-bottom:4px;">Pour qui ?</div>
+          <div style="display:flex;gap:6px;">
+            <div style="background:#c97d4e;color:white;border-radius:20px;padding:4px 10px;font-size:9px;">Nous deux</div>
+            <div style="background:#f9f2e8;color:#888;border-radius:20px;padding:4px 10px;font-size:9px;border:1px solid #e8ddd0;">Moi seul</div>
+          </div>
+        </div>
+
+        <!-- Végétarien -->
+        <div style="margin-bottom:8px;">
+          <div style="font-size:9px;color:#888;margin-bottom:4px;">Type de plat</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="background:#f9f2e8;color:#888;border-radius:20px;padding:4px 10px;font-size:9px;border:1px solid #e8ddd0;">Tout</div>
+            <div style="background:#7d9e7d;color:white;border-radius:20px;padding:4px 10px;font-size:9px;">Végétarien</div>
+            <div style="background:#f9f2e8;color:#888;border-radius:20px;padding:4px 10px;font-size:9px;border:1px solid #e8ddd0;">Rapide</div>
+          </div>
+        </div>
+
+        <!-- Précision optionnelle -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:9px;color:#888;margin-bottom:4px;">Précision (optionnel)</div>
+          <div style="border:1px solid #e8ddd0;border-radius:6px;padding:6px 8px;font-size:9px;color:#aaa;">Ex: quelque chose avec des courgettes…</div>
+        </div>
+
+        <div style="background:#c97d4e;color:white;border-radius:8px;padding:8px;text-align:center;font-size:10px;font-weight:600;">✨ Générer la recette</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Formulaire paramétré</h3>
+      <p>Chips cliquables pour les options (pour qui, végétarien, rapide…) + champ texte optionnel. Un clic et c'est parti.</p>
+    </div>
+  </div>
+
+  <!-- Option B : Chat libre -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1rem;background:#f9f2e8;">
+      <div style="background:white;border-radius:10px;padding:14px;border:1px solid #e8ddd0;">
+        <div style="font-size:11px;font-weight:700;color:#c97d4e;margin-bottom:10px;">✨ Générer une recette</div>
+
+        <!-- Historique -->
+        <div style="background:#f9f2e8;border-radius:8px;padding:8px;margin-bottom:8px;min-height:80px;">
+          <div style="background:#e8ddd0;border-radius:8px 8px 8px 2px;padding:6px 8px;font-size:9px;color:#3d2b1f;margin-bottom:6px;display:inline-block;max-width:80%;">Génère-moi un plat rapide pour nous deux ce soir, avec des courgettes.</div>
+          <div style="background:#c97d4e;border-radius:8px 8px 2px 8px;padding:6px 8px;font-size:9px;color:white;margin-left:auto;max-width:85%;display:block;">
+            🍽️ <strong>Courgettes farcies au riz</strong><br/>
+            <span style="opacity:0.85;">20 min • Pour 2 • Végétarien...</span>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="flex:1;border:1px solid #e8ddd0;border-radius:6px;padding:6px 8px;font-size:9px;color:#aaa;">Décris ce que tu veux…</div>
+          <div style="background:#c97d4e;color:white;border-radius:6px;padding:6px 8px;font-size:12px;">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Chat libre</h3>
+      <p>Interface conversation style ChatGPT. Tu écris ce que tu veux en langage naturel, Claude répond. Plus flexible, historique visible.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center;">Clique sur ton choix, puis réponds dans le terminal.</p>

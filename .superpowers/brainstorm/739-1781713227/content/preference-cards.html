@@ -1,0 +1,70 @@
+<h2>Système de préférences — comment swiper ?</h2>
+<p class="subtitle">Les cartes d'ingrédients à noter. Quelle interaction te semble la plus naturelle ?</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem;">
+
+  <!-- Option A : Boutons sous la carte -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1.25rem;background:#f9f2e8;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <!-- Carte ingrédient -->
+        <div style="background:white;border-radius:16px;padding:24px 32px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.12);width:160px;">
+          <div style="font-size:48px;margin-bottom:8px;">🍅</div>
+          <div style="font-size:16px;font-weight:600;color:#3d2b1f;">Tomate</div>
+          <div style="font-size:11px;color:#888;margin-top:4px;">Légumes</div>
+        </div>
+        <!-- Boutons de notation -->
+        <div style="display:flex;gap:8px;">
+          <button style="border:none;background:#ffebeb;color:#e05252;border-radius:50px;padding:8px 14px;font-size:13px;cursor:pointer;">😞 Non</button>
+          <button style="border:none;background:#fff3e0;color:#e07832;border-radius:50px;padding:8px 14px;font-size:13px;cursor:pointer;">😐 Neutre</button>
+          <button style="border:none;background:#e8f5e9;color:#4caf50;border-radius:50px;padding:8px 14px;font-size:13px;cursor:pointer;">😊 Bien</button>
+          <button style="border:none;background:#fce4ec;color:#e91e63;border-radius:50px;padding:8px 14px;font-size:13px;cursor:pointer;">❤️ Adore</button>
+        </div>
+        <!-- Progress -->
+        <div style="width:200px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px;"><span>Légumes</span><span>12 / 28</span></div>
+          <div style="background:#e8ddd0;border-radius:4px;height:6px;"><div style="background:#c97d4e;width:43%;height:100%;border-radius:4px;"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Carte + 4 boutons</h3>
+      <p>Une carte centrale, 4 boutons en dessous. Simple, clair, accessible. Pas de geste requis — 100% clics.</p>
+    </div>
+  </div>
+
+  <!-- Option B : Swipe style avec touches clavier -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1.25rem;background:#f9f2e8;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <!-- Stack de cartes -->
+        <div style="position:relative;width:160px;height:160px;">
+          <!-- Carte derrière -->
+          <div style="position:absolute;top:8px;left:8px;right:-8px;background:#e8ddd0;border-radius:16px;height:150px;"></div>
+          <div style="position:absolute;top:4px;left:4px;right:-4px;background:#f0e8dc;border-radius:16px;height:150px;"></div>
+          <!-- Carte principale -->
+          <div style="position:absolute;top:0;left:0;right:0;background:white;border-radius:16px;padding:20px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.12);height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <div style="font-size:44px;margin-bottom:6px;">🥕</div>
+            <div style="font-size:15px;font-weight:600;color:#3d2b1f;">Carotte</div>
+            <div style="font-size:10px;color:#888;margin-top:3px;">Légumes</div>
+          </div>
+        </div>
+        <!-- Légende touches -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:200px;">
+          <div style="background:#ffebeb;border-radius:8px;padding:5px 8px;font-size:10px;text-align:center;"><kbd style="background:#ddd;border-radius:3px;padding:1px 4px;">←</kbd> Je n'aime pas</div>
+          <div style="background:#fce4ec;border-radius:8px;padding:5px 8px;font-size:10px;text-align:center;"><kbd style="background:#ddd;border-radius:3px;padding:1px 4px;">→</kbd> J'adore ❤️</div>
+          <div style="background:#ffebeb;border-radius:8px;padding:5px 8px;font-size:10px;text-align:center;"><kbd style="background:#ddd;border-radius:3px;padding:1px 4px;">↓</kbd> Neutre</div>
+          <div style="background:#e8f5e9;border-radius:8px;padding:5px 8px;font-size:10px;text-align:center;"><kbd style="background:#ddd;border-radius:3px;padding:1px 4px;">↑</kbd> J'aime bien</div>
+        </div>
+        <div style="font-size:10px;color:#888;">Aussi cliquable avec les boutons ci-dessus</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Stack de cartes + touches clavier</h3>
+      <p>Vrai effet "paquet de cartes". Flèches clavier pour aller vite (desktop). Aussi cliquable. Rythme rapide.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center;">Clique sur ta préférence, puis réponds dans le terminal.</p>

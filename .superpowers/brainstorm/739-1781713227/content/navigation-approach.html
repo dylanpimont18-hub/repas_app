@@ -1,0 +1,90 @@
+<h2>Structure de navigation — quelle approche ?</h2>
+<p class="subtitle">L'app a 5 sections principales. Comment veux-tu naviguer entre elles ?</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;margin-top:1.5rem;">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1rem;background:#fdf6ec;">
+      <div style="display:flex;height:180px;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;">
+        <div style="width:60px;background:#c97d4e;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:16px;">
+          <div style="font-size:18px;">🏠</div>
+          <div style="font-size:18px;">❤️</div>
+          <div style="font-size:18px;">✨</div>
+          <div style="font-size:18px;">📅</div>
+          <div style="font-size:18px;">🛒</div>
+        </div>
+        <div style="flex:1;padding:10px;font-size:11px;color:#555;">
+          <div style="background:#f5f0ea;height:20px;border-radius:4px;margin-bottom:8px;"></div>
+          <div style="background:#f5f0ea;height:80px;border-radius:4px;margin-bottom:8px;"></div>
+          <div style="background:#f5f0ea;height:40px;border-radius:4px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sidebar fixe</h3>
+      <p>Barre latérale toujours visible à gauche. Navigation rapide, contexte permanent. Style "application" type Notion.</p>
+      <div class="pros-cons" style="margin-top:0.75rem;font-size:12px;">
+        <div class="pros" style="padding:6px 10px;"><h4 style="font-size:11px;">✓</h4><ul><li>Accès immédiat partout</li><li>Toujours orienté</li></ul></div>
+        <div class="cons" style="padding:6px 10px;"><h4 style="font-size:11px;">✗</h4><ul><li>Prend de la largeur</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1rem;background:#fdf6ec;">
+      <div style="height:180px;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;">
+        <div style="background:#c97d4e;height:40px;display:flex;align-items:center;justify-content:space-around;padding:0 8px;">
+          <span style="color:white;font-size:11px;">🏠 Accueil</span>
+          <span style="color:white;font-size:11px;">❤️ Préf.</span>
+          <span style="color:white;font-size:11px;">✨ IA</span>
+          <span style="color:white;font-size:11px;">📅 Planning</span>
+          <span style="color:white;font-size:11px;">🛒 Courses</span>
+        </div>
+        <div style="padding:10px;">
+          <div style="background:#f5f0ea;height:25px;border-radius:4px;margin-bottom:8px;"></div>
+          <div style="background:#f5f0ea;height:80px;border-radius:4px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Barre top</h3>
+      <p>Navigation horizontale en haut. Classique, contenu plein écran. Style site web traditionnel.</p>
+      <div class="pros-cons" style="margin-top:0.75rem;font-size:12px;">
+        <div class="pros" style="padding:6px 10px;"><h4 style="font-size:11px;">✓</h4><ul><li>Pleine largeur pour le contenu</li><li>Très familier</li></ul></div>
+        <div class="cons" style="padding:6px 10px;"><h4 style="font-size:11px;">✗</h4><ul><li>Moins "app"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="card-image" style="padding:1rem;background:#fdf6ec;">
+      <div style="height:180px;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;">
+        <div style="background:#c97d4e;height:32px;display:flex;align-items:center;padding:0 12px;">
+          <span style="color:white;font-size:12px;font-weight:bold;">🍽️ Repas</span>
+          <span style="color:rgba(255,255,255,0.7);font-size:11px;margin-left:auto;">≡</span>
+        </div>
+        <div style="padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="background:#f5f0ea;border-radius:6px;padding:8px;text-align:center;font-size:10px;">📅<br/>Planning</div>
+          <div style="background:#f5f0ea;border-radius:6px;padding:8px;text-align:center;font-size:10px;">✨<br/>Générer</div>
+          <div style="background:#f5f0ea;border-radius:6px;padding:8px;text-align:center;font-size:10px;">❤️<br/>Préférences</div>
+          <div style="background:#f5f0ea;border-radius:6px;padding:8px;text-align:center;font-size:10px;">🛒<br/>Courses</div>
+        </div>
+        <div style="padding:0 10px;font-size:9px;color:#888;text-align:center;">↑ accès depuis n'importe où</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Dashboard + menu burger</h3>
+      <p>Page d'accueil en hub central avec tuiles. Menu burger pour naviguer. Style "tableau de bord" moderne.</p>
+      <div class="pros-cons" style="margin-top:0.75rem;font-size:12px;">
+        <div class="pros" style="padding:6px 10px;"><h4 style="font-size:11px;">✓</h4><ul><li>Vue d'ensemble immédiate</li><li>Épuré</li></ul></div>
+        <div class="cons" style="padding:6px 10px;"><h4 style="font-size:11px;">✗</h4><ul><li>2 clics pour naviguer</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center;">Clique sur l'option qui te correspond le mieux, puis réponds dans le terminal.</p>

@@ -140,19 +140,41 @@ function initLogout() {
   })
 }
 
+function injectBottomNav() {
+  const current = location.pathname.split('/').pop() || 'index.html'
+  const pages = [
+    { href: 'index.html',       icon: '🏠', label: 'Accueil'   },
+    { href: 'planning.html',    icon: '📅', label: 'Planning'  },
+    { href: 'recettes.html',    icon: '📖', label: 'Recettes'  },
+    { href: 'preferences.html', icon: '❤️', label: 'Prefs'     },
+    { href: 'courses.html',     icon: '🛒', label: 'Courses'   },
+  ]
+  const nav = document.createElement('nav')
+  nav.className = 'bottom-nav'
+  nav.id = 'bottomNav'
+  nav.innerHTML = pages.map(p =>
+    `<a href="${p.href}" class="bottom-nav-item${p.href === current ? ' active' : ''}">
+      <span class="bottom-nav-icon">${p.icon}</span>
+      <span class="bottom-nav-label">${p.label}</span>
+    </a>`
+  ).join('')
+  document.body.appendChild(nav)
+}
+
 async function initPrefsBadge() {
-  const navLink = document.querySelector('.nav-links a[href="preferences.html"]')
-  if (!navLink) return
+  // Cible tous les liens vers preferences.html (top nav + bottom nav)
   try {
     const { getTotalANoter } = await import('./preferences.js')
     const [nd, nf] = await Promise.all([getTotalANoter('dylan'), getTotalANoter('femme')])
     const total = nd + nf
     if (total > 0) {
-      const badge = document.createElement('span')
-      badge.className = 'nav-badge'
-      badge.title = `${total} ingrédient(s) non noté(s)`
-      badge.textContent = total > 99 ? '99+' : total
-      navLink.appendChild(badge)
+      document.querySelectorAll('a[href="preferences.html"]').forEach(link => {
+        const badge = document.createElement('span')
+        badge.className = 'nav-badge'
+        badge.title = `${total} ingrédient(s) non noté(s)`
+        badge.textContent = total > 99 ? '99+' : total
+        link.appendChild(badge)
+      })
     }
   } catch { /* silently ignore */ }
 }
@@ -167,5 +189,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   highlightActiveLink()
   initModalFlash()
   initLogout()
+  injectBottomNav()
   initPrefsBadge()
 })

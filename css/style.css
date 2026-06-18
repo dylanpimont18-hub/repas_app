@@ -85,7 +85,7 @@ ul { list-style: none; }
 .nav-theme:hover { color: #f0e8dc; }
 
 /* ── Badge alerte préférences ── */
-.nav-links a {
+.nav-links a, .bottom-nav-item {
   position: relative;
 }
 .nav-badge {
@@ -118,24 +118,47 @@ ul { list-style: none; }
 .text-sm { font-size: 0.875rem; }
 .text-xs { font-size: 0.75rem; }
 
-/* ── Responsive burger ── */
-@media (max-width: 768px) {
-  .nav-burger { display: block; }
-  .nav-links {
-    display: none; flex-direction: column;
-    position: absolute; top: 56px; left: 0; right: 0;
-    background: #3d2b1f; padding: 0.75rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+/* ── Bottom navigation (mobile only) ── */
+.bottom-nav { display: none; }
+
+@media (max-width: 767px) {
+  /* Remplace le burger par une bottom nav */
+  .nav-burger { display: none; }
+  .nav-links  { display: none !important; }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: #3d2b1f;
+    border-top: 1px solid rgba(255,255,255,0.08);
     z-index: 150;
+    justify-content: space-around;
+    align-items: stretch;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
-  .nav-links.open { display: flex; }
+  .bottom-nav-item {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px; flex: 1;
+    color: rgba(240,232,220,0.55);
+    text-decoration: none;
+    font-size: 0.58rem; font-weight: 500;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav-item.active  { color: var(--color-primary); }
+  .bottom-nav-item:active  { opacity: 0.65; }
+  .bottom-nav-icon  { font-size: 1.35rem; line-height: 1; }
+  .bottom-nav-label { font-size: 0.58rem; letter-spacing: 0.02em; }
 
   /* Cacher le texte "Maintenant" sur mobile, garder l'icône */
   .nav-flash { font-size: 0; padding: 0.4rem 0.6rem; }
   .nav-flash::before { content: '⚡'; font-size: 1.1rem; }
 
   /* Layout général */
-  .main { padding: 1rem; }
+  .main { padding: 1rem 1rem 80px; }
   .page-title { font-size: 1.35rem; }
 
   /* Section header : empile titre + boutons verticalement */

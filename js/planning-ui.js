@@ -6,6 +6,8 @@ import { genererSemaine, genererCreneaux, getMeteo } from './ai.js'
 
 const JOURS_LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu',
                       vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
+const JOURS_LABEL_LONG = { lundi:'Lundi', mardi:'Mardi', mercredi:'Mercredi', jeudi:'Jeudi',
+                           vendredi:'Vendredi', samedi:'Samedi', dimanche:'Dimanche' }
 
 let semaineOffset = 0
 let semaineKey    = getSemaineKey()
@@ -124,8 +126,8 @@ function getSemaineDecalee(offset) {
 }
 
 async function renderGrid() {
-  const planning    = await getPlanning(semaineKey)
-  const labelEl     = document.getElementById('labelSemaine')
+  const planning = await getPlanning(semaineKey)
+  const labelEl  = document.getElementById('labelSemaine')
   if (labelEl) labelEl.textContent = semaineKey
 
   // Pre-fetch toutes les recettes de la semaine en parallèle
@@ -137,6 +139,16 @@ async function renderGrid() {
 
   const grid = document.getElementById('planningGrid')
   if (!grid) return
+
+  if (window.innerWidth < 768) {
+    renderListView(planning, recettesMap, grid)
+  } else {
+    renderGridView(planning, recettesMap, grid)
+  }
+}
+
+function renderGridView(planning, recettesMap, grid) {
+  grid.className = 'planning-grid'
 
   let html = '<div class="planning-header-cell"></div>'
   JOURS.forEach(j => { html += `<div class="planning-header-cell">${JOURS_LABEL[j]}</div>` })
@@ -167,20 +179,46 @@ async function renderGrid() {
       e.stopPropagation()
       const jour   = cell.dataset.jour
       const moment = cell.dataset.moment
-
-      if (modeSelection) {
-        toggleSlot(jour, moment)
-        return
-      }
-
+      if (modeSelection) { toggleSlot(jour, moment); return }
       slotEnCours = { jour, moment }
       const slot = planning[jour]?.[moment]
-      if (slot?.id) {
-        ouvrirPopover(cell, slot.id)
-      } else {
-        fermerPopover()
-        ouvrirSelectRecette()
-      }
+      if (slot?.id) { ouvrirPopover(cell, slot.id) } else { fermerPopover(); ouvrirSelectRecette() }
+    })
+  })
+}
+
+function renderListView(planning, recettesMap, grid) {
+  grid.className = 'planning-list'
+
+  let html = ''
+  for (const jour of JOURS) {
+    html += `<div class="planning-list-day">
+      <div class="planning-list-day-header">${JOURS_LABEL_LONG[jour]}</div>`
+    for (const moment of MOMENTS) {
+      const slot    = planning[jour]?.[moment]
+      const recette = slot?.id ? recettesMap[slot.id] : null
+      html += `<div class="planning-list-slot" data-jour="${jour}" data-moment="${moment}">
+        <span class="list-slot-icon">${moment === 'midi' ? '☀️' : '🌙'}</span>
+        <span class="list-slot-label">${moment === 'midi' ? 'Midi' : 'Soir'}</span>
+        <span class="list-slot-meal">${recette
+          ? `<span class="list-meal-name">${recette.nom}</span>`
+          : `<span class="list-meal-empty">+ Ajouter</span>`
+        }</span>
+        ${recette ? '<span class="list-slot-chevron">›</span>' : ''}
+      </div>`
+    }
+    html += '</div>'
+  }
+
+  grid.innerHTML = html
+  grid.querySelectorAll('.planning-list-slot').forEach(slot => {
+    slot.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const jour   = slot.dataset.jour
+      const moment = slot.dataset.moment
+      slotEnCours  = { jour, moment }
+      const s = planning[jour]?.[moment]
+      if (s?.id) { ouvrirPopover(slot, s.id) } else { fermerPopover(); ouvrirSelectRecette() }
     })
   })
 }

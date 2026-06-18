@@ -72,6 +72,43 @@
 .progress-bar  { background: var(--color-border); border-radius: 999px; height: 6px; overflow: hidden; }
 .progress-fill { background: var(--color-primary); height: 100%; border-radius: 999px; transition: width 0.3s; }
 
+/* ── Planning liste mobile ── */
+.planning-list {
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+.planning-list-day {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); overflow: hidden;
+}
+.planning-list-day-header {
+  background: var(--color-primary); color: white;
+  padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 700;
+}
+.planning-list-slot {
+  display: flex; align-items: center; gap: 0.65rem;
+  padding: 0.8rem 1rem; cursor: pointer;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: background 0.12s; min-height: 52px;
+}
+.planning-list-slot:last-child { border-bottom: none; }
+.planning-list-slot:active { background: var(--color-bg); }
+.list-slot-icon  { font-size: 1.1rem; width: 1.4rem; text-align: center; flex-shrink: 0; }
+.list-slot-label { font-size: 0.72rem; font-weight: 700; color: var(--color-text-muted); width: 2.2rem; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.list-slot-meal  { flex: 1; }
+.list-meal-name  { font-size: 0.9rem; font-weight: 600; color: var(--color-text); }
+.list-meal-empty { font-size: 0.85rem; color: var(--color-primary); opacity: 0.7; }
+.list-slot-chevron { color: var(--color-text-muted); font-size: 1.1rem; opacity: 0.5; }
+
+@media (max-width: 767px) {
+  /* Masquer la génération IA sur mobile (sélection de grille non supportée) */
+  #btnGenererSemaine, #modeSelectionToolbar { display: none !important; }
+  /* Navigation semaine compacte */
+  #btnPrevWeek, #btnNextWeek { font-size: 0; padding: 0.4rem 0.65rem; }
+  #btnPrevWeek::before { content: '←'; font-size: 0.9rem; }
+  #btnNextWeek::after  { content: '→'; font-size: 0.9rem; }
+}
+
 /* ── Planning grid ── */
 .planning-grid {
   display: grid;

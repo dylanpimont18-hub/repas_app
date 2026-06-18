@@ -7,6 +7,7 @@ let profilActif     = 'dylan'
 let categorieActive = Object.keys(CATEGORIES)[0]
 let fileAttente     = []
 let vueActive       = localStorage.getItem('repas_pref_view_mode') || 'cartes'
+let tableClickHandler = null
 
 const NIVEAUX = [
   { id: 'j_aime_pas', label: '✗ Non',    cls: 'active-naime'  },
@@ -100,7 +101,8 @@ async function renderTableau() {
   html += '</tbody>'
   table.innerHTML = html
 
-  table.addEventListener('click', async (e) => {
+  if (tableClickHandler) table.removeEventListener('click', tableClickHandler)
+  tableClickHandler = async (e) => {
     // Suppression d'un ingrédient custom
     const delBtn = e.target.closest('.pref-delete-btn')
     if (delBtn) {
@@ -136,7 +138,8 @@ async function renderTableau() {
       btn.classList.add(activeCls)
       btn.textContent = '●'
     }
-  })
+  }
+  table.addEventListener('click', tableClickHandler)
 }
 
 function basculerVue(vue) {

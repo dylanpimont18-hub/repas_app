@@ -14,6 +14,8 @@ let semaineKey    = getSemaineKey()
 let slotEnCours   = null
 let pourQui       = 'deux'
 let contraintes   = {}
+let sansViande    = 0
+let sansPoisson   = 0
 
 // ── Mode sélection ──
 let modeSelection      = false
@@ -340,6 +342,26 @@ async function initModalGen() {
     })
   })
 
+  // Compteurs sans viande / sans poisson
+  function updateCounter(id, val) {
+    const el = document.getElementById(id)
+    if (el) el.textContent = val
+  }
+  document.getElementById('btnSansViandeM')?.addEventListener('click', () => {
+    sansViande = Math.max(0, sansViande - 1); updateCounter('sansViandeVal', sansViande)
+  })
+  document.getElementById('btnSansViandePl')?.addEventListener('click', () => {
+    const max = slotsPourGeneration ? slotsPourGeneration.length : 14
+    sansViande = Math.min(max, sansViande + 1); updateCounter('sansViandeVal', sansViande)
+  })
+  document.getElementById('btnSansPoissonM')?.addEventListener('click', () => {
+    sansPoisson = Math.max(0, sansPoisson - 1); updateCounter('sansPoissonVal', sansPoisson)
+  })
+  document.getElementById('btnSansPoissonPl')?.addEventListener('click', () => {
+    const max = slotsPourGeneration ? slotsPourGeneration.length : 14
+    sansPoisson = Math.min(max, sansPoisson + 1); updateCounter('sansPoissonVal', sansPoisson)
+  })
+
   document.getElementById('btnLancerGen')?.addEventListener('click', async () => {
     const status    = document.getElementById('genStatus')
     const btnLancer = document.getElementById('btnLancerGen')
@@ -350,7 +372,7 @@ async function initModalGen() {
       const slots = slotsPourGeneration
       if (!slots) return
 
-      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes })
+      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, sansViande, sansPoisson } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
       modal.classList.add('hidden')

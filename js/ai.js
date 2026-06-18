@@ -159,10 +159,13 @@ function parseJSON(text) {
 async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
   const profilsDylan = await buildProfilTexte('dylan')
   const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
+  const n = slots.length
   const opts = [
-    contraintes.vegetarien ? '- Végétarien : tous les plats sans viande ni poisson' : '',
-    contraintes.rapide     ? '- Rapide : tous les plats < 30 min au total'          : '',
-    contraintes.budget     ? '- Budget serré : ingrédients simples et économiques'  : '',
+    contraintes.vegetarien              ? '- Végétarien : tous les plats sans viande ni poisson'                                                              : '',
+    contraintes.rapide                  ? '- Rapide : tous les plats < 30 min au total'                                                                       : '',
+    contraintes.budget                  ? '- Budget serré : ingrédients simples et économiques'                                                               : '',
+    contraintes.sansViande > 0          ? `- Exactement ${contraintes.sansViande} repas sur ${n} SANS aucune viande (poisson et fruits de mer autorisés)`     : '',
+    contraintes.sansPoisson > 0         ? `- Exactement ${contraintes.sansPoisson} repas sur ${n} SANS aucun poisson ni fruit de mer (viande autorisée)`      : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
   const slotsLabel = slots.map(s => `${s.jour} ${s.moment}`).join(', ')

@@ -130,18 +130,21 @@ ul { list-style: none; }
     display: flex;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 60px;
+    min-height: 60px;
+    height: auto;
     background: #3d2b1f;
     border-top: 1px solid rgba(255,255,255,0.08);
     z-index: 150;
     justify-content: space-around;
-    align-items: stretch;
+    align-items: flex-start;
+    padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
   .bottom-nav-item {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 2px; flex: 1;
+    padding: 8px 0;
     color: rgba(240,232,220,0.55);
     text-decoration: none;
     font-size: 0.58rem; font-weight: 500;
@@ -157,8 +160,8 @@ ul { list-style: none; }
   .nav-flash { font-size: 0; padding: 0.4rem 0.6rem; }
   .nav-flash::before { content: '⚡'; font-size: 1.1rem; }
 
-  /* Layout général */
-  .main { padding: 1rem 1rem 80px; }
+  /* Layout général — padding-bottom = hauteur nav (60px) + safe-area + marge */
+  .main { padding: 1rem 1rem calc(60px + env(safe-area-inset-bottom, 0px) + 1.5rem); }
   .page-title { font-size: 1.35rem; }
 
   /* Section header : empile titre + boutons verticalement */

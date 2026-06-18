@@ -38,6 +38,15 @@ export async function importerSemaineIA(semaineKey, semaineIA, addRecetteFn) {
   }
 }
 
+export async function importerCreneaux(semaineKey, repas, addRecetteFn) {
+  for (const { jour, moment, recette } of repas) {
+    if (recette) {
+      const id = await addRecetteFn(recette)
+      await dbUpsertPlanning(semaineKey, jour, moment, id, recette.portions || 2)
+    }
+  }
+}
+
 export async function getJoursAvecRepas(semaineKey) {
   const planning = await dbGetPlanning(semaineKey)
   return JOURS.flatMap(jour =>

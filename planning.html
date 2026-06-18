@@ -40,6 +40,17 @@
         <button class="btn btn-primary btn-sm"   id="btnGenererSemaine">✨ Générer par IA</button>
       </div>
     </div>
+    <div id="modeSelectionToolbar" class="hidden" style="margin-bottom:1rem;">
+      <div class="flex gap-sm" style="flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-secondary btn-sm" id="selTousMidis">☀️ Tous les midis</button>
+        <button class="btn btn-secondary btn-sm" id="selTousSoirs">🌙 Tous les soirs</button>
+        <button class="btn btn-secondary btn-sm" id="selTousRepas">✓ Tous les repas</button>
+        <button class="btn btn-ghost btn-sm"     id="selAucun">✗ Aucun</button>
+        <span class="text-sm text-muted" id="selCount" style="margin-left:auto;"></span>
+        <button class="btn btn-ghost btn-sm"     id="btnAnnulerSelection">Annuler</button>
+        <button class="btn btn-primary btn-sm"   id="btnConfirmerSelection">✨ Générer <span id="selCountBtn">0</span> repas</button>
+      </div>
+    </div>
     <div class="planning-grid-wrapper">
       <div class="planning-grid" id="planningGrid"></div>
     </div>
@@ -72,7 +83,7 @@
             <button class="chip" data-opt="budget">💰 Budget</button>
           </div>
         </div>
-        <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les 14 repas</button>
+        <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les repas sélectionnés</button>
         <p class="text-sm text-muted" style="margin-top:0.75rem;text-align:center;" id="genStatus"></p>
       </div>
     </div>

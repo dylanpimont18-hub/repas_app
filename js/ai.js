@@ -156,9 +156,71 @@ function parseJSON(text) {
   return JSON.parse(match[0])
 }
 
+async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
+  const profilsDylan = await buildProfilTexte('dylan')
+  const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
+  const opts = [
+    contraintes.vegetarien ? '- Végétarien : tous les plats sans viande ni poisson' : '',
+    contraintes.rapide     ? '- Rapide : tous les plats < 30 min au total'          : '',
+    contraintes.budget     ? '- Budget serré : ingrédients simples et économiques'  : '',
+  ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
+
+  const slotsLabel = slots.map(s => `${s.jour} ${s.moment}`).join(', ')
+  const n = slots.length
+
+  return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas pour les créneaux suivants : ${slotsLabel}.
+
+CONTRAINTES ABSOLUES (ne jamais violer) :
+- Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
+- ${pourQui === 'deux' ? 'Respecter les préférences des DEUX profils' : 'Respecter les préférences de Dylan uniquement'}
+
+MÉTÉO — Vierzon, France :
+- Saison : ${meteo.saison} · Température moyenne : ${meteo.avgTemp}°C (${meteo.description})
+- Adapte les plats : légers et frais si > 22°C, chauds et réconfortants si < 10°C
+
+PRÉFÉRENCES :
+${profilsDylan}
+${profilsFemme}
+
+CONTRAINTES OPTIONNELLES :
+${opts}
+
+STRATÉGIE ANTI-GASPI (obligatoire) :
+Étape 1 — Choisis d'abord un PANIER de 6 à 14 ingrédients frais/protéines adaptés au nombre de repas.
+Étape 2 — Construis les ${n} repas UNIQUEMENT à partir de ce panier, de façon que :
+  - Chaque ingrédient frais apparaisse dans AU MOINS 2 repas différents si possible
+  - Zéro ingrédient acheté pour un seul plat (sauf ingrédients de base)
+  - Varie les modes de cuisson et les saveurs pour éviter la répétition
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
+{
+  "panier": ["string", ...],
+  "repas": [
+    { "jour": "lundi", "moment": "midi", "recette": <recette> },
+    ...
+  ]
+}
+
+Chaque <recette> :
+{
+  "nom": "string",
+  "vegetarien": boolean,
+  "temps_prep": number,
+  "temps_cuisson": number,
+  "portions": number,
+  "ingredients": [{ "nom": "string", "quantite": "string" }],
+  "etapes": ["string"],
+  "nutrition": { "calories": number, "proteines": number, "glucides": number, "lipides": number }
+}`
+}
+
 // ── API publique ─────────────────────────────────────────────────────
 export async function genererSemaine({ pourQui, meteo, contraintes }) {
   return parseJSON(await callClaude(await buildPromptSemaine({ pourQui, meteo, contraintes })))
+}
+
+export async function genererCreneaux({ slots, pourQui, meteo, contraintes }) {
+  return parseJSON(await callClaude(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes })))
 }
 
 export async function genererDerniereMinute({ pourQui, ingredientsDispos = [], contraintes = {} }) {

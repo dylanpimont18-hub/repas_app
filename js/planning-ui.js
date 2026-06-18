@@ -1,8 +1,8 @@
 // js/planning-ui.js
 import { getSemaineKey, getPlanning, assignerRepas, supprimerRepas,
-         importerSemaineIA, JOURS, MOMENTS } from './planning.js'
+         importerSemaineIA, importerCreneaux, JOURS, MOMENTS } from './planning.js'
 import { getRecettes, addRecette, getRecetteById } from './recettes.js'
-import { genererSemaine, getMeteo }               from './ai.js'
+import { genererSemaine, genererCreneaux, getMeteo } from './ai.js'
 
 const JOURS_LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu',
                       vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -12,6 +12,54 @@ let semaineKey    = getSemaineKey()
 let slotEnCours   = null
 let pourQui       = 'deux'
 let contraintes   = {}
+
+// ── Mode sélection ──
+let modeSelection      = false
+let slotsSelectionnes  = new Set()   // clé = "jour|moment"
+let slotsPourGeneration = null       // snapshot transmis à la génération
+
+function activerModeSelection() {
+  modeSelection = true
+  slotsSelectionnes = new Set()
+  document.getElementById('modeSelectionToolbar')?.classList.remove('hidden')
+  updateSelectionCount()
+  renderGrid()
+}
+
+function desactiverModeSelection() {
+  modeSelection = false
+  slotsSelectionnes = new Set()
+  document.getElementById('modeSelectionToolbar')?.classList.add('hidden')
+  renderGrid()
+}
+
+function updateSelectionCount() {
+  const n = slotsSelectionnes.size
+  const selCount    = document.getElementById('selCount')
+  const selCountBtn = document.getElementById('selCountBtn')
+  if (selCount)    selCount.textContent    = `${n} créneau${n > 1 ? 'x' : ''} sélectionné${n > 1 ? 's' : ''}`
+  if (selCountBtn) selCountBtn.textContent = String(n)
+}
+
+function toggleSlot(jour, moment) {
+  const key = `${jour}|${moment}`
+  if (slotsSelectionnes.has(key)) {
+    slotsSelectionnes.delete(key)
+  } else {
+    slotsSelectionnes.add(key)
+  }
+  updateSelectionCount()
+  // Met à jour visuellement la cellule sans re-render complet
+  const grid = document.getElementById('planningGrid')
+  const cell = grid?.querySelector(`.planning-cell[data-jour="${jour}"][data-moment="${moment}"]`)
+  if (cell) {
+    if (slotsSelectionnes.has(key)) {
+      cell.classList.add('sel-active')
+    } else {
+      cell.classList.remove('sel-active')
+    }
+  }
+}
 
 // ── Popover contextuel ──
 let popoverEl = null
@@ -98,7 +146,14 @@ async function renderGrid() {
     JOURS.forEach(jour => {
       const slot    = planning[jour]?.[moment]
       const recette = slot?.id ? recettesMap[slot.id] : null
-      html += `<div class="planning-cell" data-jour="${jour}" data-moment="${moment}">`
+      const key     = `${jour}|${moment}`
+      const selClass = modeSelection
+        ? ` selection-mode${slotsSelectionnes.has(key) ? ' sel-active' : ''}`
+        : ''
+      html += `<div class="planning-cell${selClass}" data-jour="${jour}" data-moment="${moment}">`
+      if (modeSelection) {
+        html += `<div class="planning-cell-checkbox">${slotsSelectionnes.has(key) ? '✓' : ''}</div>`
+      }
       html += recette
         ? `<span class="meal-tag" title="${recette.nom}">${recette.nom}</span>`
         : `<span class="meal-empty">+</span>`
@@ -110,8 +165,16 @@ async function renderGrid() {
   grid.querySelectorAll('.planning-cell').forEach(cell => {
     cell.addEventListener('click', (e) => {
       e.stopPropagation()
-      slotEnCours = { jour: cell.dataset.jour, moment: cell.dataset.moment }
-      const slot = planning[cell.dataset.jour]?.[cell.dataset.moment]
+      const jour   = cell.dataset.jour
+      const moment = cell.dataset.moment
+
+      if (modeSelection) {
+        toggleSlot(jour, moment)
+        return
+      }
+
+      slotEnCours = { jour, moment }
+      const slot = planning[jour]?.[moment]
       if (slot?.id) {
         ouvrirPopover(cell, slot.id)
       } else {
@@ -158,7 +221,53 @@ async function initModalGen() {
   const meteoDiv = document.getElementById('meteoDisplay')
   if (!modal) return
 
-  document.getElementById('btnGenererSemaine')?.addEventListener('click', async () => {
+  // Bouton "Générer par IA" → active le mode sélection
+  document.getElementById('btnGenererSemaine')?.addEventListener('click', () => {
+    activerModeSelection()
+  })
+
+  // Boutons de sélection rapide
+  document.getElementById('selTousMidis')?.addEventListener('click', () => {
+    JOURS.forEach(j => slotsSelectionnes.add(`${j}|midi`))
+    updateSelectionCount()
+    renderGrid()
+  })
+  document.getElementById('selTousSoirs')?.addEventListener('click', () => {
+    JOURS.forEach(j => slotsSelectionnes.add(`${j}|soir`))
+    updateSelectionCount()
+    renderGrid()
+  })
+  document.getElementById('selTousRepas')?.addEventListener('click', () => {
+    JOURS.forEach(j => MOMENTS.forEach(m => slotsSelectionnes.add(`${j}|${m}`)))
+    updateSelectionCount()
+    renderGrid()
+  })
+  document.getElementById('selAucun')?.addEventListener('click', () => {
+    slotsSelectionnes.clear()
+    updateSelectionCount()
+    renderGrid()
+  })
+
+  document.getElementById('btnAnnulerSelection')?.addEventListener('click', () => {
+    desactiverModeSelection()
+  })
+
+  document.getElementById('btnConfirmerSelection')?.addEventListener('click', async () => {
+    if (slotsSelectionnes.size === 0) return
+
+    // Convertit le Set en tableau de {jour, moment}
+    slotsPourGeneration = [...slotsSelectionnes].map(key => {
+      const [jour, moment] = key.split('|')
+      return { jour, moment }
+    })
+
+    desactiverModeSelection()
+
+    // Met à jour le libellé du bouton de lancement
+    const btnLancer = document.getElementById('btnLancerGen')
+    if (btnLancer) btnLancer.textContent = `✨ Générer ${slotsPourGeneration.length} repas`
+
+    // Ouvre la modale de configuration
     modal.classList.remove('hidden')
     if (meteoDiv) {
       meteoDiv.innerHTML = '<span class="loader"></span> Récupération météo…'
@@ -173,7 +282,10 @@ async function initModalGen() {
     }
   })
 
-  document.getElementById('closeGenSemaine')?.addEventListener('click', () => modal.classList.add('hidden'))
+  document.getElementById('closeGenSemaine')?.addEventListener('click', () => {
+    modal.classList.add('hidden')
+    slotsPourGeneration = null
+  })
 
   modal.querySelectorAll('[data-pour]').forEach(chip => {
     chip.addEventListener('click', () => {
@@ -196,12 +308,19 @@ async function initModalGen() {
     if (btnLancer) btnLancer.disabled = true
     if (status) status.textContent = '⏳ Génération en cours (30-60s)…'
     try {
-      const meteo  = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
-      const result = await genererSemaine({ pourQui, meteo, contraintes })
-      await importerSemaineIA(semaineKey, result.semaine, addRecette)
+      const meteo = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
+      const slots = slotsPourGeneration
+      if (!slots) return
+
+      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes })
+      await importerCreneaux(semaineKey, result.repas, addRecette)
+
       modal.classList.add('hidden')
+      slotsPourGeneration = null
       await renderGrid()
       if (status) status.textContent = ''
+      // Réinitialise le libellé du bouton
+      if (btnLancer) btnLancer.textContent = '✨ Générer les repas sélectionnés'
     } catch (e) {
       if (status) status.textContent = `Erreur : ${e.message}`
     } finally {

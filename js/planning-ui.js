@@ -199,28 +199,63 @@ function renderListView(planning, recettesMap, grid) {
     for (const moment of MOMENTS) {
       const slot    = planning[jour]?.[moment]
       const recette = slot?.id ? recettesMap[slot.id] : null
-      html += `<div class="planning-list-slot" data-jour="${jour}" data-moment="${moment}">
-        <span class="list-slot-icon">${moment === 'midi' ? '☀️' : '🌙'}</span>
-        <span class="list-slot-label">${moment === 'midi' ? 'Midi' : 'Soir'}</span>
-        <span class="list-slot-meal">${recette
-          ? `<span class="list-meal-name">${recette.nom}</span>`
-          : `<span class="list-meal-empty">+ Ajouter</span>`
-        }</span>
-        ${recette ? '<span class="list-slot-chevron">›</span>' : ''}
+      const key     = `${jour}|${moment}`
+      const selClass = modeSelection
+        ? ` sel-mode${slotsSelectionnes.has(key) ? ' sel-active' : ''}`
+        : ''
+      html += `<div class="planning-list-slot${selClass}" data-jour="${jour}" data-moment="${moment}">
+        ${modeSelection
+          ? `<span class="list-sel-checkbox">${slotsSelectionnes.has(key) ? '✓' : ''}</span>`
+          : `<span class="list-slot-icon">${moment === 'midi' ? '☀️' : '🌙'}</span>`
+        }
+        <div class="list-slot-content">
+          <span class="list-slot-label">${moment === 'midi' ? 'Midi' : 'Soir'}</span>
+          ${recette
+            ? `<span class="list-meal-name">${recette.nom}</span>`
+            : `<span class="list-meal-empty">+ Ajouter</span>`
+          }
+        </div>
+        ${!modeSelection && recette ? `<div class="list-slot-actions">
+          <button class="list-act-btn" data-action="changer" data-jour="${jour}" data-moment="${moment}" title="Changer">✏️</button>
+          <button class="list-act-btn list-act-del" data-action="supprimer" data-jour="${jour}" data-moment="${moment}" title="Supprimer">🗑</button>
+        </div>` : ''}
       </div>`
     }
     html += '</div>'
   }
 
   grid.innerHTML = html
-  grid.querySelectorAll('.planning-list-slot').forEach(slot => {
-    slot.addEventListener('click', (e) => {
+
+  grid.querySelectorAll('.planning-list-slot').forEach(slotEl => {
+    slotEl.addEventListener('click', async (e) => {
+      if (e.target.closest('.list-act-btn')) return
       e.stopPropagation()
-      const jour   = slot.dataset.jour
-      const moment = slot.dataset.moment
-      slotEnCours  = { jour, moment }
+      const jour   = slotEl.dataset.jour
+      const moment = slotEl.dataset.moment
+      if (modeSelection) { toggleSlot(jour, moment); return }
+      slotEnCours = { jour, moment }
       const s = planning[jour]?.[moment]
-      if (s?.id) { ouvrirPopover(slot, s.id) } else { fermerPopover(); ouvrirSelectRecette() }
+      if (s?.id) {
+        window.location.href = `recettes.html?id=${s.id}&from=planning`
+      } else {
+        ouvrirSelectRecette()
+      }
+    })
+  })
+
+  grid.querySelectorAll('.list-act-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const action = btn.dataset.action
+      const jour   = btn.dataset.jour
+      const moment = btn.dataset.moment
+      slotEnCours  = { jour, moment }
+      if (action === 'changer') {
+        ouvrirSelectRecette()
+      } else if (action === 'supprimer') {
+        await supprimerRepas(semaineKey, jour, moment)
+        await renderGrid()
+      }
     })
   })
 }

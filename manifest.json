@@ -1,0 +1,10 @@
+{
+  "name": "Repas en famille",
+  "short_name": "Repas",
+  "description": "Planification des repas familiaux halal",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#faf8f5",
+  "theme_color": "#3d2b1f",
+  "orientation": "portrait-primary"
+}

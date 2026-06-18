@@ -47,6 +47,7 @@ ul { list-style: none; }
 /* ── Nav — intentionally always dark (brand bar, ignores theme toggle) ── */
 .nav {
   position: sticky; top: 0; z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
   display: flex; align-items: center; gap: 1rem;
   padding: 0 1.5rem; height: 56px;
   background: #3d2b1f;
@@ -167,4 +168,16 @@ ul { list-style: none; }
   /* Section header : empile titre + boutons verticalement */
   .section-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
   .section-header > .flex { flex-wrap: wrap; }
+
+  /* Planning : contrôles toujours visibles (sticky sous la nav) */
+  .planning-main .section-header {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+    z-index: 50;
+    background: var(--color-bg);
+    padding: 0.5rem 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: 0 -1rem;
+    padding-left: 1rem; padding-right: 1rem;
+  }
 }

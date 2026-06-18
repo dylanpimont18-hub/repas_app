@@ -4,6 +4,10 @@ import { getRecettes, deleteRecette, getRecetteById, addRecette } from './recett
 let filtres = {}
 let recetteEnEdition = null
 
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
 async function renderList() {
   const recettes  = await getRecettes(filtres)
   const container = document.getElementById('recettesList')
@@ -29,7 +33,7 @@ async function ouvrirDetail(id) {
   const r = await getRecetteById(id)
   if (!r) return
   document.getElementById('detailContent').innerHTML = `
-    <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${r.nom}</h2>
+    <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${esc(r.nom)}</h2>
     <div class="recipe-meta" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <span>⏱ Prép: ${r.temps_prep} min</span>
       <span>🔥 Cuisson: ${r.temps_cuisson} min</span>
@@ -44,16 +48,16 @@ async function ouvrirDetail(id) {
     </div>` : ''}
     <h3 style="margin-bottom:0.5rem;">Ingrédients</h3>
     <ul style="margin-bottom:1rem;">
-      ${r.ingredients.map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${i.quantite} ${i.nom}</li>`).join('')}
+      ${r.ingredients.map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
     </ul>
     <h3 style="margin-bottom:0.5rem;">Préparation</h3>
     <ol style="padding-left:1.25rem;">
-      ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${e}</li>`).join('')}
+      ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
     </ol>
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
-      <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${r.id}">🗑 Supprimer</button>
-      <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${r.id}">✏️ Modifier</button>
-      <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${r.id}">⧉ Dupliquer</button>
+      <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">🗑 Supprimer</button>
+      <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">✏️ Modifier</button>
+      <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${esc(r.id)}">⧉ Dupliquer</button>
     </div>`
   document.getElementById('modalDetail').classList.remove('hidden')
 
@@ -201,7 +205,7 @@ async function soumettreFormEdit(e) {
       glucides:  parseInt(document.getElementById('editGluc').value) || 0,
       lipides:   parseInt(document.getElementById('editLip').value)  || 0,
     },
-    date: recetteEnEdition.date || new Date().toISOString(),
+    date: recetteEnEdition.id ? (recetteEnEdition.date || new Date().toISOString()) : new Date().toISOString(),
   }
 
   // Pour une modification, on conserve l'id existant
@@ -210,7 +214,12 @@ async function soumettreFormEdit(e) {
     recette.id = recetteEnEdition.id
   }
 
-  await addRecette(recette)
+  try {
+    await addRecette(recette)
+  } catch (err) {
+    alert('Erreur lors de la sauvegarde : ' + err.message)
+    return
+  }
 
   // Fermeture des deux modales + rechargement liste
   document.getElementById('modalEditRecette').classList.add('hidden')

@@ -3,6 +3,9 @@ import { genererListeCourses, getEtatCourses, toggleCourse, resetCourses } from 
 import { getSemaineKey } from './planning.js'
 import { supabase } from './db.js'
 
+let rendering = false
+let acheteesOuverte = false
+
 const ORDRE = ['Fruits & Légumes','Viandes & Poissons','Féculents','Laitiers & Œufs','Épicerie & Condiments','Divers']
 const ICONE = {
   'Fruits & Légumes':      '🥬',
@@ -14,6 +17,8 @@ const ICONE = {
 }
 
 async function render() {
+  if (rendering) return
+  rendering = true
   const semaineKey = getSemaineKey()
   const labelEl    = document.getElementById('labelSemaineCourses')
   if (labelEl) labelEl.textContent = semaineKey
@@ -52,14 +57,14 @@ async function render() {
       }).join('')}
     </div>`).join('')
 
-  // HTML de la section Achetées
+  // HTML de la section Achetées (restaure l'état ouvert/fermé)
   const htmlAchetees = achetees.length ? `
     <div id="coursesAchetees">
       <div id="coursesAcheteesHeader">
         <span>✓ Achetées (<span id="coursesAcheteesCount">${achetees.length}</span>)</span>
-        <span id="coursesAcheteesToggle">▼</span>
+        <span id="coursesAcheteesToggle">${acheteesOuverte ? '▲' : '▼'}</span>
       </div>
-      <div id="coursesAcheteesBody" class="hidden">
+      <div id="coursesAcheteesBody" class="${acheteesOuverte ? '' : 'hidden'}">
         ${achetees.map(item => `
           <div class="courses-achetee-item">
             <input type="checkbox" checked data-nom="${item.nom}" data-checked="true">
@@ -80,7 +85,13 @@ async function render() {
     // Événements checkbox items actifs
     list.querySelectorAll('input[type="checkbox"][data-checked="false"]').forEach(cb => {
       cb.addEventListener('change', async () => {
-        await toggleCourse(semaineKey, cb.dataset.nom, true)
+        try {
+          await toggleCourse(semaineKey, cb.dataset.nom, true)
+        } catch (e) {
+          alert('Erreur : ' + e.message)
+          cb.checked = false
+          return
+        }
         await render()
       })
     })
@@ -88,7 +99,13 @@ async function render() {
     // Événements checkbox items achetés (décocher = remettre en actif)
     list.querySelectorAll('input[type="checkbox"][data-checked="true"]').forEach(cb => {
       cb.addEventListener('change', async () => {
-        await toggleCourse(semaineKey, cb.dataset.nom, false)
+        try {
+          await toggleCourse(semaineKey, cb.dataset.nom, false)
+        } catch (e) {
+          alert('Erreur : ' + e.message)
+          cb.checked = true
+          return
+        }
         await render()
       })
     })
@@ -97,18 +114,15 @@ async function render() {
     const header = document.getElementById('coursesAcheteesHeader')
     if (header) {
       header.addEventListener('click', () => {
+        acheteesOuverte = !acheteesOuverte
         const body   = document.getElementById('coursesAcheteesBody')
         const toggle = document.getElementById('coursesAcheteesToggle')
-        if (body.classList.contains('hidden')) {
-          body.classList.remove('hidden')
-          toggle.textContent = '▲'
-        } else {
-          body.classList.add('hidden')
-          toggle.textContent = '▼'
-        }
+        body.classList.toggle('hidden', !acheteesOuverte)
+        toggle.textContent = acheteesOuverte ? '▲' : '▼'
       })
     }
   }
+  rendering = false
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

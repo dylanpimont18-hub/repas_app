@@ -260,3 +260,91 @@
 [data-theme="dark"] .pref-radio-btn.active-neutre { background: #2d1f0a; color: #ffb74d; border-color: #ffb74d; }
 [data-theme="dark"] .pref-radio-btn.active-aime   { background: #0f2d14; color: #66bb6a; border-color: #66bb6a; }
 [data-theme="dark"] .pref-radio-btn.active-adore  { background: #2d0f1a; color: #f48fb1; border-color: #f48fb1; }
+
+/* ══════════════════════════════════════════════════
+   MOBILE — iPhone (≤ 640px)
+══════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Planning : scroll horizontal, taille min garantie ── */
+  .planning-grid-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+    /* indice visuel de scroll */
+    background: linear-gradient(to right, transparent 85%, rgba(201,125,78,0.15));
+  }
+  .planning-grid {
+    min-width: 560px; /* garantit que les colonnes ont 60px minimum */
+    border-radius: 0;
+  }
+  .planning-cell { min-height: 72px; padding: 0.35rem; }
+  .planning-cell .meal-tag { font-size: 0.75rem; }
+
+  /* Header planning : empile les boutons sur 2 lignes */
+  #planningGrid ~ * { margin-top: 0.75rem; }
+
+  /* ── Tableau préférences : scroll horizontal ── */
+  #vueTableau {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pref-table { min-width: 480px; }
+  .pref-radio-btn { padding: 0.2rem 0.4rem; font-size: 0.7rem; }
+  .pref-table th, .pref-table td { padding: 0.3rem 0.35rem; }
+
+  /* ── Vue toggle + profil chips : empile verticalement ── */
+  #preferences-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  /* ── Modal : plein écran sur mobile ── */
+  .modal {
+    max-width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+
+  /* ── Popover planning : toujours en bas de l'écran sur mobile ── */
+  .planning-popover {
+    position: fixed !important;
+    bottom: 0 !important; left: 0 !important; right: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    min-width: unset;
+    flex-direction: row;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  }
+  .planning-popover button {
+    flex: 1; text-align: center; padding: 1rem 0.5rem;
+    font-size: 0.8rem; border-top: none;
+  }
+  .planning-popover button + button {
+    border-top: none;
+    border-left: 1px solid var(--color-border-light);
+  }
+
+  /* ── Recettes : 1 colonne ── */
+  #recettesList { grid-template-columns: 1fr !important; }
+
+  /* ── Boutons préférences : grille 2×2 ── */
+  .pref-buttons {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  /* ── Bandeau retour : taille de texte adaptée ── */
+  .back-banner { font-size: 0.8rem; padding: 0.5rem 1rem; }
+
+  /* ── Courses : label lisible ── */
+  .courses-item-label { font-size: 0.85rem; }
+}

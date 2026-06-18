@@ -50,7 +50,7 @@ async function buildPromptSemaine({ pourQui, meteo, contraintes }) {
     contraintes.budget     ? '- Budget serré : ingrédients simples et économiques'  : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
-  return `Tu es un chef cuisinier. Génère un planning de repas pour 7 jours (midi + soir = 14 repas).
+  return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère un planning de repas pour 7 jours (midi + soir = 14 repas).
 
 CONTRAINTES ABSOLUES (ne jamais violer) :
 - Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
@@ -64,16 +64,21 @@ PRÉFÉRENCES :
 ${profilsDylan}
 ${profilsFemme}
 
-OPTIMISATION INGRÉDIENTS (crucial) :
-- Utilise les mêmes ingrédients dans plusieurs recettes pour éviter les petites quantités perdues
-- Vise 20 à 25 ingrédients distincts maximum sur les 14 repas
-- Varie les saveurs et cuisines sur 7 jours
-
 CONTRAINTES OPTIONNELLES :
 ${opts}
 
+STRATÉGIE ANTI-GASPI (obligatoire — c'est la priorité de planification) :
+Étape 1 — Choisis d'abord un PANIER DE LA SEMAINE de 18 à 22 ingrédients frais/protéines.
+Étape 2 — Construis les 14 repas UNIQUEMENT à partir de ce panier, de façon que :
+  - Chaque ingrédient frais (légume, viande, poisson) apparaisse dans AU MOINS 2 repas différents
+  - Les ingrédients achetés en grande quantité (ex : une botte de carottes, un sachet de lentilles) soient intégralement utilisés sur la semaine
+  - Zéro ingrédient acheté pour un seul plat
+  - Les féculents, épices et condiments peuvent être partagés librement entre les jours
+Varie les modes de cuisson et les saveurs pour que les mêmes ingrédients ne donnent pas des plats répétitifs.
+
 Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
 {
+  "panier": ["string", ...],
   "semaine": {
     "lundi":    { "midi": <recette>, "soir": <recette> },
     "mardi":    { "midi": <recette>, "soir": <recette> },

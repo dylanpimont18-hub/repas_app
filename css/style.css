@@ -107,6 +107,19 @@ ul { list-style: none; }
     position: absolute; top: 56px; left: 0; right: 0;
     background: #3d2b1f; padding: 0.75rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 150;
   }
   .nav-links.open { display: flex; }
+
+  /* Cacher le texte "Maintenant" sur mobile, garder l'icône */
+  .nav-flash { font-size: 0; padding: 0.4rem 0.6rem; }
+  .nav-flash::before { content: '⚡'; font-size: 1.1rem; }
+
+  /* Layout général */
+  .main { padding: 1rem; }
+  .page-title { font-size: 1.35rem; }
+
+  /* Section header : empile titre + boutons verticalement */
+  .section-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .section-header > .flex { flex-wrap: wrap; }
 }

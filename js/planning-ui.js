@@ -56,7 +56,10 @@ function ouvrirPopover(cellEl, recetteId) {
 
   popoverEl.style.display = 'flex'
 
-  // Positionner sans déborder de l'écran
+  // Sur mobile (≤ 640px) le popover est ancré en bas via CSS — pas de positionnement JS
+  if (window.innerWidth <= 640) return
+
+  // Desktop : positionner près de la cellule sans déborder de l'écran
   const pw = 160, ph = 110
   let top  = rect.bottom + 4
   let left = rect.left

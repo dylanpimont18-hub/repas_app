@@ -372,7 +372,8 @@ async function initModalGen() {
       const slots = slotsPourGeneration
       if (!slots) return
 
-      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, sansViande, sansPoisson } })
+      const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
+      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, sansViande, sansPoisson, consignes } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
       modal.classList.add('hidden')

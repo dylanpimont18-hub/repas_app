@@ -166,6 +166,7 @@ async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
     contraintes.budget                  ? '- Budget serré : ingrédients simples et économiques'                                                               : '',
     contraintes.sansViande > 0          ? `- Exactement ${contraintes.sansViande} repas sur ${n} SANS aucune viande (poisson et fruits de mer autorisés)`     : '',
     contraintes.sansPoisson > 0         ? `- Exactement ${contraintes.sansPoisson} repas sur ${n} SANS aucun poisson ni fruit de mer (viande autorisée)`      : '',
+    contraintes.consignes               ? `- Consignes personnalisées (priorité haute, respecter impérativement) :\n  "${contraintes.consignes}"`             : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
   const slotsLabel = slots.map(s => `${s.jour} ${s.moment}`).join(', ')

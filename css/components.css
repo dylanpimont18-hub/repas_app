@@ -261,6 +261,27 @@
 [data-theme="dark"] .pref-radio-btn.active-aime   { background: #0f2d14; color: #66bb6a; border-color: #66bb6a; }
 [data-theme="dark"] .pref-radio-btn.active-adore  { background: #2d0f1a; color: #f48fb1; border-color: #f48fb1; }
 
+/* ── Formulaire d'édition recette ── */
+.form-group { margin-bottom: 1rem; }
+.form-label { display: block; font-size: 0.82rem; color: var(--color-text-muted); margin-bottom: 0.3rem; font-weight: 600; }
+.form-input {
+  width: 100%; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border); background: var(--color-bg);
+  color: var(--color-text); font-size: 0.88rem; box-sizing: border-box;
+}
+.form-input:focus { outline: none; border-color: var(--color-primary); }
+.edit-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.5rem;
+  align-items: center; margin-bottom: 0.4rem;
+}
+.edit-row input, .edit-row textarea { margin: 0; }
+.edit-row-delete {
+  background: none; border: none; cursor: pointer;
+  color: var(--color-text-muted); font-size: 1rem; padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm); transition: color 0.15s;
+}
+.edit-row-delete:hover { color: #c0392b; }
+
 /* ── Planning selection mode ── */
 .planning-cell.selection-mode { cursor: pointer; }
 .planning-cell.selection-mode:hover { background: var(--color-bg); }

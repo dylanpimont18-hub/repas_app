@@ -30,14 +30,41 @@
     </div>
   </div>
 
+  <!-- Modal ajout ingrédient -->
+  <div class="modal-overlay hidden" id="modalAddIng">
+    <div class="modal">
+      <button class="modal-close" id="modalAddIngClose">✕</button>
+      <p class="modal-title">➕ Ajouter un ingrédient</p>
+      <form id="addIngForm" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input id="addIngNom" type="text" class="form-input" placeholder="Ex: Pousses de soja" required maxlength="60">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Catégorie *</label>
+          <select id="addIngCat" class="form-input"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Emoji (optionnel)</label>
+          <input id="addIngEmoji" type="text" class="form-input" placeholder="Ex: 🌱" maxlength="4" style="max-width:100px;">
+        </div>
+        <div class="flex gap-sm" style="justify-content:flex-end;">
+          <button type="button" class="btn btn-ghost" id="modalAddIngClose2">Annuler</button>
+          <button type="submit" class="btn btn-primary">Ajouter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <main class="main">
     <h1 class="page-title">❤️ Préférences</h1>
     <p class="page-subtitle">Notez vos ingrédients pour que l'IA génère des recettes adaptées.</p>
 
     <div id="preferences-header-row" class="flex" style="justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
-      <div class="flex gap-sm">
+      <div class="flex gap-sm" style="flex-wrap:wrap;align-items:center;">
         <button class="chip active" data-profil="dylan">Dylan</button>
         <button class="chip"        data-profil="femme">Ma femme</button>
+        <button class="btn btn-secondary btn-sm" id="btnAddIng" style="margin-left:0.5rem;">➕ Ingrédient</button>
       </div>
       <div class="view-toggle">
         <button class="active" id="btnVueCartes">🃏 Cartes</button>

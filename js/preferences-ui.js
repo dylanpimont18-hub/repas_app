@@ -1,5 +1,6 @@
 // js/preferences-ui.js
-import { CATEGORIES, getParCategorie } from './data/ingredients.js'
+import { CATEGORIES } from './data/ingredients.js'
+import { getAllParCategorie, addCustomIngredient, getCustomIngredients, removeCustomIngredient } from './custom-ingredients.js'
 import { setPreference, getANoter, getProgression, getProfil } from './preferences.js'
 
 let profilActif     = 'dylan'
@@ -49,13 +50,13 @@ function afficherProchain() {
   card.style.display = ''
   btns.style.display = ''
   finished.style.display = 'none'
-  const ing      = fileAttente[0]
+  const ing       = fileAttente[0]
   const cardEmoji = document.getElementById('cardEmoji')
   const cardNom   = document.getElementById('cardNom')
   const cardCat   = document.getElementById('cardCat')
   if (cardEmoji) cardEmoji.textContent = ing.emoji
   if (cardNom)   cardNom.textContent   = ing.nom
-  if (cardCat)   cardCat.textContent   = CATEGORIES[ing.categorie]?.label || ''
+  if (cardCat)   cardCat.textContent   = (ing.custom ? '✦ Personnalisé · ' : '') + (CATEGORIES[ing.categorie]?.label || '')
 }
 
 async function updateProgress() {
@@ -63,10 +64,10 @@ async function updateProgress() {
   const fill  = document.getElementById('progressFill')
   const label = document.getElementById('progressLabel')
   if (fill)  fill.style.width = `${Math.round(ratio * 100)}%`
-  const total = getParCategorie(categorieActive).length
-  const done  = Math.round(ratio * total)
+  const all  = getAllParCategorie(categorieActive)
+  const done = Math.round(ratio * all.length)
   if (label) label.textContent =
-    `${CATEGORIES[categorieActive].label} — ${done} / ${total} notés`
+    `${CATEGORIES[categorieActive].label} — ${done} / ${all.length} notés`
 }
 
 async function renderTableau() {
@@ -77,20 +78,22 @@ async function renderTableau() {
   let html = `<thead><tr>
     <th style="min-width:160px;">Ingrédient</th>
     ${NIVEAUX.map(n => `<th>${n.label}</th>`).join('')}
+    <th></th>
   </tr></thead><tbody>`
 
   for (const [catId, cat] of Object.entries(CATEGORIES)) {
-    const ings = getParCategorie(catId)
+    const ings = getAllParCategorie(catId)
     if (!ings.length) continue
-    html += `<tr class="cat-header"><td colspan="${1 + NIVEAUX.length}">${cat.emoji} ${cat.label}</td></tr>`
+    html += `<tr class="cat-header"><td colspan="${2 + NIVEAUX.length}">${cat.emoji} ${cat.label}</td></tr>`
     for (const ing of ings) {
       const niveauActuel = profil[ing.id] || null
       html += `<tr data-ing-id="${ing.id}">`
-      html += `<td><span class="ing-name"><span>${ing.emoji}</span><span>${ing.nom}</span></span></td>`
+      html += `<td><span class="ing-name"><span>${ing.emoji}</span><span>${ing.nom}</span>${ing.custom ? ' <span class="custom-badge">✦</span>' : ''}</span></td>`
       for (const n of NIVEAUX) {
         const actif = niveauActuel === n.id
         html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${ing.id}" data-niveau="${n.id}">${actif ? '●' : '○'}</button></td>`
       }
+      html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${ing.id}" title="Supprimer">✕</button>` : ''}</td>`
       html += `</tr>`
     }
   }
@@ -98,6 +101,15 @@ async function renderTableau() {
   table.innerHTML = html
 
   table.addEventListener('click', async (e) => {
+    // Suppression d'un ingrédient custom
+    const delBtn = e.target.closest('.pref-delete-btn')
+    if (delBtn) {
+      if (!confirm(`Supprimer cet ingrédient personnalisé ?`)) return
+      removeCustomIngredient(delBtn.dataset.del)
+      await renderTableau()
+      return
+    }
+
     const btn = e.target.closest('.pref-radio-btn')
     if (!btn) return
     const ingId  = btn.dataset.ing
@@ -105,17 +117,14 @@ async function renderTableau() {
     const row    = table.querySelector(`tr[data-ing-id="${ingId}"]`)
     if (!row) return
 
-    // Déterminer si on désélectionne (clic sur l'actif)
     const niveauDef = NIVEAUX.find(x => x.id === niveau)
     const estActif  = niveauDef && btn.classList.contains(niveauDef.cls)
     if (estActif) {
-      // Suppression de la préférence (on passe null — on re-sauvegarde comme vide)
       await setPreference(profilActif, ingId, null)
     } else {
       await setPreference(profilActif, ingId, niveau)
     }
 
-    // Mettre à jour visuellement la ligne sans re-rendre tout le tableau
     row.querySelectorAll('.pref-radio-btn').forEach(b => {
       const n = NIVEAUX.find(x => x.id === b.dataset.niveau)
       if (!n) return
@@ -138,6 +147,61 @@ function basculerVue(vue) {
   document.getElementById('btnVueCartes').classList.toggle('active',  vue === 'cartes')
   document.getElementById('btnVueTableau').classList.toggle('active', vue === 'tableau')
 }
+
+// ── Modal ajout ingrédient ───────────────────────────────────────────────────
+
+function ouvrirModalAjout() {
+  const overlay = document.getElementById('modalAddIng')
+  if (!overlay) return
+  overlay.classList.remove('hidden')
+  document.getElementById('addIngNom')?.focus()
+}
+
+function fermerModalAjout() {
+  const overlay = document.getElementById('modalAddIng')
+  if (!overlay) return
+  overlay.classList.add('hidden')
+  document.getElementById('addIngForm')?.reset()
+}
+
+async function soumettreAjoutIngredient(e) {
+  e.preventDefault()
+  const nom      = document.getElementById('addIngNom').value.trim()
+  const categorie= document.getElementById('addIngCat').value
+  const emoji    = document.getElementById('addIngEmoji').value.trim() || CATEGORIES[categorie]?.emoji || '🍽️'
+  if (!nom) return
+
+  addCustomIngredient({ nom, categorie, emoji })
+  fermerModalAjout()
+
+  // Rafraîchir la vue active
+  await chargerFile()
+  if (vueActive === 'tableau') await renderTableau()
+
+  // Rafraîchir le badge nav
+  await refreshNavBadge()
+}
+
+async function refreshNavBadge() {
+  const navLink = document.querySelector('.nav-links a[href="preferences.html"]')
+  if (!navLink) return
+  const existing = navLink.querySelector('.nav-badge')
+  if (existing) existing.remove()
+
+  try {
+    const { getTotalANoter } = await import('./preferences.js')
+    const [nd, nf] = await Promise.all([getTotalANoter('dylan'), getTotalANoter('femme')])
+    const total = nd + nf
+    if (total > 0) {
+      const badge = document.createElement('span')
+      badge.className = 'nav-badge'
+      badge.textContent = total
+      navLink.appendChild(badge)
+    }
+  } catch { /* silently ignore */ }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   renderCatChips()
@@ -166,6 +230,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     basculerVue('tableau')
     await renderTableau()
   })
+
+  // Ajout ingrédient
+  document.getElementById('btnAddIng')?.addEventListener('click', ouvrirModalAjout)
+  document.getElementById('modalAddIngClose')?.addEventListener('click', fermerModalAjout)
+  document.getElementById('modalAddIngClose2')?.addEventListener('click', fermerModalAjout)
+  document.getElementById('modalAddIng')?.addEventListener('click', e => { if (e.target.id === 'modalAddIng') fermerModalAjout() })
+  document.getElementById('addIngForm')?.addEventListener('submit', soumettreAjoutIngredient)
+
+  // Remplir le select des catégories
+  const catSelect = document.getElementById('addIngCat')
+  if (catSelect) {
+    catSelect.innerHTML = Object.entries(CATEGORIES)
+      .map(([id, cat]) => `<option value="${id}">${cat.emoji} ${cat.label}</option>`)
+      .join('')
+    catSelect.value = categorieActive
+  }
 
   basculerVue(vueActive)
   await chargerFile()

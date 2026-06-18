@@ -1,6 +1,6 @@
 // js/preferences.js
 import { dbGetProfil, dbSetPreference } from './db.js'
-import { getParCategorie }              from './data/ingredients.js'
+import { getAllParCategorie, getAllIngredients } from './custom-ingredients.js'
 
 export async function getProfil(qui) {
   return await dbGetProfil(qui === 'dylan' ? 'dylan' : 'femme')
@@ -17,12 +17,18 @@ export async function getProfilFiltre(qui, niveau) {
 
 export async function getANoter(qui, categorie) {
   const profil = await getProfil(qui)
-  return getParCategorie(categorie).filter(i => !profil[i.id])
+  return getAllParCategorie(categorie).filter(i => !profil[i.id])
 }
 
 export async function getProgression(qui, categorie) {
-  const total = getParCategorie(categorie).length
+  const all   = getAllParCategorie(categorie)
+  const total = all.length
   if (total === 0) return 1
   const profil = await getProfil(qui)
-  return getParCategorie(categorie).filter(i => profil[i.id]).length / total
+  return all.filter(i => profil[i.id]).length / total
+}
+
+export async function getTotalANoter(qui) {
+  const profil = await getProfil(qui)
+  return getAllIngredients().filter(i => !profil[i.id]).length
 }

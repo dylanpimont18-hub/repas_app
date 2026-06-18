@@ -84,6 +84,25 @@ ul { list-style: none; }
 }
 .nav-theme:hover { color: #f0e8dc; }
 
+/* ── Badge alerte préférences ── */
+.nav-links a {
+  position: relative;
+}
+.nav-badge {
+  position: absolute;
+  top: 0px; right: 0px;
+  background: #e74c3c;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 15px; height: 15px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* ── Layout ── */
 .main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
 .page-title { font-family: var(--font-serif); font-size: 1.75rem; margin-bottom: 0.5rem; }

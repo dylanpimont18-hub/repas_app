@@ -140,6 +140,23 @@ function initLogout() {
   })
 }
 
+async function initPrefsBadge() {
+  const navLink = document.querySelector('.nav-links a[href="preferences.html"]')
+  if (!navLink) return
+  try {
+    const { getTotalANoter } = await import('./preferences.js')
+    const [nd, nf] = await Promise.all([getTotalANoter('dylan'), getTotalANoter('femme')])
+    const total = nd + nf
+    if (total > 0) {
+      const badge = document.createElement('span')
+      badge.className = 'nav-badge'
+      badge.title = `${total} ingrédient(s) non noté(s)`
+      badge.textContent = total > 99 ? '99+' : total
+      navLink.appendChild(badge)
+    }
+  } catch { /* silently ignore */ }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Guard : rediriger vers login si non connecté
   const session = await dbGetSession()
@@ -150,4 +167,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   highlightActiveLink()
   initModalFlash()
   initLogout()
+  initPrefsBadge()
 })

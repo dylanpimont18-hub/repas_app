@@ -170,7 +170,6 @@ async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
   const slotsLabel = slots.map(s => `${s.jour} ${s.moment}`).join(', ')
-  const n = slots.length
 
   return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas pour les créneaux suivants : ${slotsLabel}.
 

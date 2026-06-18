@@ -17,6 +17,21 @@ let contraintes   = {}
 let sansViande    = 0
 let sansPoisson   = 0
 
+function getDatesDeSemaine(key) {
+  const [yr, wk] = key.split('-W')
+  const year = parseInt(yr, 10), week = parseInt(wk, 10)
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const lundi = new Date(jan4)
+  lundi.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() || 7) - 1) + (week - 1) * 7)
+  const dates = {}
+  JOURS.forEach((j, i) => {
+    const d = new Date(lundi)
+    d.setUTCDate(lundi.getUTCDate() + i)
+    dates[j] = `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`
+  })
+  return dates
+}
+
 // ── Mode sélection ──
 let modeSelection      = false
 let slotsSelectionnes  = new Set()   // clé = "jour|moment"
@@ -151,9 +166,10 @@ async function renderGrid() {
 
 function renderGridView(planning, recettesMap, grid) {
   grid.className = 'planning-grid'
+  const dates = getDatesDeSemaine(semaineKey)
 
   let html = '<div class="planning-header-cell"></div>'
-  JOURS.forEach(j => { html += `<div class="planning-header-cell">${JOURS_LABEL[j]}</div>` })
+  JOURS.forEach(j => { html += `<div class="planning-header-cell">${JOURS_LABEL[j]}<span class="planning-header-date">${dates[j]}</span></div>` })
 
   MOMENTS.forEach(moment => {
     html += `<div class="planning-label-cell"><span>${moment === 'midi' ? '☀️' : '🌙'}</span><span>${moment}</span></div>`
@@ -191,11 +207,15 @@ function renderGridView(planning, recettesMap, grid) {
 
 function renderListView(planning, recettesMap, grid) {
   grid.className = 'planning-list'
+  const dates = getDatesDeSemaine(semaineKey)
 
   let html = ''
   for (const jour of JOURS) {
     html += `<div class="planning-list-day">
-      <div class="planning-list-day-header">${JOURS_LABEL_LONG[jour]}</div>`
+      <div class="planning-list-day-header">
+        ${JOURS_LABEL_LONG[jour]}
+        <span class="planning-header-date">${dates[jour]}</span>
+      </div>`
     for (const moment of MOMENTS) {
       const slot    = planning[jour]?.[moment]
       const recette = slot?.id ? recettesMap[slot.id] : null
@@ -296,72 +316,68 @@ async function initModalGen() {
   const meteoDiv = document.getElementById('meteoDisplay')
   if (!modal) return
 
-  // Bouton "Générer par IA" → active le mode sélection
-  document.getElementById('btnGenererSemaine')?.addEventListener('click', () => {
-    activerModeSelection()
-  })
+  // ── Toolbar de sélection ──
+  document.getElementById('btnGenererSemaine')?.addEventListener('click', () => activerModeSelection())
 
-  // Boutons de sélection rapide
   document.getElementById('selTousMidis')?.addEventListener('click', () => {
-    JOURS.forEach(j => slotsSelectionnes.add(`${j}|midi`))
-    updateSelectionCount()
-    renderGrid()
+    JOURS.forEach(j => slotsSelectionnes.add(`${j}|midi`)); updateSelectionCount(); renderGrid()
   })
   document.getElementById('selTousSoirs')?.addEventListener('click', () => {
-    JOURS.forEach(j => slotsSelectionnes.add(`${j}|soir`))
-    updateSelectionCount()
-    renderGrid()
+    JOURS.forEach(j => slotsSelectionnes.add(`${j}|soir`)); updateSelectionCount(); renderGrid()
   })
   document.getElementById('selTousRepas')?.addEventListener('click', () => {
-    JOURS.forEach(j => MOMENTS.forEach(m => slotsSelectionnes.add(`${j}|${m}`)))
-    updateSelectionCount()
-    renderGrid()
+    JOURS.forEach(j => MOMENTS.forEach(m => slotsSelectionnes.add(`${j}|${m}`))); updateSelectionCount(); renderGrid()
   })
   document.getElementById('selAucun')?.addEventListener('click', () => {
-    slotsSelectionnes.clear()
-    updateSelectionCount()
-    renderGrid()
+    slotsSelectionnes.clear(); updateSelectionCount(); renderGrid()
   })
+  document.getElementById('btnAnnulerSelection')?.addEventListener('click', () => desactiverModeSelection())
 
-  document.getElementById('btnAnnulerSelection')?.addEventListener('click', () => {
-    desactiverModeSelection()
-  })
-
+  // ── Confirmer la sélection → ouvrir la modale ──
   document.getElementById('btnConfirmerSelection')?.addEventListener('click', async () => {
     if (slotsSelectionnes.size === 0) return
 
-    // Convertit le Set en tableau de {jour, moment}
-    slotsPourGeneration = [...slotsSelectionnes].map(key => {
-      const [jour, moment] = key.split('|')
+    slotsPourGeneration = [...slotsSelectionnes].map(k => {
+      const [jour, moment] = k.split('|')
       return { jour, moment }
     })
-
     desactiverModeSelection()
 
-    // Met à jour le libellé du bouton de lancement
-    const btnLancer = document.getElementById('btnLancerGen')
-    if (btnLancer) btnLancer.textContent = `✨ Générer ${slotsPourGeneration.length} repas`
+    // Reset état de la modale
+    document.getElementById('consignesLibres').value = ''
+    modal.querySelectorAll('[data-cuisine].active,[data-opt].active').forEach(c => c.classList.remove('active'))
+    modal.querySelectorAll('.gen-example-chip.active').forEach(c => c.classList.remove('active'))
+    sansViande = 0; sansPoisson = 0
+    document.getElementById('sansViandeVal').textContent  = '0'
+    document.getElementById('sansPoissonVal').textContent = '0'
+    pourQui = 'deux'
+    modal.querySelectorAll('[data-pour]').forEach(c => c.classList.toggle('active', c.dataset.pour === 'deux'))
 
-    // Ouvre la modale de configuration
+    // Titre de la modale
+    const genCount = document.getElementById('genCreneauxCount')
+    if (genCount) genCount.textContent = slotsPourGeneration.length
+
+    // Ouvre et charge la météo
     modal.classList.remove('hidden')
     if (meteoDiv) {
-      meteoDiv.innerHTML = '<span class="loader"></span> Récupération météo…'
+      meteoDiv.innerHTML = '<span class="text-xs text-muted">⏳ Récupération météo…</span>'
       const meteo = await getMeteo()
-      meteoDiv.innerHTML = `<div class="card" style="padding:0.6rem 0.9rem;display:flex;align-items:center;gap:0.75rem;">
-        <span style="font-size:1.5rem;">🌤️</span>
+      meteoDiv.innerHTML = `<div class="gen-meteo-card">
+        <span class="gen-meteo-icon">🌤️</span>
         <div>
-          <div class="text-sm" style="font-weight:600;">Vierzon — ${meteo.avgTemp}°C</div>
+          <div class="text-sm" style="font-weight:600;">Vierzon · ${meteo.avgTemp}°C</div>
           <div class="text-xs text-muted">${meteo.description} · ${meteo.saison}</div>
-        </div></div>`
+        </div>
+      </div>`
       modal._meteo = meteo
     }
   })
 
   document.getElementById('closeGenSemaine')?.addEventListener('click', () => {
-    modal.classList.add('hidden')
-    slotsPourGeneration = null
+    modal.classList.add('hidden'); slotsPourGeneration = null
   })
 
+  // ── Pour qui ──
   modal.querySelectorAll('[data-pour]').forEach(chip => {
     chip.addEventListener('click', () => {
       pourQui = chip.dataset.pour
@@ -370,6 +386,7 @@ async function initModalGen() {
     })
   })
 
+  // ── Options ──
   modal.querySelectorAll('[data-opt]').forEach(chip => {
     chip.addEventListener('click', () => {
       chip.classList.toggle('active')
@@ -377,37 +394,63 @@ async function initModalGen() {
     })
   })
 
-  // Compteurs sans viande / sans poisson
+  // ── Compteurs ──
   function updateCounter(id, val) {
-    const el = document.getElementById(id)
-    if (el) el.textContent = val
+    const el = document.getElementById(id); if (el) el.textContent = val
   }
   document.getElementById('btnSansViandeM')?.addEventListener('click', () => {
     sansViande = Math.max(0, sansViande - 1); updateCounter('sansViandeVal', sansViande)
   })
   document.getElementById('btnSansViandePl')?.addEventListener('click', () => {
-    const max = slotsPourGeneration ? slotsPourGeneration.length : 14
-    sansViande = Math.min(max, sansViande + 1); updateCounter('sansViandeVal', sansViande)
+    sansViande = Math.min(slotsPourGeneration?.length ?? 14, sansViande + 1); updateCounter('sansViandeVal', sansViande)
   })
   document.getElementById('btnSansPoissonM')?.addEventListener('click', () => {
     sansPoisson = Math.max(0, sansPoisson - 1); updateCounter('sansPoissonVal', sansPoisson)
   })
   document.getElementById('btnSansPoissonPl')?.addEventListener('click', () => {
-    const max = slotsPourGeneration ? slotsPourGeneration.length : 14
-    sansPoisson = Math.min(max, sansPoisson + 1); updateCounter('sansPoissonVal', sansPoisson)
+    sansPoisson = Math.min(slotsPourGeneration?.length ?? 14, sansPoisson + 1); updateCounter('sansPoissonVal', sansPoisson)
   })
 
+  // ── Cuisine (multi-sélection) ──
+  modal.querySelectorAll('[data-cuisine]').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'))
+  })
+
+  // ── Exemples cliquables → ajout dans le textarea ──
+  modal.querySelectorAll('.gen-example-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ta = document.getElementById('consignesLibres')
+      if (!ta) return
+      btn.classList.toggle('active')
+      const exemple = btn.dataset.example
+      const mots = ta.value.split(',').map(s => s.trim()).filter(Boolean)
+      if (btn.classList.contains('active')) {
+        if (!mots.includes(exemple)) mots.push(exemple)
+      } else {
+        const idx = mots.indexOf(exemple)
+        if (idx !== -1) mots.splice(idx, 1)
+      }
+      ta.value = mots.join(', ')
+    })
+  })
+
+  // ── Lancer la génération ──
   document.getElementById('btnLancerGen')?.addEventListener('click', async () => {
     const status    = document.getElementById('genStatus')
     const btnLancer = document.getElementById('btnLancerGen')
-    if (btnLancer) btnLancer.disabled = true
-    if (status) status.textContent = '⏳ Génération en cours (30-60s)…'
+    if (btnLancer) { btnLancer.disabled = true; btnLancer.textContent = '⏳ Génération…' }
+    if (status) status.textContent = 'L\'IA prépare tes repas (30-60s)…'
     try {
       const meteo = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
       const slots = slotsPourGeneration
       if (!slots) return
 
-      const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
+      const cuisinesActives = [...modal.querySelectorAll('[data-cuisine].active')].map(c => c.dataset.cuisine)
+      const textLibre = document.getElementById('consignesLibres')?.value.trim() || ''
+      let consignes = ''
+      if (cuisinesActives.length) consignes += `Styles de cuisine souhaités : ${cuisinesActives.join(', ')}.`
+      if (textLibre) consignes += (consignes ? ' ' : '') + textLibre
+
       const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, sansViande, sansPoisson, consignes } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
@@ -415,12 +458,10 @@ async function initModalGen() {
       slotsPourGeneration = null
       await renderGrid()
       if (status) status.textContent = ''
-      // Réinitialise le libellé du bouton
-      if (btnLancer) btnLancer.textContent = '✨ Générer les repas sélectionnés'
     } catch (e) {
       if (status) status.textContent = `Erreur : ${e.message}`
     } finally {
-      if (btnLancer) btnLancer.disabled = false
+      if (btnLancer) { btnLancer.disabled = false; btnLancer.textContent = '✨ Générer les repas' }
     }
   })
 }

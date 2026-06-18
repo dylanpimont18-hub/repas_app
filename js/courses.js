@@ -1,8 +1,7 @@
 // js/courses.js
-import { load, save } from './storage.js'
-import { KEYS }       from './storage.js'
 import { getPlanning, JOURS, MOMENTS } from './planning.js'
 import { getRecetteById }              from './recettes.js'
+import { dbGetCoursesEtat, dbToggleCourse, dbResetCourses } from './db.js'
 
 const CAT_MAP = {
   'Fruits & Légumes': ['tomate','courgette','aubergine','poivron','oignon','ail','carotte',
@@ -64,13 +63,7 @@ export async function genererListeCourses(semaineKey) {
   return groupes
 }
 
-// État des cases à cocher — reste en localStorage (préférence par appareil)
-export function getEtatCourses() { return load(KEYS.coursesEtat, {}) }
-export function toggleCourse(nom) {
-  const etat = getEtatCourses()
-  const k    = nom.toLowerCase().trim()
-  etat[k]    = !etat[k]
-  save(KEYS.coursesEtat, etat)
-  return etat[k]
-}
-export function resetCourses() { save(KEYS.coursesEtat, {}) }
+// État des cases à cocher — synchronisé via Supabase (temps réel multi-appareils)
+export async function getEtatCourses(semaineKey) { return dbGetCoursesEtat(semaineKey) }
+export async function toggleCourse(semaineKey, nom, checked) { return dbToggleCourse(semaineKey, nom, checked) }
+export async function resetCourses(semaineKey) { return dbResetCourses(semaineKey) }

@@ -41,3 +41,14 @@ ALTER TABLE planning    ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Accès authentifiés" ON preferences FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Accès authentifiés" ON recettes    FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Accès authentifiés" ON planning    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- État des cases à cocher de la liste de courses (synchro temps réel)
+CREATE TABLE courses_etat (
+  semaine_key    TEXT NOT NULL,
+  ingredient_nom TEXT NOT NULL,
+  checked        BOOLEAN DEFAULT false,
+  PRIMARY KEY (semaine_key, ingredient_nom)
+);
+
+ALTER TABLE courses_etat ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Accès authentifiés" ON courses_etat FOR ALL TO authenticated USING (true) WITH CHECK (true);

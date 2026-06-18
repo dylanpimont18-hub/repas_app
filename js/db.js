@@ -114,3 +114,31 @@ export async function dbUpsertPlanning(semaineKey, jour, moment, recetteId, port
   )
   if (error) throw error
 }
+
+// ── Courses état ─────────────────────────────────────────────────────
+export async function dbGetCoursesEtat(semaineKey) {
+  const { data, error } = await supabase
+    .from('courses_etat')
+    .select('ingredient_nom, checked')
+    .eq('semaine_key', semaineKey)
+  if (error) throw error
+  return Object.fromEntries(data.map(r => [r.ingredient_nom.toLowerCase().trim(), r.checked]))
+}
+
+export async function dbToggleCourse(semaineKey, nom, checked) {
+  const { error } = await supabase
+    .from('courses_etat')
+    .upsert(
+      { semaine_key: semaineKey, ingredient_nom: nom.toLowerCase().trim(), checked },
+      { onConflict: 'semaine_key,ingredient_nom' }
+    )
+  if (error) throw error
+}
+
+export async function dbResetCourses(semaineKey) {
+  const { error } = await supabase
+    .from('courses_etat')
+    .delete()
+    .eq('semaine_key', semaineKey)
+  if (error) throw error
+}

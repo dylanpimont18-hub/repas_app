@@ -109,11 +109,7 @@ async function renderGrid() {
   const grid = document.getElementById('planningGrid')
   if (!grid) return
 
-  if (window.innerWidth < 768) {
-    renderListView(planning, recettesMap, grid)
-  } else {
-    renderGridView(planning, recettesMap, grid)
-  }
+  renderListView(planning, recettesMap, grid)
 }
 
 function renderGridView(planning, recettesMap, grid) {

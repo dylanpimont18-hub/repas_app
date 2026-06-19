@@ -89,55 +89,15 @@
             <button class="chip" data-opt="rapide">⚡ Rapide (&lt; 30 min)</button>
             <button class="chip" data-opt="budget">💰 Budget serré</button>
             <button class="chip" data-opt="vegetarien">🌿 Tout végétarien</button>
+            <button class="chip" data-opt="sansViande">🥦 Sans viande</button>
+            <button class="chip" data-opt="sansPoisson">🐟 Sans poisson</button>
           </div>
         </div>
 
         <div class="gen-section">
-          <div class="gen-section-label">🥩 Équilibre viande / poisson</div>
-          <div class="gen-counter-row">
-            <span class="text-sm">🥦 Sans viande <span class="text-xs text-muted">(poisson ok)</span></span>
-            <div class="counter-ctrl">
-              <button class="counter-btn" id="btnSansViandeM">−</button>
-              <span class="counter-val" id="sansViandeVal">0</span>
-              <button class="counter-btn" id="btnSansViandePl">+</button>
-            </div>
-          </div>
-          <div class="gen-counter-row">
-            <span class="text-sm">🐟 Sans poisson <span class="text-xs text-muted">(viande ok)</span></span>
-            <div class="counter-ctrl">
-              <button class="counter-btn" id="btnSansPoissonM">−</button>
-              <span class="counter-val" id="sansPoissonVal">0</span>
-              <button class="counter-btn" id="btnSansPoissonPl">+</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">🌍 Style de cuisine</div>
-          <div class="gen-chips-wrap">
-            <button class="chip" data-cuisine="Marocain">🇲🇦 Marocain</button>
-            <button class="chip" data-cuisine="Français">🇫🇷 Français</button>
-            <button class="chip" data-cuisine="Asiatique">🥢 Asiatique</button>
-            <button class="chip" data-cuisine="Italien">🇮🇹 Italien</button>
-            <button class="chip" data-cuisine="Méditerranéen">🫒 Méditerranéen</button>
-            <button class="chip" data-cuisine="Mexicain">🌮 Mexicain</button>
-            <button class="chip" data-cuisine="Indien">🍛 Indien</button>
-          </div>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">💬 Instructions libres à l'IA</div>
-          <div class="gen-examples">
-            <button class="gen-example-chip" data-example="un ramen végétarien">🍜 Ramen</button>
-            <button class="gen-example-chip" data-example="éviter le poulet">🚫 Sans poulet</button>
-            <button class="gen-example-chip" data-example="des plats légers et frais">🥗 Léger</button>
-            <button class="gen-example-chip" data-example="utiliser des lentilles">🫘 Lentilles</button>
-            <button class="gen-example-chip" data-example="plats réconfortants">🍲 Réconfortant</button>
-            <button class="gen-example-chip" data-example="un couscous">🫕 Couscous</button>
-            <button class="gen-example-chip" data-example="des pâtes">🍝 Pâtes</button>
-          </div>
-          <textarea id="consignesLibres" class="gen-chat-input" rows="3"
-            placeholder="Dis à l'IA ce que tu veux… ex : je veux un couscous cette semaine, éviter les oignons, des plats rapides à moins de 20 min"></textarea>
+          <div class="gen-section-label">💬 Instructions libres</div>
+          <textarea id="consignesLibres" class="gen-chat-input" rows="4"
+            placeholder="Dis à l'IA ce que tu veux… ex : un couscous cette semaine, de la cuisine marocaine, éviter les oignons"></textarea>
         </div>
 
         <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les repas</button>

@@ -14,8 +14,6 @@ let semaineKey    = getSemaineKey()
 let slotEnCours   = null
 let pourQui       = 'deux'
 let contraintes   = {}
-let sansViande    = 0
-let sansPoisson   = 0
 
 function getDatesDeSemaine(key) {
   const [yr, wk] = key.split('-W')
@@ -345,11 +343,8 @@ async function initModalGen() {
 
     // Reset état de la modale
     document.getElementById('consignesLibres').value = ''
-    modal.querySelectorAll('[data-cuisine].active,[data-opt].active').forEach(c => c.classList.remove('active'))
-    modal.querySelectorAll('.gen-example-chip.active').forEach(c => c.classList.remove('active'))
-    sansViande = 0; sansPoisson = 0
-    document.getElementById('sansViandeVal').textContent  = '0'
-    document.getElementById('sansPoissonVal').textContent = '0'
+    modal.querySelectorAll('[data-opt].active').forEach(c => c.classList.remove('active'))
+    contraintes = {}
     pourQui = 'deux'
     modal.querySelectorAll('[data-pour]').forEach(c => c.classList.toggle('active', c.dataset.pour === 'deux'))
 
@@ -394,64 +389,19 @@ async function initModalGen() {
     })
   })
 
-  // ── Compteurs ──
-  function updateCounter(id, val) {
-    const el = document.getElementById(id); if (el) el.textContent = val
-  }
-  document.getElementById('btnSansViandeM')?.addEventListener('click', () => {
-    sansViande = Math.max(0, sansViande - 1); updateCounter('sansViandeVal', sansViande)
-  })
-  document.getElementById('btnSansViandePl')?.addEventListener('click', () => {
-    sansViande = Math.min(slotsPourGeneration?.length ?? 14, sansViande + 1); updateCounter('sansViandeVal', sansViande)
-  })
-  document.getElementById('btnSansPoissonM')?.addEventListener('click', () => {
-    sansPoisson = Math.max(0, sansPoisson - 1); updateCounter('sansPoissonVal', sansPoisson)
-  })
-  document.getElementById('btnSansPoissonPl')?.addEventListener('click', () => {
-    sansPoisson = Math.min(slotsPourGeneration?.length ?? 14, sansPoisson + 1); updateCounter('sansPoissonVal', sansPoisson)
-  })
-
-  // ── Cuisine (multi-sélection) ──
-  modal.querySelectorAll('[data-cuisine]').forEach(chip => {
-    chip.addEventListener('click', () => chip.classList.toggle('active'))
-  })
-
-  // ── Exemples cliquables → ajout dans le textarea ──
-  modal.querySelectorAll('.gen-example-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ta = document.getElementById('consignesLibres')
-      if (!ta) return
-      btn.classList.toggle('active')
-      const exemple = btn.dataset.example
-      const mots = ta.value.split(',').map(s => s.trim()).filter(Boolean)
-      if (btn.classList.contains('active')) {
-        if (!mots.includes(exemple)) mots.push(exemple)
-      } else {
-        const idx = mots.indexOf(exemple)
-        if (idx !== -1) mots.splice(idx, 1)
-      }
-      ta.value = mots.join(', ')
-    })
-  })
-
   // ── Lancer la génération ──
   document.getElementById('btnLancerGen')?.addEventListener('click', async () => {
     const status    = document.getElementById('genStatus')
     const btnLancer = document.getElementById('btnLancerGen')
     if (btnLancer) { btnLancer.disabled = true; btnLancer.textContent = '⏳ Génération…' }
-    if (status) status.textContent = 'L\'IA prépare tes repas (30-60s)…'
+    if (status) status.textContent = "L'IA prépare tes repas (30-60s)…"
     try {
       const meteo = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
       const slots = slotsPourGeneration
       if (!slots) return
 
-      const cuisinesActives = [...modal.querySelectorAll('[data-cuisine].active')].map(c => c.dataset.cuisine)
-      const textLibre = document.getElementById('consignesLibres')?.value.trim() || ''
-      let consignes = ''
-      if (cuisinesActives.length) consignes += `Styles de cuisine souhaités : ${cuisinesActives.join(', ')}.`
-      if (textLibre) consignes += (consignes ? ' ' : '') + textLibre
-
-      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, sansViande, sansPoisson, consignes } })
+      const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
+      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, consignes } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
       modal.classList.add('hidden')

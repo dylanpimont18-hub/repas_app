@@ -168,7 +168,7 @@ function renderListView(planning, recettesMap, grid) {
             : `<span class="list-meal-empty">+ Ajouter</span>`
           }
         </div>
-        ${!modeSelection && recette ? `<div class="list-slot-actions">
+        ${recette ? `<div class="list-slot-actions">
           <button class="list-act-btn" data-action="changer" data-jour="${jour}" data-moment="${moment}" title="Changer">✏️</button>
           <button class="list-act-btn list-act-del" data-action="supprimer" data-jour="${jour}" data-moment="${moment}" title="Supprimer">🗑</button>
         </div>` : ''}

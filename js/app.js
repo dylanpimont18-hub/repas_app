@@ -56,16 +56,24 @@ export async function renderModalFlash() {
 
   let pourQui    = 'deux'
   let vegetarien = false
+  let consignes  = ''
   let recetteGen = null
 
   const draw = (loading = false, recette = null, error = null) => {
+    // Sauvegarder les instructions avant de re-render
+    consignes = content.querySelector('#flashConsignes')?.value ?? consignes
+
     content.innerHTML = `
       <p class="modal-title">⚡ Recette de dernière minute</p>
-      <div class="flex gap-sm" style="margin-bottom:1rem;">
+      <div class="flex gap-sm" style="margin-bottom:0.75rem;flex-wrap:wrap;">
         <button class="chip ${pourQui === 'deux'  ? 'active' : ''}" data-pour="deux">Nous deux</button>
         <button class="chip ${pourQui === 'dylan' ? 'active' : ''}" data-pour="dylan">Moi seul</button>
         <button class="chip chip-accent ${vegetarien ? 'active' : ''}" id="flashVeg">🌿 Végé</button>
       </div>
+      ${!recette && !loading ? `
+        <textarea id="flashConsignes" class="gen-chat-input" rows="2" style="margin-bottom:0.75rem;"
+          placeholder="Instructions libres… ex : ramen, poulet rôti, plat rapide, cuisine marocaine">${consignes}</textarea>
+      ` : ''}
       ${loading ? '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>' : ''}
       ${error   ? `<p class="text-sm" style="color:#c0392b;margin-bottom:0.75rem;">${error}</p>` : ''}
       ${recette ? `
@@ -77,7 +85,7 @@ export async function renderModalFlash() {
           <button class="btn btn-primary btn-sm" id="flashAjouter">Ajouter au planning</button>
           <button class="btn btn-ghost   btn-sm" id="flashAutre">Autre idée ↻</button>
         </div>
-      ` : (!loading ? `<button class="btn btn-primary btn-full" id="flashGenerer">Générer une idée</button>` : '')}
+      ` : (!loading ? `<button class="btn btn-primary btn-full" id="flashGenerer">⚡ Générer une idée</button>` : '')}
     `
 
     content.querySelectorAll('[data-pour]').forEach(b => {
@@ -88,9 +96,10 @@ export async function renderModalFlash() {
     })
 
     const doGenerate = async () => {
+      consignes = content.querySelector('#flashConsignes')?.value?.trim() ?? consignes
       draw(true)
       try {
-        recetteGen = await genererDerniereMinute({ pourQui, ingredientsDispos, contraintes: { vegetarien } })
+        recetteGen = await genererDerniereMinute({ pourQui, ingredientsDispos, contraintes: { vegetarien, consignes } })
         draw(false, recetteGen)
       } catch (e) { draw(false, null, e.message) }
     }

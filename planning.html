@@ -76,6 +76,12 @@
         <div id="meteoDisplay" class="gen-section"></div>
 
         <div class="gen-section">
+          <div class="gen-section-label">💬 Instructions libres</div>
+          <textarea id="consignesLibres" class="gen-chat-input" rows="3"
+            placeholder="Dis à l'IA ce que tu veux… ex : un couscous cette semaine, de la cuisine marocaine, éviter les oignons"></textarea>
+        </div>
+
+        <div class="gen-section">
           <div class="gen-section-label">👥 Pour qui ?</div>
           <div class="flex gap-sm" style="flex-wrap:wrap;">
             <button class="chip active" data-pour="deux">👫 Nous deux</button>
@@ -92,12 +98,6 @@
             <button class="chip" data-opt="sansViande">🥦 Sans viande</button>
             <button class="chip" data-opt="sansPoisson">🐟 Sans poisson</button>
           </div>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">💬 Instructions libres</div>
-          <textarea id="consignesLibres" class="gen-chat-input" rows="4"
-            placeholder="Dis à l'IA ce que tu veux… ex : un couscous cette semaine, de la cuisine marocaine, éviter les oignons"></textarea>
         </div>
 
         <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les repas</button>

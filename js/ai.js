@@ -114,6 +114,7 @@ async function buildPromptDernierMinute({ pourQui, ingredientsDispos, contrainte
 ${pourQui === 'deux' ? 'Pour 2 personnes.' : 'Pour 1 personne.'}
 ${dispos}
 ${contraintes.vegetarien ? 'Végétarien uniquement.' : ''}
+${contraintes.consignes  ? `Instructions personnalisées (priorité absolue, respecter impérativement) : "${contraintes.consignes}"` : ''}
 ${profilsDylan}
 ${profilsFemme}
 

@@ -1,8 +1,8 @@
 // js/planning-ui.js
 import { getSemaineKey, getPlanning, assignerRepas, supprimerRepas,
-         importerSemaineIA, importerCreneaux, JOURS, MOMENTS } from './planning.js'
+         importerCreneaux, JOURS, MOMENTS } from './planning.js'
 import { getRecettes, addRecette, getRecetteById } from './recettes.js'
-import { genererSemaine, genererCreneaux, getMeteo } from './ai.js'
+import { genererCreneaux, getMeteo } from './ai.js'
 
 const JOURS_LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu',
                       vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -30,53 +30,7 @@ function getDatesDeSemaine(key) {
   return dates
 }
 
-// ── Mode sélection ──
-let modeSelection      = false
-let slotsSelectionnes  = new Set()   // clé = "jour|moment"
-let slotsPourGeneration = null       // snapshot transmis à la génération
-
-function activerModeSelection() {
-  modeSelection = true
-  slotsSelectionnes = new Set()
-  document.getElementById('modeSelectionToolbar')?.classList.remove('hidden')
-  updateSelectionCount()
-  renderGrid()
-}
-
-function desactiverModeSelection() {
-  modeSelection = false
-  slotsSelectionnes = new Set()
-  document.getElementById('modeSelectionToolbar')?.classList.add('hidden')
-  renderGrid()
-}
-
-function updateSelectionCount() {
-  const n = slotsSelectionnes.size
-  const selCount    = document.getElementById('selCount')
-  const selCountBtn = document.getElementById('selCountBtn')
-  if (selCount)    selCount.textContent    = `${n} créneau${n > 1 ? 'x' : ''} sélectionné${n > 1 ? 's' : ''}`
-  if (selCountBtn) selCountBtn.textContent = String(n)
-}
-
-function toggleSlot(jour, moment) {
-  const key = `${jour}|${moment}`
-  if (slotsSelectionnes.has(key)) {
-    slotsSelectionnes.delete(key)
-  } else {
-    slotsSelectionnes.add(key)
-  }
-  updateSelectionCount()
-  // Met à jour visuellement la cellule sans re-render complet
-  const grid = document.getElementById('planningGrid')
-  const cell = grid?.querySelector(`.planning-cell[data-jour="${jour}"][data-moment="${moment}"]`)
-  if (cell) {
-    if (slotsSelectionnes.has(key)) {
-      cell.classList.add('sel-active')
-    } else {
-      cell.classList.remove('sel-active')
-    }
-  }
-}
+let slotsPourGeneration = null
 
 // ── Popover contextuel ──
 let popoverEl = null
@@ -174,14 +128,7 @@ function renderGridView(planning, recettesMap, grid) {
     JOURS.forEach(jour => {
       const slot    = planning[jour]?.[moment]
       const recette = slot?.id ? recettesMap[slot.id] : null
-      const key     = `${jour}|${moment}`
-      const selClass = modeSelection
-        ? ` selection-mode${slotsSelectionnes.has(key) ? ' sel-active' : ''}`
-        : ''
-      html += `<div class="planning-cell${selClass}" data-jour="${jour}" data-moment="${moment}">`
-      if (modeSelection) {
-        html += `<div class="planning-cell-checkbox">${slotsSelectionnes.has(key) ? '✓' : ''}</div>`
-      }
+      html += `<div class="planning-cell" data-jour="${jour}" data-moment="${moment}">`
       html += recette
         ? `<span class="meal-tag" title="${recette.nom}">${recette.nom}</span>`
         : `<span class="meal-empty">+</span>`
@@ -195,7 +142,6 @@ function renderGridView(planning, recettesMap, grid) {
       e.stopPropagation()
       const jour   = cell.dataset.jour
       const moment = cell.dataset.moment
-      if (modeSelection) { toggleSlot(jour, moment); return }
       slotEnCours = { jour, moment }
       const slot = planning[jour]?.[moment]
       if (slot?.id) { ouvrirPopover(cell, slot.id) } else { fermerPopover(); ouvrirSelectRecette() }
@@ -217,15 +163,8 @@ function renderListView(planning, recettesMap, grid) {
     for (const moment of MOMENTS) {
       const slot    = planning[jour]?.[moment]
       const recette = slot?.id ? recettesMap[slot.id] : null
-      const key     = `${jour}|${moment}`
-      const selClass = modeSelection
-        ? ` sel-mode${slotsSelectionnes.has(key) ? ' sel-active' : ''}`
-        : ''
-      html += `<div class="planning-list-slot${selClass}" data-jour="${jour}" data-moment="${moment}">
-        ${modeSelection
-          ? `<span class="list-sel-checkbox">${slotsSelectionnes.has(key) ? '✓' : ''}</span>`
-          : `<span class="list-slot-icon">${moment === 'midi' ? '☀️' : '🌙'}</span>`
-        }
+      html += `<div class="planning-list-slot" data-jour="${jour}" data-moment="${moment}">
+        <span class="list-slot-icon">${moment === 'midi' ? '☀️' : '🌙'}</span>
         <div class="list-slot-content">
           <span class="list-slot-label">${moment === 'midi' ? 'Midi' : 'Soir'}</span>
           ${recette
@@ -250,7 +189,6 @@ function renderListView(planning, recettesMap, grid) {
       e.stopPropagation()
       const jour   = slotEl.dataset.jour
       const moment = slotEl.dataset.moment
-      if (modeSelection) { toggleSlot(jour, moment); return }
       slotEnCours = { jour, moment }
       const s = planning[jour]?.[moment]
       if (s?.id) {
@@ -314,41 +252,21 @@ async function initModalGen() {
   const meteoDiv = document.getElementById('meteoDisplay')
   if (!modal) return
 
-  // ── Toolbar de sélection ──
-  document.getElementById('btnGenererSemaine')?.addEventListener('click', () => activerModeSelection())
+  document.getElementById('btnGenererSemaine')?.addEventListener('click', async () => {
+    // Sélectionne tous les créneaux vides de la semaine
+    const planning = await getPlanning(semaineKey)
+    slotsPourGeneration = JOURS.flatMap(jour =>
+      MOMENTS.filter(m => !planning[jour]?.[m]?.id).map(m => ({ jour, moment: m }))
+    )
+    if (slotsPourGeneration.length === 0) slotsPourGeneration =
+      JOURS.flatMap(jour => MOMENTS.map(m => ({ jour, moment: m })))
 
-  document.getElementById('selTousMidis')?.addEventListener('click', () => {
-    JOURS.forEach(j => slotsSelectionnes.add(`${j}|midi`)); updateSelectionCount(); renderGrid()
-  })
-  document.getElementById('selTousSoirs')?.addEventListener('click', () => {
-    JOURS.forEach(j => slotsSelectionnes.add(`${j}|soir`)); updateSelectionCount(); renderGrid()
-  })
-  document.getElementById('selTousRepas')?.addEventListener('click', () => {
-    JOURS.forEach(j => MOMENTS.forEach(m => slotsSelectionnes.add(`${j}|${m}`))); updateSelectionCount(); renderGrid()
-  })
-  document.getElementById('selAucun')?.addEventListener('click', () => {
-    slotsSelectionnes.clear(); updateSelectionCount(); renderGrid()
-  })
-  document.getElementById('btnAnnulerSelection')?.addEventListener('click', () => desactiverModeSelection())
-
-  // ── Confirmer la sélection → ouvrir la modale ──
-  document.getElementById('btnConfirmerSelection')?.addEventListener('click', async () => {
-    if (slotsSelectionnes.size === 0) return
-
-    slotsPourGeneration = [...slotsSelectionnes].map(k => {
-      const [jour, moment] = k.split('|')
-      return { jour, moment }
-    })
-    desactiverModeSelection()
-
-    // Reset état de la modale
+    // Reset et titre
     document.getElementById('consignesLibres').value = ''
     modal.querySelectorAll('[data-opt].active').forEach(c => c.classList.remove('active'))
     contraintes = {}
     pourQui = 'deux'
     modal.querySelectorAll('[data-pour]').forEach(c => c.classList.toggle('active', c.dataset.pour === 'deux'))
-
-    // Titre de la modale
     const genCount = document.getElementById('genCreneauxCount')
     if (genCount) genCount.textContent = slotsPourGeneration.length
 

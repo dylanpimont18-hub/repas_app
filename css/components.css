@@ -47,10 +47,36 @@
   text-align: center;
   box-shadow: var(--shadow-md);
   width: 100%;
+  position: relative;
+  will-change: transform;
+  touch-action: none;
+  user-select: none;
 }
 .ingredient-card .emoji { font-size: 3.5rem; margin-bottom: 0.75rem; }
 .ingredient-card .nom   { font-size: 1.2rem; font-weight: 700; }
 .ingredient-card .cat   { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.25rem; }
+
+/* ── Indicateurs de swipe ── */
+.swipe-indicator {
+  position: absolute; font-size: 0.85rem; font-weight: 800;
+  padding: 0.3rem 0.7rem; border-radius: var(--radius-sm);
+  border: 2px solid; opacity: 0; pointer-events: none;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  transition: opacity 0.08s; white-space: nowrap;
+}
+.swipe-indicator-right { top: 1rem; right: 1rem; color: #c0392b; border-color: #c0392b; background: rgba(252,228,236,0.92); }
+.swipe-indicator-left  { top: 1rem; left:  1rem; color: #e74c3c; border-color: #e74c3c; background: rgba(255,235,235,0.92); }
+.swipe-indicator-up    { top: 1rem; left: 50%; transform: translateX(-50%); color: #27ae60; border-color: #27ae60; background: rgba(232,245,233,0.92); }
+.swipe-indicator-down  { bottom: 1rem; left: 50%; transform: translateX(-50%); color: #d35400; border-color: #d35400; background: rgba(255,243,224,0.92); }
+
+/* ── Hint swipe (affiché une seule fois) ── */
+.swipe-hint {
+  font-size: 0.78rem; color: var(--color-text-muted);
+  text-align: center; margin-top: -0.5rem; margin-bottom: 0.5rem;
+  animation: fadeHint 3s ease 1.5s forwards;
+  opacity: 1;
+}
+@keyframes fadeHint { to { opacity: 0; } }
 
 .pref-buttons {
   display: grid; grid-template-columns: 1fr 1fr;
@@ -154,7 +180,7 @@
 .planning-list-slot:last-child { border-bottom: none; }
 .planning-list-slot:active { background: var(--color-bg); }
 .list-slot-icon    { font-size: 1.15rem; width: 1.5rem; text-align: center; flex-shrink: 0; }
-.list-slot-label   { font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); width: 2.2rem; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.list-slot-label   { font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); width: 2.2rem; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
 .list-slot-content { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; overflow: hidden; }
 .list-meal-name    { font-size: 0.92rem; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list-meal-empty   { font-size: 0.88rem; color: var(--color-primary); opacity: 0.75; }
@@ -243,10 +269,10 @@
 }
 .recipe-card:active { background: var(--color-bg); }
 .recipe-card .recipe-name { font-weight: 700; font-size: 0.95rem; }
-.recipe-card .recipe-meta { font-size: 0.78rem; color: var(--color-text-muted); display: flex; gap: 0.75rem; }
+.recipe-card .recipe-meta { font-size: 0.8rem; color: var(--color-text-muted); display: flex; gap: 0.75rem; }
 .recipe-card .recipe-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .recipe-tag {
-  font-size: 0.7rem; padding: 0.2rem 0.55rem; border-radius: 999px;
+  font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 999px;
   background: var(--color-bg); border: 1px solid var(--color-border);
 }
 
@@ -260,7 +286,15 @@
 .courses-item {
   display: flex; align-items: center; gap: 0.75rem;
   padding: 0.65rem 0; border-bottom: 1px solid var(--color-border-light);
-  min-height: 52px;
+  min-height: 52px; position: relative; overflow: hidden;
+  will-change: transform;
+}
+.courses-item-swipe-bg {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  background: var(--color-accent); color: white;
+  display: flex; align-items: center; padding: 0 1.25rem;
+  font-size: 1.1rem; pointer-events: none; opacity: 0;
+  transition: opacity 0.1s;
 }
 .courses-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--color-primary); }
 .courses-item.checked .courses-item-label { text-decoration: line-through; color: var(--color-text-muted); }
@@ -381,7 +415,21 @@
 }
 .pref-table { min-width: 420px; }
 
-/* ── Planning nav buttons : version courte ── */
-#btnPrevWeek, #btnNextWeek { font-size: 0; padding: 0.4rem 0.75rem; min-height: 38px; }
-#btnPrevWeek::before { content: '←'; font-size: 1rem; }
-#btnNextWeek::after  { content: '→'; font-size: 1rem; }
+/* ── Planning header 2 lignes ── */
+.planning-header-top {
+  display: flex; align-items: center;
+  justify-content: space-between; width: 100%;
+}
+.planning-header-nav {
+  display: flex; align-items: center;
+  gap: 0.75rem; width: 100%; justify-content: center;
+  margin-top: 0.5rem;
+}
+.planning-week-label {
+  flex: 1; text-align: center; font-weight: 600;
+  font-size: 0.875rem; color: var(--color-text);
+}
+#btnPrevWeek, #btnNextWeek {
+  min-width: 44px; min-height: 44px;
+  padding: 0.4rem 0.85rem; font-size: 1rem;
+}

@@ -204,6 +204,108 @@ async function refreshNavBadge() {
   } catch { /* silently ignore */ }
 }
 
+// ── Swipe sur la carte d'ingrédient ──────────────────────────────────────────
+
+function initSwipeGesture() {
+  const card = document.getElementById('ingredientCard')
+  if (!card) return
+
+  const THRESHOLD = 55
+  const DIRECTION_NIVEAU = { right: 'j_adore', left: 'j_aime_pas', up: 'j_aime', down: 'neutre' }
+
+  const indicators = {
+    right: creerIndicateur('swipe-indicator swipe-indicator-right', "❤️ J'adore"),
+    left:  creerIndicateur('swipe-indicator swipe-indicator-left',  '✗ Non'),
+    up:    creerIndicateur('swipe-indicator swipe-indicator-up',    '♥ J\'aime'),
+    down:  creerIndicateur('swipe-indicator swipe-indicator-down',  '○ Neutre'),
+  }
+  Object.values(indicators).forEach(el => card.appendChild(el))
+
+  function creerIndicateur(cls, texte) {
+    const el = document.createElement('div')
+    el.className = cls
+    el.textContent = texte
+    return el
+  }
+
+  function getDirection(dx, dy) {
+    const ax = Math.abs(dx), ay = Math.abs(dy)
+    if (ax < 8 && ay < 8) return null
+    if (ax > ay) return dx > 0 ? 'right' : 'left'
+    return dy < 0 ? 'up' : 'down'
+  }
+
+  function showIndicator(dir, strength) {
+    for (const [d, el] of Object.entries(indicators)) {
+      el.style.opacity = (d === dir && strength > 20) ? Math.min(1, (strength - 20) / 35) : 0
+    }
+  }
+
+  function hideIndicators() {
+    Object.values(indicators).forEach(el => { el.style.opacity = 0 })
+  }
+
+  let startX = 0, startY = 0, active = false
+
+  card.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX
+    startY = e.touches[0].clientY
+    active = true
+    card.style.transition = 'none'
+  }, { passive: true })
+
+  card.addEventListener('touchmove', e => {
+    if (!active) return
+    const dx = e.touches[0].clientX - startX
+    const dy = e.touches[0].clientY - startY
+    const dir = getDirection(dx, dy)
+    const strength = Math.max(Math.abs(dx), Math.abs(dy))
+    card.style.transform = `translate(${dx * 0.25}px, ${dy * 0.25}px) rotate(${(dx / 300) * 15}deg)`
+    showIndicator(dir, strength)
+  }, { passive: true })
+
+  card.addEventListener('touchend', async e => {
+    if (!active) return
+    active = false
+    const dx = e.changedTouches[0].clientX - startX
+    const dy = e.changedTouches[0].clientY - startY
+    const dir = getDirection(dx, dy)
+    const strength = Math.max(Math.abs(dx), Math.abs(dy))
+
+    card.style.transition = 'transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.28s ease'
+    hideIndicators()
+
+    if (dir && strength > THRESHOLD && fileAttente.length > 0) {
+      const out = { right: ['120%','0','20deg'], left: ['-120%','0','-20deg'], up: ['0','-120%','0deg'], down: ['0','120%','0deg'] }[dir]
+      card.style.transform = `translate(${out[0]}, ${out[1]}) rotate(${out[2]})`
+      card.style.opacity = '0'
+
+      await new Promise(r => setTimeout(r, 280))
+
+      const ing = fileAttente.shift()
+      await setPreference(profilActif, ing.id, DIRECTION_NIVEAU[dir])
+      await updateProgress()
+
+      card.style.transition = 'none'
+      card.style.transform = ''
+      card.style.opacity = '1'
+      afficherProchain()
+    } else {
+      card.style.transform = ''
+    }
+  })
+
+  // Hint une seule fois
+  if (!localStorage.getItem('repas_swipe_hint_seen')) {
+    const hint = document.createElement('p')
+    hint.className = 'swipe-hint'
+    hint.textContent = '← Glisser pour noter · ↑ J\'aime · ↓ Neutre →'
+    card.parentElement.insertBefore(hint, card)
+    localStorage.setItem('repas_swipe_hint_seen', '1')
+    hint.addEventListener('animationend', () => hint.remove())
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -253,4 +355,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   basculerVue(vueActive)
   await chargerFile()
   if (vueActive === 'tableau') await renderTableau()
+  initSwipeGesture()
 })

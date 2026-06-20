@@ -5,6 +5,7 @@ export async function getRecettes(filtres = {}) {
   let r = await dbGetRecettes()
   if (filtres.vegetarien) r = r.filter(x => x.vegetarien)
   if (filtres.maxMinutes) r = r.filter(x => (x.temps_prep + x.temps_cuisson) <= filtres.maxMinutes)
+  if (filtres.recherche)  r = r.filter(x => x.nom.toLowerCase().includes(filtres.recherche.toLowerCase()))
   return r
 }
 

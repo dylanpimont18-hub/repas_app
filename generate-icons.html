@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Générateur d'icônes PWA — Repas</title>
+  <style>
+    body { font-family: system-ui; padding: 2rem; background: #f9f2e8; }
+    h1 { color: #3d2b1f; }
+    canvas { display: none; }
+    .btns { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; }
+    button { padding: 0.75rem 1.5rem; background: #c97d4e; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    button:hover { background: #b36a3b; }
+    p { color: #888; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>🍽️ Générateur d'icônes PWA</h1>
+  <p>Ouvre ce fichier dans un navigateur, clique les boutons pour télécharger les icônes, puis place-les dans le dossier <code>icons/</code>.</p>
+  <canvas id="c"></canvas>
+  <div class="btns">
+    <button onclick="generer(180)">⬇ icon-180.png (Apple)</button>
+    <button onclick="generer(192)">⬇ icon-192.png (Android)</button>
+    <button onclick="generer(512)">⬇ icon-512.png (Splash)</button>
+  </div>
+
+  <script>
+    function generer(size) {
+      const canvas = document.getElementById('c')
+      canvas.width = canvas.height = size
+      const ctx = canvas.getContext('2d')
+
+      // Fond terracotta
+      ctx.fillStyle = '#3d2b1f'
+      ctx.beginPath()
+      ctx.roundRect(0, 0, size, size, size * 0.22)
+      ctx.fill()
+
+      // Cercle crème
+      ctx.fillStyle = '#f9f2e8'
+      const r = size * 0.38
+      ctx.beginPath()
+      ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Emoji 🍽️
+      ctx.font = `${size * 0.42}px serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('🍽️', size / 2, size / 2 + size * 0.02)
+
+      canvas.toBlob(blob => {
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = `icon-${size}.png`
+        a.click()
+      }, 'image/png')
+    }
+  </script>
+</body>
+</html>

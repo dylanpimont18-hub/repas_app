@@ -263,6 +263,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderList()
   })
 
+  // Recherche par nom
+  let rechercheTimer = null
+  document.getElementById('rechercheRecette')?.addEventListener('input', e => {
+    clearTimeout(rechercheTimer)
+    rechercheTimer = setTimeout(async () => {
+      filtres.recherche = e.target.value.trim() || null
+      await renderList()
+    }, 200)
+  })
+
   // Fermeture modale édition
   document.getElementById('closeEditRecette')?.addEventListener('click', () =>
     document.getElementById('modalEditRecette').classList.add('hidden'))

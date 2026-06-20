@@ -134,7 +134,7 @@ ul { list-style: none; }
 .bottom-nav-item.active  { color: var(--color-primary); }
 .bottom-nav-item:active  { opacity: 0.65; }
 .bottom-nav-icon         { font-size: 1.35rem; line-height: 1; }
-.bottom-nav-label        { font-size: 0.6rem; letter-spacing: 0.02em; }
+.bottom-nav-label        { font-size: 0.75rem; letter-spacing: 0.02em; }
 
 /* ── Section header ── */
 .section-header {

@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#3d2b1f">
+  <meta name="apple-mobile-web-app-title" content="Repas">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="manifest" href="manifest.json">
   <title>Repas — Planning</title>
   <link rel="stylesheet" href="css/style.css">
@@ -36,13 +38,15 @@
   </div>
 
   <main class="main planning-main">
-    <div class="section-header">
-      <h1 class="page-title">📅 Planning</h1>
-      <div class="flex gap-sm">
-        <button class="btn btn-secondary btn-sm" id="btnPrevWeek">← Semaine préc.</button>
-        <span id="labelSemaine" class="text-sm text-muted" style="align-self:center;"></span>
-        <button class="btn btn-secondary btn-sm" id="btnNextWeek">Semaine suiv. →</button>
-        <button class="btn btn-primary btn-sm"   id="btnGenererSemaine">✨ Générer par IA</button>
+    <div class="section-header planning-section-header">
+      <div class="planning-header-top">
+        <h1 class="page-title" style="margin:0;">📅 Planning</h1>
+        <button class="btn btn-primary btn-sm" id="btnGenererSemaine">✨ Générer par IA</button>
+      </div>
+      <div class="planning-header-nav">
+        <button class="btn btn-secondary btn-sm" id="btnPrevWeek">←</button>
+        <span id="labelSemaine" class="text-sm text-muted planning-week-label"></span>
+        <button class="btn btn-secondary btn-sm" id="btnNextWeek">→</button>
       </div>
     </div>
 <div class="planning-grid-wrapper">

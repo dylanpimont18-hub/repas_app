@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#3d2b1f">
+  <meta name="apple-mobile-web-app-title" content="Repas">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="manifest" href="manifest.json">
   <title>Repas — Recettes</title>
   <link rel="stylesheet" href="css/style.css">
@@ -40,9 +42,14 @@
     <div class="section-header">
       <h1 class="page-title">📖 Recettes</h1>
       <div class="flex gap-sm">
-        <button class="chip" id="filtreVeg">🌿 Végétarien</button>
+        <button class="chip" id="filtreVeg">🌿 Végé</button>
         <button class="chip" id="filtreRapide">⚡ Rapide</button>
       </div>
+    </div>
+    <div style="margin-bottom:1rem;position:relative;">
+      <input type="search" id="rechercheRecette" class="form-input"
+        placeholder="🔍 Rechercher une recette…"
+        style="padding-left:0.9rem;" autocomplete="off">
     </div>
     <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>
     <div class="modal-overlay hidden" id="modalDetail">
@@ -62,7 +69,7 @@
             <input class="form-input" id="editNom" type="text" required>
           </div>
           <!-- row: portions, prep, cuisson, vegetarien -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
             <div class="form-group" style="margin:0">
               <label class="form-label">Portions</label>
               <input class="form-input" id="editPortions" type="number" min="1" max="20">
@@ -75,18 +82,18 @@
               <label class="form-label">Cuisson (min)</label>
               <input class="form-input" id="editCuisson" type="number" min="0">
             </div>
-            <div class="form-group" style="margin:0;display:flex;flex-direction:column;justify-content:flex-end;">
-              <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;cursor:pointer;">
-                <input type="checkbox" id="editVeg"> 🌿 Végé
+            <div class="form-group" style="margin:0;display:flex;flex-direction:column;justify-content:center;">
+              <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.9rem;cursor:pointer;padding-top:1.4rem;">
+                <input type="checkbox" id="editVeg" style="width:18px;height:18px;"> 🌿 Végétarien
               </label>
             </div>
           </div>
           <!-- nutrition -->
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
             <div class="form-group" style="margin:0"><label class="form-label">Kcal</label><input class="form-input" id="editKcal" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Prot (g)</label><input class="form-input" id="editProt" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Gluc (g)</label><input class="form-input" id="editGluc" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Lip (g)</label><input class="form-input" id="editLip" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Protéines (g)</label><input class="form-input" id="editProt" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Glucides (g)</label><input class="form-input" id="editGluc" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Lipides (g)</label><input class="form-input" id="editLip" type="number" min="0"></div>
           </div>
           <!-- ingredients list -->
           <div class="form-group">

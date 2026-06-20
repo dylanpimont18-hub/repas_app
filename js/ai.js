@@ -131,24 +131,55 @@ Réponds UNIQUEMENT avec du JSON valide :
 }`
 }
 
+// ── Clé API (config.js ou localStorage) ─────────────────────────────
+export function getApiKey() {
+  const fromConfig = typeof CONFIG !== 'undefined' ? CONFIG.CLAUDE_API_KEY : null
+  if (fromConfig && fromConfig.startsWith('sk-ant') && !fromConfig.includes('ta-clé')) return fromConfig
+  const stored = localStorage.getItem('repas_claude_key')
+  if (stored && stored.startsWith('sk-ant')) return stored
+  return null
+}
+
+export function saveApiKey(key) {
+  localStorage.setItem('repas_claude_key', key.trim())
+}
+
 // ── Appel Claude API ─────────────────────────────────────────────────
 async function callClaude(prompt) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': CONFIG.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`)
-  return (await res.json()).content[0].text
+  const apiKey = getApiKey()
+  if (!apiKey) throw new Error('CLE_MANQUANTE')
+
+  let res
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+  } catch {
+    throw new Error('Pas de connexion internet ou serveur inaccessible.')
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    if (res.status === 401) throw new Error('Clé API invalide ou expirée. Mets-la à jour dans ⚙️ Paramètres.')
+    if (res.status === 429) throw new Error('Limite de requêtes atteinte — réessaie dans quelques minutes.')
+    if (res.status === 529 || res.status === 500) throw new Error('Serveur Claude temporairement indisponible — réessaie dans quelques instants.')
+    throw new Error(`Erreur Claude ${res.status}.`)
+  }
+
+  const data = await res.json()
+  if (data.stop_reason === 'max_tokens') throw new Error('Réponse IA tronquée (réponse trop longue). Réessaie avec moins de créneaux.')
+  return data.content[0].text
 }
 
 function parseJSON(text) {

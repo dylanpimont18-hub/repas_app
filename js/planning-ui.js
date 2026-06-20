@@ -2,7 +2,7 @@
 import { getSemaineKey, getPlanning, assignerRepas, supprimerRepas,
          importerCreneaux, JOURS, MOMENTS } from './planning.js'
 import { getRecettes, addRecette, getRecetteById } from './recettes.js'
-import { genererCreneaux, getMeteo } from './ai.js'
+import { genererCreneaux, getMeteo, getApiKey, saveApiKey } from './ai.js'
 
 const JOURS_LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu',
                       vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -243,6 +243,16 @@ async function ouvrirSelectRecette() {
   modal.classList.remove('hidden')
 }
 
+function demanderCleApi(statusEl) {
+  const key = prompt('🔑 Clé API Claude manquante.\n\nColle ta clé ici (commence par sk-ant-…) :')
+  if (key && key.trim().startsWith('sk-ant')) {
+    saveApiKey(key.trim())
+    if (statusEl) statusEl.textContent = '✅ Clé enregistrée — relance la génération.'
+  } else if (key !== null) {
+    if (statusEl) statusEl.textContent = '❌ Clé invalide (doit commencer par sk-ant-).'
+  }
+}
+
 async function initModalGen() {
   const modal    = document.getElementById('modalGenSemaine')
   const meteoDiv = document.getElementById('meteoDisplay')
@@ -257,6 +267,22 @@ async function initModalGen() {
     if (slotsPourGeneration.length === 0) slotsPourGeneration =
       JOURS.flatMap(jour => MOMENTS.map(m => ({ jour, moment: m })))
 
+    // ── Chips de créneaux (désélectionnables) ──
+    const chipsWrap = document.getElementById('genSlotChips')
+    if (chipsWrap) {
+      chipsWrap.innerHTML = slotsPourGeneration.map((s, i) =>
+        `<button class="chip active" data-slot-idx="${i}">${JOURS_LABEL[s.jour]} ${s.moment === 'midi' ? '☀️' : '🌙'}</button>`
+      ).join('')
+      chipsWrap.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          chip.classList.toggle('active')
+          const count = chipsWrap.querySelectorAll('.chip.active').length
+          const genCount = document.getElementById('genCreneauxCount')
+          if (genCount) genCount.textContent = count
+        })
+      })
+    }
+
     // Reset et titre
     document.getElementById('consignesLibres').value = ''
     modal.querySelectorAll('[data-opt].active').forEach(c => c.classList.remove('active'))
@@ -265,6 +291,7 @@ async function initModalGen() {
     modal.querySelectorAll('[data-pour]').forEach(c => c.classList.toggle('active', c.dataset.pour === 'deux'))
     const genCount = document.getElementById('genCreneauxCount')
     if (genCount) genCount.textContent = slotsPourGeneration.length
+    document.getElementById('genStatus').textContent = ''
 
     // Ouvre et charge la météo
     modal.classList.remove('hidden')
@@ -307,15 +334,25 @@ async function initModalGen() {
   document.getElementById('btnLancerGen')?.addEventListener('click', async () => {
     const status    = document.getElementById('genStatus')
     const btnLancer = document.getElementById('btnLancerGen')
-    if (btnLancer) { btnLancer.disabled = true; btnLancer.textContent = '⏳ Génération…' }
-    if (status) status.textContent = "L'IA prépare tes repas (30-60s)…"
-    try {
-      const meteo = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
-      const slots = slotsPourGeneration
-      if (!slots) return
 
+    // Slots actifs (chips sélectionnées)
+    const chipsWrap = document.getElementById('genSlotChips')
+    const activeIdxs = chipsWrap
+      ? [...chipsWrap.querySelectorAll('.chip.active')].map(c => parseInt(c.dataset.slotIdx))
+      : slotsPourGeneration.map((_, i) => i)
+    const slots = activeIdxs.map(i => slotsPourGeneration[i]).filter(Boolean)
+
+    if (slots.length === 0) {
+      if (status) status.textContent = 'Sélectionne au moins un créneau.'
+      return
+    }
+
+    if (btnLancer) { btnLancer.disabled = true; btnLancer.textContent = '⏳ Génération…' }
+    if (status) status.textContent = `L'IA prépare ${slots.length} repas (30-60s)…`
+    try {
+      const meteo    = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
       const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
-      const result = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, consignes } })
+      const result   = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, consignes } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
       modal.classList.add('hidden')
@@ -323,7 +360,11 @@ async function initModalGen() {
       await renderGrid()
       if (status) status.textContent = ''
     } catch (e) {
-      if (status) status.textContent = `Erreur : ${e.message}`
+      if (e.message === 'CLE_MANQUANTE') {
+        demanderCleApi(status)
+      } else {
+        if (status) status.textContent = `❌ ${e.message}`
+      }
     } finally {
       if (btnLancer) { btnLancer.disabled = false; btnLancer.textContent = '✨ Générer les repas' }
     }

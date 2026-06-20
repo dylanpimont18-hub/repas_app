@@ -95,7 +95,10 @@
         </div>
 
         <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les repas</button>
-        <p class="text-sm text-muted gen-status-txt" id="genStatus"></p>
+        <div id="genProgressWrap" class="hidden" style="margin-top:0.75rem;">
+          <div class="gen-progress-bar"><div id="genProgressFill" class="gen-progress-fill"></div></div>
+          <p class="text-xs text-muted" id="genStatus" style="margin-top:0.4rem;text-align:center;"></p>
+        </div>
       </div>
     </div>
   </main>

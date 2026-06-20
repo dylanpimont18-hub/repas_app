@@ -348,22 +348,46 @@ async function initModalGen() {
     }
 
     if (btnLancer) { btnLancer.disabled = true; btnLancer.textContent = '⏳ Génération…' }
-    if (status) status.textContent = `L'IA prépare ${slots.length} repas (30-60s)…`
+
+    // ── Barre de progression simulée ──
+    const progressWrap = document.getElementById('genProgressWrap')
+    const progressFill = document.getElementById('genProgressFill')
+    if (progressWrap) progressWrap.classList.remove('hidden')
+    if (status) status.textContent = `L'IA prépare ${slots.length} repas…`
+
+    let pct = 0
+    const timer = setInterval(() => {
+      // Monte rapidement jusqu'à 40%, puis ralentit vers 88%
+      const step = pct < 40 ? 4 : pct < 70 ? 2 : 0.5
+      pct = Math.min(88, pct + step)
+      if (progressFill) progressFill.style.width = pct + '%'
+    }, 600)
+
     try {
       const meteo    = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
       const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
       const result   = await genererCreneaux({ slots, pourQui, meteo, contraintes: { ...contraintes, consignes } })
       await importerCreneaux(semaineKey, result.repas, addRecette)
 
-      modal.classList.add('hidden')
-      slotsPourGeneration = null
-      await renderGrid()
-      if (status) status.textContent = ''
+      clearInterval(timer)
+      if (progressFill) progressFill.style.width = '100%'
+      if (status) status.textContent = `✅ ${slots.length} repas générés !`
+      setTimeout(async () => {
+        modal.classList.add('hidden')
+        slotsPourGeneration = null
+        if (progressWrap) progressWrap.classList.add('hidden')
+        if (progressFill) progressFill.style.width = '0%'
+        await renderGrid()
+      }, 800)
     } catch (e) {
+      clearInterval(timer)
+      if (progressFill) progressFill.style.width = '0%'
+      if (progressWrap) progressWrap.classList.add('hidden')
       if (e.message === 'CLE_MANQUANTE') {
         demanderCleApi(status)
       } else {
         if (status) status.textContent = `❌ ${e.message}`
+        if (progressWrap) progressWrap.classList.remove('hidden')
       }
     } finally {
       if (btnLancer) { btnLancer.disabled = false; btnLancer.textContent = '✨ Générer les repas' }

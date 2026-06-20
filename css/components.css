@@ -122,7 +122,14 @@
   transition: border-color 0.15s;
 }
 .gen-chat-input:focus { outline: none; border-color: var(--color-primary); }
-.gen-status-txt { margin-top: 0.75rem; text-align: center; min-height: 1.25rem; font-size: 0.85rem; }
+.gen-progress-bar {
+  height: 8px; background: var(--color-border);
+  border-radius: 999px; overflow: hidden;
+}
+.gen-progress-fill {
+  height: 100%; width: 0%; background: var(--color-primary);
+  border-radius: 999px; transition: width 0.4s ease;
+}
 
 /* ── Planning liste ── */
 .planning-list { display: flex; flex-direction: column; gap: 0.6rem; }

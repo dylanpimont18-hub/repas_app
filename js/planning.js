@@ -47,6 +47,16 @@ export async function importerCreneaux(semaineKey, repas, addRecetteFn) {
   }
 }
 
+// Import multi-semaines : semaineKeys = { 1: 'YYYY-W01', 2: 'YYYY-W02' }
+export async function importerCreneauxMultiSemaine(repas, addRecetteFn, semaineKeys) {
+  for (const { semaine, jour, moment, recette } of repas) {
+    if (!recette) continue
+    const key = semaineKeys[semaine] || semaineKeys[1]
+    const id = await addRecetteFn(recette)
+    await dbUpsertPlanning(key, jour, moment, id, recette.portions || 2)
+  }
+}
+
 export async function getJoursAvecRepas(semaineKey) {
   const planning = await dbGetPlanning(semaineKey)
   return JOURS.flatMap(jour =>

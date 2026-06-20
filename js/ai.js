@@ -220,18 +220,30 @@ async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
   const profilsDylan = await buildProfilTexte('dylan')
   const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
   const n = slots.length
+  const deuxSemaines = slots.some(s => s.semaine === 2)
+
   const opts = [
-    contraintes.vegetarien              ? `- VÉGÉTARIEN STRICT : AUCUNE viande (poulet, bœuf, agneau, dinde, etc.), AUCUN poisson, AUCUN fruit de mer dans aucun des ${n} repas. Uniquement : légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" de chaque recette doit être true.` : '',
-    contraintes.rapide                  ? '- Rapide : tous les plats < 30 min au total'                                                                       : '',
-    contraintes.budget                  ? '- Budget serré : ingrédients simples et économiques'                                                               : '',
-    contraintes.sansViande              ? '- SANS VIANDE : aucune viande dans aucun repas (poisson et fruits de mer autorisés)'  : '',
-    contraintes.sansPoisson             ? '- SANS POISSON : aucun poisson ni fruit de mer dans aucun repas (viande autorisée)'    : '',
-    contraintes.consignes               ? `- Consignes personnalisées (priorité haute, respecter impérativement) :\n  "${contraintes.consignes}"`             : '',
+    contraintes.vegetarien  ? `- VÉGÉTARIEN STRICT : AUCUNE viande (poulet, bœuf, agneau, dinde, etc.), AUCUN poisson, AUCUN fruit de mer dans aucun des ${n} repas. Uniquement : légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" de chaque recette doit être true.` : '',
+    contraintes.rapide      ? '- Rapide : tous les plats < 30 min au total' : '',
+    contraintes.budget      ? '- Budget serré : ingrédients simples et économiques' : '',
+    contraintes.sansViande  ? '- SANS VIANDE : aucune viande dans aucun repas (poisson et fruits de mer autorisés)' : '',
+    contraintes.sansPoisson ? '- SANS POISSON : aucun poisson ni fruit de mer dans aucun repas (viande autorisée)' : '',
+    contraintes.consignes   ? `- Consignes personnalisées (priorité haute, respecter impérativement) :\n  "${contraintes.consignes}"` : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
-  const slotsLabel = slots.map(s => `${s.jour} ${s.moment}`).join(', ')
+  // Format créneaux : 1 semaine ou 2 semaines
+  let slotsSection
+  if (deuxSemaines) {
+    const s1 = slots.filter(s => s.semaine === 1).map(s => `${s.jour} ${s.moment}`).join(', ')
+    const s2 = slots.filter(s => s.semaine === 2).map(s => `${s.jour} ${s.moment}`).join(', ')
+    slotsSection = `répartis sur 2 semaines consécutives :\nSEMAINE 1 : ${s1}\nSEMAINE 2 : ${s2}`
+  } else {
+    slotsSection = `pour les créneaux : ${slots.map(s => `${s.jour} ${s.moment}`).join(', ')}`
+  }
 
-  return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas pour les créneaux suivants : ${slotsLabel}.
+  const panierTaille = deuxSemaines ? '14 à 22' : '6 à 14'
+
+  return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas ${slotsSection}.
 
 CONTRAINTES ABSOLUES (ne jamais violer — même niveau d'importance) :
 - Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
@@ -250,19 +262,25 @@ ${profilsFemme}
 
 CONTRAINTES UTILISATEUR SÉLECTIONNÉES (toutes absolues) :
 ${opts}
-
+${deuxSemaines ? `
+RÈGLE DE VARIÉTÉ INTER-SEMAINES (obligatoire) :
+- Aucun plat identique ou très similaire entre la semaine 1 et la semaine 2
+- Aucune protéine principale (ex : poulet, saumon, lentilles…) répétée plus de 2 fois sur les ${n} repas au total
+- Varier les cuisines et origines : française, marocaine, asiatique, méditerranéenne, etc.
+- Varier les modes de cuisson : mijoté, sauté, grillé, four, vapeur, cru
+` : ''}
 STRATÉGIE ANTI-GASPI (obligatoire) :
-Étape 1 — Choisis d'abord un PANIER de 6 à 14 ingrédients frais/protéines adaptés au nombre de repas.
-Étape 2 — Construis les ${n} repas UNIQUEMENT à partir de ce panier, de façon que :
-  - Chaque ingrédient frais apparaisse dans AU MOINS 2 repas différents si possible
+Étape 1 — Choisis d'abord un PANIER de ${panierTaille} ingrédients frais/protéines adaptés au nombre de repas.
+Étape 2 — Construis les ${n} repas UNIQUEMENT à partir de ce panier :
+  - Chaque ingrédient frais apparaît dans AU MOINS 2 repas différents
   - Zéro ingrédient acheté pour un seul plat (sauf ingrédients de base)
-  - Varie les modes de cuisson et les saveurs pour éviter la répétition
+  - Modes de cuisson et saveurs variés pour éviter la répétition
 
 Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
 {
   "panier": ["string", ...],
   "repas": [
-    { "jour": "lundi", "moment": "midi", "recette": <recette> },
+    { ${deuxSemaines ? '"semaine": 1, ' : ''}"jour": "lundi", "moment": "midi", "recette": <recette> },
     ...
   ]
 }

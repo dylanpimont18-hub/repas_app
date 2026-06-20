@@ -1,6 +1,6 @@
 // js/planning-ui.js
 import { getSemaineKey, getPlanning, assignerRepas, supprimerRepas,
-         importerCreneaux, JOURS, MOMENTS } from './planning.js'
+         importerCreneaux, importerCreneauxMultiSemaine, JOURS, MOMENTS } from './planning.js'
 import { getRecettes, addRecette, getRecetteById } from './recettes.js'
 import { genererCreneaux, getMeteo, getApiKey, saveApiKey } from './ai.js'
 
@@ -31,6 +31,7 @@ function getDatesDeSemaine(key) {
 }
 
 let slotsPourGeneration = null
+let perimetre = 1  // 1 ou 2 semaines
 
 // ── Popover contextuel ──
 let popoverEl = null
@@ -258,21 +259,54 @@ async function initModalGen() {
   const meteoDiv = document.getElementById('meteoDisplay')
   if (!modal) return
 
-  document.getElementById('btnGenererSemaine')?.addEventListener('click', async () => {
-    // Sélectionne tous les créneaux vides de la semaine
-    const planning = await getPlanning(semaineKey)
-    slotsPourGeneration = JOURS.flatMap(jour =>
-      MOMENTS.filter(m => !planning[jour]?.[m]?.id).map(m => ({ jour, moment: m }))
-    )
-    if (slotsPourGeneration.length === 0) slotsPourGeneration =
-      JOURS.flatMap(jour => MOMENTS.map(m => ({ jour, moment: m })))
+  async function chargerSlots() {
+    const planning1 = await getPlanning(semaineKey)
+    const key2      = getSemaineDecalee(semaineOffset + 1)
+    const planning2 = perimetre === 2 ? await getPlanning(key2) : null
 
-    // ── Chips de créneaux (désélectionnables) ──
+    // Slots semaine 1
+    let s1 = JOURS.flatMap(jour =>
+      MOMENTS.filter(m => !planning1[jour]?.[m]?.id).map(m => ({ jour, moment: m, semaine: 1, semaineKeyValue: semaineKey }))
+    )
+    if (s1.length === 0) s1 = JOURS.flatMap(jour =>
+      MOMENTS.map(m => ({ jour, moment: m, semaine: 1, semaineKeyValue: semaineKey }))
+    )
+
+    let slots = s1
+
+    if (perimetre === 2 && planning2) {
+      let s2 = JOURS.flatMap(jour =>
+        MOMENTS.filter(m => !planning2[jour]?.[m]?.id).map(m => ({ jour, moment: m, semaine: 2, semaineKeyValue: key2 }))
+      )
+      if (s2.length === 0) s2 = JOURS.flatMap(jour =>
+        MOMENTS.map(m => ({ jour, moment: m, semaine: 2, semaineKeyValue: key2 }))
+      )
+      slots = [...s1, ...s2]
+    }
+
+    slotsPourGeneration = slots
+
+    // Chips de créneaux
     const chipsWrap = document.getElementById('genSlotChips')
     if (chipsWrap) {
-      chipsWrap.innerHTML = slotsPourGeneration.map((s, i) =>
-        `<button class="chip active" data-slot-idx="${i}">${JOURS_LABEL[s.jour]} ${s.moment === 'midi' ? '☀️' : '🌙'}</button>`
-      ).join('')
+      let html = ''
+      if (perimetre === 2) {
+        const s1chips = slots.filter(s => s.semaine === 1)
+        const s2chips = slots.filter(s => s.semaine === 2)
+        html += `<div style="width:100%;font-size:0.72rem;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;">Semaine 1</div>`
+        html += s1chips.map((s, i) =>
+          `<button class="chip active" data-slot-idx="${i}">${JOURS_LABEL[s.jour]} ${s.moment === 'midi' ? '☀️' : '🌙'}</button>`
+        ).join('')
+        html += `<div style="width:100%;font-size:0.72rem;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin:0.5rem 0 0.25rem;">Semaine 2 <span style="font-weight:400;opacity:0.7;">(${key2})</span></div>`
+        html += s2chips.map((s, i) =>
+          `<button class="chip active" data-slot-idx="${s1chips.length + i}">${JOURS_LABEL[s.jour]} ${s.moment === 'midi' ? '☀️' : '🌙'}</button>`
+        ).join('')
+      } else {
+        html = slots.map((s, i) =>
+          `<button class="chip active" data-slot-idx="${i}">${JOURS_LABEL[s.jour]} ${s.moment === 'midi' ? '☀️' : '🌙'}</button>`
+        ).join('')
+      }
+      chipsWrap.innerHTML = html
       chipsWrap.querySelectorAll('.chip').forEach(chip => {
         chip.addEventListener('click', () => {
           chip.classList.toggle('active')
@@ -283,15 +317,22 @@ async function initModalGen() {
       })
     }
 
-    // Reset et titre
+    const genCount = document.getElementById('genCreneauxCount')
+    if (genCount) genCount.textContent = slots.length
+  }
+
+  document.getElementById('btnGenererSemaine')?.addEventListener('click', async () => {
+    // Reset
     document.getElementById('consignesLibres').value = ''
     modal.querySelectorAll('[data-opt].active').forEach(c => c.classList.remove('active'))
     contraintes = {}
     pourQui = 'deux'
+    perimetre = 1
     modal.querySelectorAll('[data-pour]').forEach(c => c.classList.toggle('active', c.dataset.pour === 'deux'))
-    const genCount = document.getElementById('genCreneauxCount')
-    if (genCount) genCount.textContent = slotsPourGeneration.length
+    modal.querySelectorAll('[data-perimetre]').forEach(c => c.classList.toggle('active', c.dataset.perimetre === '1'))
     document.getElementById('genStatus').textContent = ''
+
+    await chargerSlots()
 
     // Ouvre et charge la météo
     modal.classList.remove('hidden')
@@ -307,6 +348,16 @@ async function initModalGen() {
       </div>`
       modal._meteo = meteo
     }
+  })
+
+  // ── Périmètre 1 / 2 semaines ──
+  modal.querySelectorAll('[data-perimetre]').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      perimetre = parseInt(chip.dataset.perimetre)
+      modal.querySelectorAll('[data-perimetre]').forEach(c => c.classList.remove('active'))
+      chip.classList.add('active')
+      await chargerSlots()
+    })
   })
 
   document.getElementById('closeGenSemaine')?.addEventListener('click', () => {
@@ -366,7 +417,12 @@ async function initModalGen() {
           if (progressFill) progressFill.style.width = (capped / total * 95) + '%'
         }
       )
-      await importerCreneaux(semaineKey, result.repas, addRecette)
+      if (perimetre === 2) {
+        const key2 = getSemaineDecalee(semaineOffset + 1)
+        await importerCreneauxMultiSemaine(result.repas, addRecette, { 1: semaineKey, 2: key2 })
+      } else {
+        await importerCreneaux(semaineKey, result.repas, addRecette)
+      }
 
       if (progressFill) progressFill.style.width = '100%'
       if (status) status.textContent = `✅ ${slots.length} / ${slots.length} — Terminé !`

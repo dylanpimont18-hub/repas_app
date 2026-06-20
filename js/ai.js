@@ -45,16 +45,17 @@ async function buildPromptSemaine({ pourQui, meteo, contraintes }) {
   const profilsDylan = await buildProfilTexte('dylan')
   const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
   const opts = [
-    contraintes.vegetarien ? '- Végétarien : tous les plats sans viande ni poisson' : '',
+    contraintes.vegetarien ? '- VÉGÉTARIEN STRICT : AUCUNE viande (poulet, bœuf, agneau, dinde, etc.), AUCUN poisson, AUCUN fruit de mer dans aucun des 14 repas. Uniquement : légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" de chaque recette doit être true.' : '',
     contraintes.rapide     ? '- Rapide : tous les plats < 30 min au total'          : '',
     contraintes.budget     ? '- Budget serré : ingrédients simples et économiques'  : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
   return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère un planning de repas pour 7 jours (midi + soir = 14 repas).
 
-CONTRAINTES ABSOLUES (ne jamais violer) :
+CONTRAINTES ABSOLUES (ne jamais violer — même niveau d'importance) :
 - Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
 - ${pourQui === 'deux' ? 'Respecter les préférences des DEUX profils' : 'Respecter les préférences de Dylan uniquement'}
+${contraintes.vegetarien ? '- VÉGÉTARIEN ABSOLU : aucune viande ni poisson dans aucun des 14 repas, sans exception' : ''}
 
 MÉTÉO — Vierzon, France :
 - Saison : ${meteo.saison} · Température moyenne : ${meteo.avgTemp}°C (${meteo.description})
@@ -64,7 +65,7 @@ PRÉFÉRENCES :
 ${profilsDylan}
 ${profilsFemme}
 
-CONTRAINTES OPTIONNELLES :
+CONTRAINTES UTILISATEUR SÉLECTIONNÉES (toutes absolues) :
 ${opts}
 
 STRATÉGIE ANTI-GASPI (obligatoire — c'est la priorité de planification) :
@@ -113,7 +114,7 @@ async function buildPromptDernierMinute({ pourQui, ingredientsDispos, contrainte
   return `Génère UNE seule recette rapide (≤ 30 min) en halal strict (zéro porc, zéro alcool).
 ${pourQui === 'deux' ? 'Pour 2 personnes.' : 'Pour 1 personne.'}
 ${dispos}
-${contraintes.vegetarien ? 'Végétarien uniquement.' : ''}
+${contraintes.vegetarien ? 'VÉGÉTARIEN STRICT ET ABSOLU : aucune viande (poulet, bœuf, agneau, dinde, etc.), aucun poisson, aucun fruit de mer. Uniquement légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" doit être true.' : ''}
 ${contraintes.consignes  ? `Instructions personnalisées (priorité absolue, respecter impérativement) : "${contraintes.consignes}"` : ''}
 ${profilsDylan}
 ${profilsFemme}
@@ -220,11 +221,11 @@ async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
   const profilsFemme = pourQui === 'deux' ? await buildProfilTexte('femme') : ''
   const n = slots.length
   const opts = [
-    contraintes.vegetarien              ? '- Végétarien : tous les plats sans viande ni poisson'                                                              : '',
+    contraintes.vegetarien              ? `- VÉGÉTARIEN STRICT : AUCUNE viande (poulet, bœuf, agneau, dinde, etc.), AUCUN poisson, AUCUN fruit de mer dans aucun des ${n} repas. Uniquement : légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" de chaque recette doit être true.` : '',
     contraintes.rapide                  ? '- Rapide : tous les plats < 30 min au total'                                                                       : '',
     contraintes.budget                  ? '- Budget serré : ingrédients simples et économiques'                                                               : '',
-    contraintes.sansViande              ? '- Tous les repas SANS aucune viande (poisson et fruits de mer autorisés)'  : '',
-    contraintes.sansPoisson             ? '- Tous les repas SANS aucun poisson ni fruit de mer (viande autorisée)'    : '',
+    contraintes.sansViande              ? '- SANS VIANDE : aucune viande dans aucun repas (poisson et fruits de mer autorisés)'  : '',
+    contraintes.sansPoisson             ? '- SANS POISSON : aucun poisson ni fruit de mer dans aucun repas (viande autorisée)'    : '',
     contraintes.consignes               ? `- Consignes personnalisées (priorité haute, respecter impérativement) :\n  "${contraintes.consignes}"`             : '',
   ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
 
@@ -232,9 +233,12 @@ async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
 
   return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas pour les créneaux suivants : ${slotsLabel}.
 
-CONTRAINTES ABSOLUES (ne jamais violer) :
+CONTRAINTES ABSOLUES (ne jamais violer — même niveau d'importance) :
 - Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
 - ${pourQui === 'deux' ? 'Respecter les préférences des DEUX profils' : 'Respecter les préférences de Dylan uniquement'}
+${contraintes.vegetarien ? `- VÉGÉTARIEN ABSOLU : aucune viande ni poisson dans aucun des ${n} repas, sans exception` : ''}
+${contraintes.sansViande ? `- SANS VIANDE ABSOLU : aucune viande dans aucun des ${n} repas, sans exception` : ''}
+${contraintes.sansPoisson ? `- SANS POISSON ABSOLU : aucun poisson ni fruit de mer dans aucun des ${n} repas, sans exception` : ''}
 
 MÉTÉO — Vierzon, France :
 - Saison : ${meteo.saison} · Température moyenne : ${meteo.avgTemp}°C (${meteo.description})
@@ -244,7 +248,7 @@ PRÉFÉRENCES :
 ${profilsDylan}
 ${profilsFemme}
 
-CONTRAINTES OPTIONNELLES :
+CONTRAINTES UTILISATEUR SÉLECTIONNÉES (toutes absolues) :
 ${opts}
 
 STRATÉGIE ANTI-GASPI (obligatoire) :
@@ -276,9 +280,39 @@ Chaque <recette> :
 }`
 }
 
+// ── Validation post-génération ───────────────────────────────────────
+const MOTS_VIANDE_POISSON = [
+  'poulet','dinde','bœuf','boeuf','agneau','veau','porc','canard','lapin','mouton',
+  'saumon','thon','cabillaud','merlan','tilapia','sardine','maquereau','crevette',
+  'moule','homard','crabe','calmar','seiche','dorade','bar','sole','truite','lieu',
+  'lardons','jambon','saucisse','merguez','chipolata','steak','escalope','filet de',
+  'blanc de poulet','cuisse','aile','côte','entrecôte','rôti',
+]
+
+function validerVegetarien(recette) {
+  if (recette.vegetarien === false) return false
+  const texte = [
+    recette.nom,
+    ...(recette.ingredients || []).map(i => `${i.nom} ${i.quantite}`),
+    ...(recette.etapes || []),
+  ].join(' ').toLowerCase()
+  return !MOTS_VIANDE_POISSON.some(mot => texte.includes(mot))
+}
+
+function verifierContraintes(recettes, contraintes) {
+  if (!contraintes.vegetarien) return
+  const violations = recettes.filter(r => !validerVegetarien(r)).map(r => r.nom)
+  if (violations.length > 0) {
+    throw new Error(`L'IA a ignoré la contrainte végétarienne dans : ${violations.join(', ')}. Réessaie.`)
+  }
+}
+
 // ── API publique ─────────────────────────────────────────────────────
 export async function genererSemaine({ pourQui, meteo, contraintes }) {
-  return parseJSON(await callClaude(await buildPromptSemaine({ pourQui, meteo, contraintes })))
+  const data = parseJSON(await callClaude(await buildPromptSemaine({ pourQui, meteo, contraintes })))
+  const toutesRecettes = Object.values(data.semaine || {}).flatMap(j => Object.values(j))
+  verifierContraintes(toutesRecettes, contraintes)
+  return data
 }
 
 export async function genererCreneaux({ slots, pourQui, meteo, contraintes }, onProgress = null) {
@@ -286,9 +320,13 @@ export async function genererCreneaux({ slots, pourQui, meteo, contraintes }, on
   const onChunk = onProgress
     ? text => onProgress((text.match(/"nom":\s*"/g) || []).length, total)
     : null
-  return parseJSON(await callClaude(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes }), onChunk))
+  const data = parseJSON(await callClaude(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes }), onChunk))
+  verifierContraintes((data.repas || []).map(r => r.recette), contraintes)
+  return data
 }
 
 export async function genererDerniereMinute({ pourQui, ingredientsDispos = [], contraintes = {} }) {
-  return parseJSON(await callClaude(await buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes })))
+  const recette = parseJSON(await callClaude(await buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes })))
+  verifierContraintes([recette], contraintes)
+  return recette
 }

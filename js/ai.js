@@ -144,8 +144,8 @@ export function saveApiKey(key) {
   localStorage.setItem('repas_claude_key', key.trim())
 }
 
-// ── Appel Claude API ─────────────────────────────────────────────────
-async function callClaude(prompt) {
+// ── Appel Claude API (streaming) ─────────────────────────────────────
+async function callClaude(prompt, onChunk = null) {
   const apiKey = getApiKey()
   if (!apiKey) throw new Error('CLE_MANQUANTE')
 
@@ -162,6 +162,7 @@ async function callClaude(prompt) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 8000,
+        stream: true,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -170,16 +171,42 @@ async function callClaude(prompt) {
   }
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    await res.text().catch(() => '')
     if (res.status === 401) throw new Error('Clé API invalide ou expirée. Mets-la à jour dans ⚙️ Paramètres.')
     if (res.status === 429) throw new Error('Limite de requêtes atteinte — réessaie dans quelques minutes.')
     if (res.status === 529 || res.status === 500) throw new Error('Serveur Claude temporairement indisponible — réessaie dans quelques instants.')
     throw new Error(`Erreur Claude ${res.status}.`)
   }
 
-  const data = await res.json()
-  if (data.stop_reason === 'max_tokens') throw new Error('Réponse IA tronquée (réponse trop longue). Réessaie avec moins de créneaux.')
-  return data.content[0].text
+  const reader  = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = '', fullText = '', stopReason = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop()
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const raw = line.slice(6)
+      if (raw === '[DONE]') continue
+      try {
+        const evt = JSON.parse(raw)
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+          fullText += evt.delta.text
+          if (onChunk) onChunk(fullText)
+        }
+        if (evt.type === 'message_delta') stopReason = evt.delta?.stop_reason
+      } catch { /* ligne SSE invalide, ignorer */ }
+    }
+  }
+
+  if (stopReason === 'max_tokens') throw new Error('Réponse IA tronquée — réessaie avec moins de créneaux.')
+  return fullText
 }
 
 function parseJSON(text) {
@@ -254,8 +281,12 @@ export async function genererSemaine({ pourQui, meteo, contraintes }) {
   return parseJSON(await callClaude(await buildPromptSemaine({ pourQui, meteo, contraintes })))
 }
 
-export async function genererCreneaux({ slots, pourQui, meteo, contraintes }) {
-  return parseJSON(await callClaude(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes })))
+export async function genererCreneaux({ slots, pourQui, meteo, contraintes }, onProgress = null) {
+  const total  = slots.length
+  const onChunk = onProgress
+    ? text => onProgress((text.match(/"nom":\s*"/g) || []).length, total)
+    : null
+  return parseJSON(await callClaude(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes }), onChunk))
 }
 
 export async function genererDerniereMinute({ pourQui, ingredientsDispos = [], contraintes = {} }) {

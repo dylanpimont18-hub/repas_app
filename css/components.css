@@ -641,3 +641,30 @@
 
 /* Accueil mobile : les tuiles doublonnent la barre du bas */
 @media (max-width: 1023px) { .dashboard-grid { display: none; } }
+
+/* ══ Impression de la liste de courses ══ */
+.impression-seule { display: none; }
+@media print {
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; color: #000 !important; font-size: 11pt; }
+  .nav, .bottom-nav, .modal-overlay, .section-header .btn, #coursesAchetees, .courses-item-swipe-bg { display: none !important; }
+  .main { max-width: none; padding: 0; margin: 0; }
+  .section-header { display: block; margin-bottom: 6mm; }
+  .page-title { font-size: 18pt; margin: 0; }
+  .impression-seule { display: block; font-size: 10pt; color: #444; margin-top: 1mm; }
+  #labelSemaineCourses { display: none; }
+  #coursesList { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10mm; align-items: start; }
+  .courses-partie { break-inside: auto; margin: 0; }
+  .courses-partie-titre { font-size: 13pt; border-bottom: 1.5pt solid #000; color: #000; }
+  .courses-partie-titre .text-muted { color: #444 !important; }
+  .courses-group { break-inside: avoid; margin-bottom: 4mm; }
+  .courses-group-title { font-size: 11pt; border-bottom: 0.75pt solid #666; padding: 1mm 0; margin-bottom: 1mm; color: #000; }
+  .courses-item { min-height: 0; padding: 1.2mm 0; border-bottom: 0.25pt solid #ccc; transform: none !important; opacity: 1 !important; }
+  .courses-item input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none; width: 3.6mm; height: 3.6mm;
+    border: 0.75pt solid #000; border-radius: 0.6mm; background: #fff;
+  }
+  .courses-item-label { font-size: 10.5pt; color: #000; }
+  .courses-item-qty { font-size: 10pt; color: #000; }
+  * { box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

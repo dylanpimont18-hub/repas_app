@@ -22,7 +22,7 @@ Bibliothèque des recettes sauvegardées avec filtres et vue détail.
 Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ; modale « Remplir le cycle ».
 
 ### courses.html
-Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle.
+Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle, bouton 🖨 Imprimer (mise en page @media print dans components.css).
 
 ### reglages.html
 Réglages partagés : modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.

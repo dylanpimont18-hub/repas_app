@@ -225,6 +225,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   })
 
+  // Impression de la liste (mise en page dédiée dans components.css, @media print)
+  document.getElementById('btnImprimer')?.addEventListener('click', () => {
+    const el = document.getElementById('impressionCycle')
+    if (el) el.textContent = `Cycle du ${labelCycle(samedi)}`
+    window.print()
+  })
+
   // Navigation entre cycles
   document.getElementById('btnPrevCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, -1); render() })
   document.getElementById('btnNextCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, 1); render() })

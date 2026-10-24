@@ -5,6 +5,10 @@ export const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_K
 
 const JOURS_ALL = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
 
+function nouvelIdRecette() {
+  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+}
+
 // ── Auth ─────────────────────────────────────────────────────────────
 export async function dbGetSession() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -22,13 +26,15 @@ export async function dbSignOut() {
 }
 
 // ── Préférences ──────────────────────────────────────────────────────
-export async function dbGetProfil(profilNom) {
+// Une seule requête pour les deux profils : { dylan: { id: niveau }, femme: { ... } }
+export async function dbGetToutesPreferences() {
   const { data, error } = await supabase
     .from('preferences')
-    .select('ingredient_id, niveau')
-    .eq('profil_nom', profilNom)
+    .select('profil_nom, ingredient_id, niveau')
   if (error) throw error
-  return Object.fromEntries(data.map(r => [r.ingredient_id, r.niveau]))
+  const res = { dylan: {}, femme: {} }
+  data.forEach(r => { res[r.profil_nom][r.ingredient_id] = r.niveau })
+  return res
 }
 
 export async function dbSetPreference(profilNom, ingredientId, niveau) {
@@ -45,6 +51,31 @@ export async function dbSetPreference(profilNom, ingredientId, niveau) {
       { onConflict: 'profil_nom,ingredient_id' }
     )
   if (error) throw error
+}
+
+// ── Ingrédients personnalisés (partagés dans le foyer) ───────────────
+export async function dbGetCustomIngredients() {
+  const { data, error } = await supabase
+    .from('ingredients_custom')
+    .select('id, nom, categorie, emoji')
+    .order('nom')
+  if (error) throw error
+  return data.map(i => ({ ...i, custom: true }))
+}
+
+export async function dbAddCustomIngredients(ingredients) {
+  const { error } = await supabase.from('ingredients_custom').upsert(
+    ingredients.map(({ id, nom, categorie, emoji }) => ({ id, nom, categorie, emoji })),
+    { onConflict: 'id' }
+  )
+  if (error) throw error
+}
+
+export async function dbDeleteCustomIngredient(id) {
+  const { error } = await supabase.from('ingredients_custom').delete().eq('id', id)
+  if (error) throw error
+  // Nettoyer les préférences orphelines
+  await supabase.from('preferences').delete().eq('ingredient_id', id)
 }
 
 // ── Recettes ─────────────────────────────────────────────────────────
@@ -67,14 +98,28 @@ export async function dbGetRecetteById(id) {
   return data
 }
 
-export async function dbUpsertRecette(recette) {
-  const id    = recette.id || `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-  const entry = { ...recette, id, date: recette.date || new Date().toISOString() }
-  const { error } = await supabase
-    .from('recettes')
-    .upsert(entry, { onConflict: 'id' })
+// Charge plusieurs recettes en une requête → { id: recette }
+export async function dbGetRecettesByIds(ids) {
+  const uniques = [...new Set(ids.filter(Boolean))]
+  if (!uniques.length) return {}
+  const { data, error } = await supabase.from('recettes').select('*').in('id', uniques)
   if (error) throw error
+  return Object.fromEntries(data.map(r => [r.id, r]))
+}
+
+export async function dbUpsertRecette(recette) {
+  const [id] = await dbUpsertRecettes([recette])
   return id
+}
+
+// Enregistre plusieurs recettes en une requête, retourne les ids dans le même ordre
+export async function dbUpsertRecettes(recettes) {
+  if (!recettes.length) return []
+  const now = new Date().toISOString()
+  const entries = recettes.map(r => ({ ...r, id: r.id || nouvelIdRecette(), date: r.date || now }))
+  const { error } = await supabase.from('recettes').upsert(entries, { onConflict: 'id' })
+  if (error) throw error
+  return entries.map(e => e.id)
 }
 
 export async function dbDeleteRecette(id) {
@@ -108,10 +153,14 @@ export async function dbUpsertPlanning(semaineKey, jour, moment, recetteId, port
     if (error) throw error
     return
   }
-  const { error } = await supabase.from('planning').upsert(
-    { semaine_key: semaineKey, jour, moment, recette_id: recetteId, portions },
-    { onConflict: 'semaine_key,jour,moment' }
-  )
+  await dbUpsertPlanningLot([{ semaine_key: semaineKey, jour, moment, recette_id: recetteId, portions }])
+}
+
+// Assigne plusieurs créneaux en une requête : [{ semaine_key, jour, moment, recette_id, portions }]
+export async function dbUpsertPlanningLot(lignes) {
+  if (!lignes.length) return
+  const { error } = await supabase.from('planning')
+    .upsert(lignes, { onConflict: 'semaine_key,jour,moment' })
   if (error) throw error
 }
 
@@ -141,4 +190,30 @@ export async function dbResetCourses(semaineKey) {
     .delete()
     .eq('semaine_key', semaineKey)
   if (error) throw error
+}
+
+// ── Temps réel ───────────────────────────────────────────────────────
+// Appelle onChange à chaque modification (par n'importe quel membre du foyer) sur les tables données
+export function dbEcouter(tables, onChange) {
+  const canal = supabase.channel(`sync_${tables.join('_')}_${Math.random().toString(36).slice(2, 6)}`)
+  tables.forEach(table => {
+    canal.on('postgres_changes', { event: '*', schema: 'public', table }, onChange)
+  })
+  canal.subscribe()
+  return canal
+}
+
+// ── Edge Function "ai" (proxy IA + météo, clés côté serveur) ─────────
+export async function dbAppelFonctionIA(body) {
+  const session = await dbGetSession()
+  if (!session) throw new Error('Session expirée — reconnecte-toi.')
+  return fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ai`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
 }

@@ -29,13 +29,22 @@ Liste de courses agrégée depuis le planning, groupée par catégorie, avec cas
 ## Config & déploiement
 
 ### config.js
-Clé API Claude + URL/clé Supabase (non versionnée). Variables : `CLAUDE_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+URL + clé publique Supabase (non versionnée). Variables : `SUPABASE_URL`, `SUPABASE_ANON_KEY`. Aucune clé secrète.
+
+### generate-config.js
+Build Netlify : génère config.js (valeurs publiques uniquement).
 
 ### netlify.toml
-Config déploiement Netlify — redirects SPA, headers de sécurité.
+Config déploiement Netlify — commande de build.
 
 ### supabase-schema.sql
-Schéma SQL des tables Supabase : `preferences`, `recettes`, `planning`.
+Schéma SQL initial : `preferences`, `recettes`, `planning`, `courses_etat`.
+
+### supabase/migrations/20261024_foyer_sync.sql
+Foyer (`foyer_membres` + `est_membre_foyer()`), table `ingredients_custom`, RLS réservée au foyer, publication temps réel.
+
+### supabase/functions/ai/index.ts
+Edge Function : proxy Mammouth AI (streaming) + météo OpenWeatherMap, vérifie membre du foyer. Secrets `MAMMOUTH_API_KEY`, `OPENWEATHER_API_KEY`.
 
 ---
 
@@ -53,24 +62,32 @@ Composants réutilisables : cartes swipe, cartes recette, grille planning, modal
 
 ### js/db.js
 Client Supabase + toutes les opérations base de données.
-- `dbGetSession()` — vérifie la session active
-- `dbSignIn(email, password)` — connexion Supabase Auth
-- `dbSignOut()` — déconnexion
-- `dbGetProfil(profilNom)` — charge les préférences d'un profil
-- `dbSetPreference(profilNom, ingredientId, niveau)` — upsert une préférence
-- `dbGetRecettes()` — liste toutes les recettes triées par date
-- `dbGetRecetteById(id)` — retourne une recette par id
-- `dbUpsertRecette(recette)` — crée ou met à jour une recette
+- `dbGetSession()` / `dbSignIn()` / `dbSignOut()` — auth Supabase
+- `dbGetToutesPreferences()` — préférences des deux profils, une requête
+- `dbSetPreference(profilNom, ingredientId, niveau)` — upsert ou supprime une note
+- `dbGetCustomIngredients()` / `dbAddCustomIngredients(list)` / `dbDeleteCustomIngredient(id)` — ingrédients perso partagés
+- `dbGetRecettes()` / `dbGetRecetteById(id)` — lecture recettes
+- `dbGetRecettesByIds(ids)` — plusieurs recettes en une requête → `{id: recette}`
+- `dbUpsertRecette(r)` / `dbUpsertRecettes(list)` — enregistre recette(s), retourne les ids
 - `dbDeleteRecette(id)` — supprime une recette
-- `dbGetPlanning(semaineKey)` — retourne le planning d'une semaine
-- `dbUpsertPlanning(semaineKey, jour, moment, recetteId, portions)` — assigne ou supprime un repas
+- `dbGetPlanning(semaineKey)` — planning d'une semaine
+- `dbUpsertPlanning(...)` / `dbUpsertPlanningLot(lignes)` — assigne un ou plusieurs créneaux
+- `dbGetCoursesEtat` / `dbToggleCourse` / `dbResetCourses` — cases cochées des courses
+- `dbEcouter(tables, onChange)` — abonnement temps réel Supabase
+- `dbAppelFonctionIA(body)` — appelle l'Edge Function `ai` avec le jeton de session
+
+### js/utils.js
+Fonctions pures testables sous Node.
+- `esc(s)` — échappe pour insertion HTML
+- `getSemaineKey(date)` — clé ISO YYYY-Www
+- `debounce(fn, ms)` — regroupe des appels rapprochés
+- `combinerQuantites(quantites)` — ajuste aux portions et additionne
+- `categoriser(nom)` — rayon de supermarché d'un ingrédient
+- `validerVegetarien(recette)` — détecte viande/poisson dans une recette
 
 ### js/storage.js
-Wrapper localStorage : constantes de clés + helpers load/save/remove.
-- `KEYS` — objet avec toutes les clés `repas_*`
-- `load(key, defaultValue)` — lit et parse du localStorage
-- `save(key, value)` — sérialise et écrit dans localStorage
-- `remove(key)` — supprime une entrée localStorage
+Wrapper localStorage (thème uniquement).
+- `KEYS`, `load(key, def)`, `save(key, v)`, `remove(key)`
 
 ---
 
@@ -91,42 +108,45 @@ Base de données statique des ingrédients (150+), organisée par catégorie.
 - `CATEGORIES` — objet des catégories avec label et emoji
 - `getParCategorie(categorieId)` — retourne les ingrédients d'une catégorie
 
+### js/custom-ingredients.js
+Ingrédients personnalisés via Supabase (cache mémoire, migration auto depuis l'ancien localStorage).
+- `getCustomIngredients()` / `invaliderCustomIngredients()` — lecture en cache / reset
+- `addCustomIngredient({nom, categorie, emoji})` / `removeCustomIngredient(id)` — async
+- `getAllParCategorie(cat)` / `getAllIngredients()` / `getIngredientParId(id)` — base statique + perso, async
+
 ### js/preferences.js
-Gestion des profils de préférences (couche métier au-dessus de db.js).
-- `getProfil(qui)` — charge les préférences du profil via Supabase
-- `setPreference(qui, ingredientId, niveau)` — enregistre une note
-- `getANoter(qui, categorie)` — retourne les ingrédients sans note dans une catégorie
-- `getProgression(qui)` — retourne le % de notation par catégorie
+Préférences par profil, cache mémoire (une requête par page).
+- `getProfil(qui)` — `{ingredientId: niveau}` depuis le cache
+- `setPreference(qui, ingredientId, niveau)` — enregistre et met à jour le cache
+- `invaliderPreferences()` — force un rechargement (temps réel)
+- `getANoter(qui, categorie)` — ingrédients sans note
+- `getProgression(qui, categorie)` — `{faits, total}`
+- `getTotalANoter(qui)` — nombre total non noté (badge)
 
 ### js/recettes.js
-CRUD bibliothèque de recettes (couche métier au-dessus de db.js).
-- `getRecettes(filtres)` — retourne les recettes filtrées
-- `addRecette(recette)` — sauvegarde une recette via Supabase
-- `deleteRecette(id)` — supprime une recette
-- `getRecetteById(id)` — retourne une recette par id
+CRUD bibliothèque de recettes.
+- `getRecettes(filtres)` / `getRecetteById(id)` / `getRecettesByIds(ids)` — lecture
+- `addRecette(recette)` / `deleteRecette(id)` — écriture
 
 ### js/planning.js
-Gestion du planificateur hebdomadaire.
-- `getSemaineKey(date?)` — retourne la clé YYYY-WW pour une date (par défaut aujourd'hui)
-- `getPlanning(semaineKey)` — retourne le planning depuis Supabase
-- `assignerRepas(semaineKey, jour, moment, recetteId, portions)` — assigne une recette
-- `supprimerRepas(semaineKey, jour, moment)` — vide un créneau
-- `importerSemaineIA(semaineKey, semaine, addRecetteFn)` — importe un planning complet généré par IA
-- `importerCreneaux(semaineKey, repas, addRecetteFn)` — importe uniquement les créneaux sélectionnés (`repas = [{jour,moment,recette}]`)
+Planificateur hebdomadaire.
+- `JOURS`, `MOMENTS`, `getSemaineKey` (réexporté de utils)
+- `getPlanning(semaineKey)` / `assignerRepas(...)` / `supprimerRepas(...)`
+- `importerCreneaux(repas, semaineKeys)` — import IA en 2 requêtes (1 ou 2 semaines)
+- `getJoursAvecRepas(semaineKey)` — créneaux remplis
+- `idsDuPlanning(planning)` — ids des recettes d'un planning
 
 ### js/courses.js
-Génération et gestion de la liste de courses.
-- `genererListeCourses(semaineKey)` — agrège les ingrédients du planning, ajustés aux portions
-- `getEtatCourses(semaineKey)` — async, retourne l'état coché depuis Supabase
-- `toggleCourse(semaineKey, nom, checked)` — async, upsert Supabase
-- `resetCourses(semaineKey)` — async, supprime toutes les lignes de la semaine
+Liste de courses.
+- `genererListeCourses(semaineKey)` — agrège les ingrédients (une requête recettes)
+- `getEtatCourses` / `toggleCourse` / `resetCourses` — cases cochées Supabase
 
 ### js/ai.js
-Intégration Claude API et prompt engineering.
-- `genererSemaine({pourQui, meteo, contraintes})` — génère les 14 repas d'une semaine complète
-- `genererCreneaux({slots, pourQui, meteo, contraintes})` — génère uniquement les créneaux sélectionnés (`slots = [{jour,moment}]`), stratégie anti-gaspi incluse
-- `genererDerniereMinute({pourQui, ingredientsDispos, contraintes})` — génère une recette rapide
-- `getMeteo()` — récupère la météo de Vierzon via OpenWeatherMap
+Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
+- `genererCreneaux({slots, pourQui, meteo, contraintes}, onProgress)` — repas des créneaux choisis, anti-gaspi
+- `genererDerniereMinute({pourQui, ingredientsDispos, contraintes})` — une recette rapide
+- `getMeteo()` — météo Vierzon via l'Edge Function
+- `getSaison()` — saison courante
 
 ---
 
@@ -134,46 +154,35 @@ Intégration Claude API et prompt engineering.
 
 ### js/dashboard.js
 Contrôleur du tableau de bord d'accueil.
-- Affiche le nombre de recettes et l'aperçu du planning de la semaine actuelle
+- `render()` — nombre de recettes, repas du jour, aperçu semaine ; rafraîchi en temps réel
 
 ### js/preferences-ui.js
 Rendu et interactions de la page préférences (cartes + vue liste).
 - `renderCatChips()` — affiche les boutons de catégorie
 - `chargerFile()` — charge la file d'ingrédients à noter pour la catégorie active
 - `afficherProchain()` — affiche la carte suivante ou l'écran "terminé"
+- Temps réel : recharge si l'autre profil note ou ajoute un ingrédient (ignore ses propres échos)
 
 ### js/recettes-ui.js
 Rendu et interactions de la bibliothèque de recettes.
 - `renderList()` — affiche les cartes recettes filtrées
 - `ouvrirDetail(id)` — affiche la modale de détail d'une recette (boutons Modifier, Dupliquer, Supprimer)
 - `ouvrirFormEdit(recette)` — ouvre la modale d'édition/duplication pré-remplie
+- Temps réel sur `recettes`
 
 ### js/planning-ui.js
 Rendu et interactions du planificateur hebdomadaire.
-- `renderGrid()` — affiche la grille 7×2 (mode normal ou mode sélection IA)
-- `activerModeSelection()` / `desactiverModeSelection()` — bascule le mode sélection de créneaux pour la génération IA
+- `renderGrid()` — vue liste 7 jours × 2 repas ; temps réel sur `planning`/`recettes`
+- `initModalGen()` — modale de génération IA (1 ou 2 semaines, progression en direct)
 - `ouvrirSelectRecette()` — modale de sélection d'une recette pour un créneau
-- `creerPopover()` — popover contextuel (voir / changer / supprimer)
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.
-- `render()` — génère la liste groupée par catégorie avec cases à cocher
+- `render()` — liste groupée par rayon, quantités ajustées ; file de rendu sans perte d'événement temps réel
 
 ---
 
 ## Tests
 
-### tests/test-utils.js
-Utilitaires partagés entre les fichiers de test.
-
-### tests/preferences.test.js
-Tests unitaires pour le module préférences.
-
-### tests/planning.test.js
-Tests unitaires pour le module planning.
-
-### tests/courses.test.js
-Tests unitaires pour le module courses.
-
-### tests/test.html
-Runner de tests dans le navigateur.
+### tests/utils.test.mjs
+Tests unitaires de js/utils.js — `node --test tests/*.test.mjs`.

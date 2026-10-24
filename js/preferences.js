@@ -1,34 +1,42 @@
-// js/preferences.js
-import { dbGetProfil, dbSetPreference } from './db.js'
+// js/preferences.js — Préférences par profil, avec cache mémoire (une requête par page)
+import { dbGetToutesPreferences, dbSetPreference } from './db.js'
 import { getAllParCategorie, getAllIngredients } from './custom-ingredients.js'
 
+let cache = null
+
+function profilNom(qui) { return qui === 'dylan' ? 'dylan' : 'femme' }
+
+async function getToutes() {
+  if (!cache) cache = dbGetToutesPreferences()
+  try { return await cache } catch (e) { cache = null; throw e }
+}
+
+// À appeler quand l'autre membre du foyer a noté des ingrédients (temps réel)
+export function invaliderPreferences() { cache = null }
+
 export async function getProfil(qui) {
-  return await dbGetProfil(qui === 'dylan' ? 'dylan' : 'femme')
+  return (await getToutes())[profilNom(qui)]
 }
 
 export async function setPreference(qui, ingredientId, niveau) {
-  await dbSetPreference(qui === 'dylan' ? 'dylan' : 'femme', ingredientId, niveau)
-}
-
-export async function getProfilFiltre(qui, niveau) {
+  await dbSetPreference(profilNom(qui), ingredientId, niveau)
   const profil = await getProfil(qui)
-  return Object.entries(profil).filter(([, v]) => v === niveau).map(([id]) => id)
+  if (niveau === null) delete profil[ingredientId]
+  else profil[ingredientId] = niveau
 }
 
 export async function getANoter(qui, categorie) {
-  const profil = await getProfil(qui)
-  return getAllParCategorie(categorie).filter(i => !profil[i.id])
+  const [profil, all] = await Promise.all([getProfil(qui), getAllParCategorie(categorie)])
+  return all.filter(i => !profil[i.id])
 }
 
+// { faits, total } pour la catégorie
 export async function getProgression(qui, categorie) {
-  const all   = getAllParCategorie(categorie)
-  const total = all.length
-  if (total === 0) return 1
-  const profil = await getProfil(qui)
-  return all.filter(i => profil[i.id]).length / total
+  const [profil, all] = await Promise.all([getProfil(qui), getAllParCategorie(categorie)])
+  return { faits: all.filter(i => profil[i.id]).length, total: all.length }
 }
 
 export async function getTotalANoter(qui) {
-  const profil = await getProfil(qui)
-  return getAllIngredients().filter(i => !profil[i.id]).length
+  const [profil, all] = await Promise.all([getProfil(qui), getAllIngredients()])
+  return all.filter(i => !profil[i.id]).length
 }

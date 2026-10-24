@@ -1,5 +1,5 @@
 // js/recettes.js
-import { dbGetRecettes, dbGetRecetteById, dbUpsertRecette, dbDeleteRecette } from './db.js'
+import { dbGetRecettes, dbGetRecetteById, dbGetRecettesByIds, dbUpsertRecette, dbDeleteRecette } from './db.js'
 
 export async function getRecettes(filtres = {}) {
   let r = await dbGetRecettes()
@@ -11,6 +11,11 @@ export async function getRecettes(filtres = {}) {
 
 export async function getRecetteById(id) {
   return await dbGetRecetteById(id)
+}
+
+// { id: recette } en une seule requête
+export async function getRecettesByIds(ids) {
+  return await dbGetRecettesByIds(ids)
 }
 
 export async function addRecette(recette) {

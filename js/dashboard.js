@@ -1,7 +1,8 @@
 // js/dashboard.js
-import { getRecettes }                       from './recettes.js'
-import { getPlanning, getSemaineKey, JOURS } from './planning.js'
-import { getRecetteById }                    from './recettes.js'
+import { getRecettes, getRecettesByIds }    from './recettes.js'
+import { getPlanning, getSemaineKey, JOURS, idsDuPlanning } from './planning.js'
+import { dbEcouter }                         from './db.js'
+import { esc, debounce }                     from './utils.js'
 
 const JOURS_LABEL = {
   lundi: 'Lun', mardi: 'Mar', mercredi: 'Mer', jeudi: 'Jeu',
@@ -13,7 +14,7 @@ const JOURS_LABEL_LONG = {
 }
 const JOURS_JS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
-document.addEventListener('DOMContentLoaded', async () => {
+async function render() {
   const recettes   = await getRecettes()
   const tileCount  = document.getElementById('tileRecettesCount')
   if (tileCount) tileCount.textContent = `${recettes.length} recette${recettes.length !== 1 ? 's' : ''}`
@@ -21,12 +22,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const semaineKey = getSemaineKey()
   const planning   = await getPlanning(semaineKey)
 
-  // Pre-fetch toutes les recettes du planning en parallèle
-  const ids = [...new Set(
-    JOURS.flatMap(j => ['midi','soir'].map(m => planning[j]?.[m]?.id).filter(Boolean))
-  )]
-  const recettesArr = await Promise.all(ids.map(id => getRecetteById(id)))
-  const recettesMap = Object.fromEntries(ids.map((id, i) => [id, recettesArr[i]]))
+  // Toutes les recettes de la semaine en une requête
+  const recettesMap = await getRecettesByIds(idsDuPlanning(planning))
 
   // Jour actuel
   const jourAujourdhui = JOURS_JS[new Date().getDay()]
@@ -54,11 +51,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (repasAujourdhui.soir) {
       const r = repasAujourdhui.soir
       ceSoirContainer.innerHTML = `
-        <a href="recettes.html?id=${r.id}&from=dashboard" class="card" style="display:flex;align-items:center;gap:1rem;padding:1rem;text-decoration:none;color:inherit;border-left:4px solid var(--color-primary);margin-bottom:1.5rem;">
+        <a href="recettes.html?id=${encodeURIComponent(r.id)}&from=dashboard" class="card" style="display:flex;align-items:center;gap:1rem;padding:1rem;text-decoration:none;color:inherit;border-left:4px solid var(--color-primary);margin-bottom:1.5rem;">
           <span style="font-size:1.75rem;">🌙</span>
           <div style="flex:1;min-width:0;">
             <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.2rem;">Ce soir</div>
-            <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.nom}</div>
+            <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.nom)}</div>
             <div style="font-size:0.78rem;color:var(--color-text-muted);">⏱ ${r.temps_prep + r.temps_cuisson} min${r.vegetarien ? ' · 🌿' : ''}</div>
           </div>
           <span style="color:var(--color-primary);font-size:1rem;">›</span>
@@ -71,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span style="font-size:1.75rem;">☀️</span>
           <div style="flex:1;min-width:0;">
             <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.2rem;">Midi aujourd'hui</div>
-            <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.nom}</div>
+            <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.nom)}</div>
           </div>
         </div>`
     } else {
@@ -97,9 +94,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
         <div class="card" style="padding:0.75rem;${estAujourdhui ? 'border-color:var(--color-primary);border-width:2px;' : ''}">
           <div style="font-size:0.75rem;font-weight:700;margin-bottom:0.4rem;${estAujourdhui ? 'color:var(--color-primary);' : 'color:var(--color-text-muted);'}">${JOURS_LABEL[jour]}${estAujourdhui ? ' ·' : ''}</div>
-          <div class="text-xs" style="margin-bottom:0.2rem;">☀️ ${midi ? midi.nom : '<span style="opacity:0.4">—</span>'}</div>
-          <div class="text-xs">🌙 ${soir ? soir.nom : '<span style="opacity:0.4">—</span>'}</div>
+          <div class="text-xs" style="margin-bottom:0.2rem;">☀️ ${midi ? esc(midi.nom) : '<span style="opacity:0.4">—</span>'}</div>
+          <div class="text-xs">🌙 ${soir ? esc(soir.nom) : '<span style="opacity:0.4">—</span>'}</div>
         </div>`
     }).join('')
   }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await render()
+  // Rafraîchir si l'autre membre du foyer modifie le planning ou les recettes
+  dbEcouter(['planning', 'recettes'], debounce(render, 400))
 })

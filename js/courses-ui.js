@@ -1,10 +1,25 @@
 // js/courses-ui.js
 import { genererListeCourses, getEtatCourses, toggleCourse, resetCourses } from './courses.js'
 import { getSemaineKey } from './planning.js'
-import { supabase } from './db.js'
+import { dbEcouter } from './db.js'
+import { esc, debounce, combinerQuantites } from './utils.js'
 
-let rendering = false
+let enCours         = null   // rendu en cours (Promise)
+let aRefaire        = false  // un changement est arrivé pendant le rendu
 let acheteesOuverte = false
+
+// Évite les rendus concurrents sans perdre de mise à jour : si un rendu est en cours,
+// on en programme un nouveau juste après au lieu d'ignorer l'événement
+async function render() {
+  if (enCours) { aRefaire = true; return enCours }
+  enCours = (async () => {
+    do {
+      aRefaire = false
+      try { await renderUneFois() } catch (e) { console.error('Rendu courses', e) }
+    } while (aRefaire)
+  })()
+  try { await enCours } finally { enCours = null }
+}
 
 const ORDRE = ['Fruits & Légumes','Viandes & Poissons','Féculents','Laitiers & Œufs','Épicerie & Condiments','Divers']
 const ICONE = {
@@ -16,15 +31,12 @@ const ICONE = {
   'Divers':                '🛒',
 }
 
-async function render() {
-  if (rendering) return
-  rendering = true
+async function renderUneFois() {
   const semaineKey = getSemaineKey()
   const labelEl    = document.getElementById('labelSemaineCourses')
   if (labelEl) labelEl.textContent = semaineKey
 
-  const groupes = await genererListeCourses(semaineKey)
-  const etat    = await getEtatCourses(semaineKey)
+  const [groupes, etat] = await Promise.all([genererListeCourses(semaineKey), getEtatCourses(semaineKey)])
 
   // Séparer les items actifs des items achetés
   const actifs   = {}  // { cat: [item, ...] }
@@ -47,14 +59,11 @@ async function render() {
   const htmlActifs = ORDRE.filter(cat => actifs[cat]?.length).map(cat => `
     <div class="courses-group">
       <div class="courses-group-title">${ICONE[cat]} ${cat}</div>
-      ${actifs[cat].map(item => {
-        const k = item.nom.toLowerCase().trim()
-        return `<div class="courses-item">
-          <input type="checkbox" data-nom="${item.nom}" data-checked="false">
-          <span class="courses-item-label">${item.nom}</span>
-          <span class="courses-item-qty">${item.quantites.map(q => q.valeur).join(' + ')}</span>
-        </div>`
-      }).join('')}
+      ${actifs[cat].map(item => `<div class="courses-item">
+          <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
+          <span class="courses-item-label">${esc(item.nom)}</span>
+          <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
+        </div>`).join('')}
     </div>`).join('')
 
   // HTML de la section Achetées (restaure l'état ouvert/fermé)
@@ -67,9 +76,9 @@ async function render() {
       <div id="coursesAcheteesBody" class="${acheteesOuverte ? '' : 'hidden'}">
         ${achetees.map(item => `
           <div class="courses-achetee-item">
-            <input type="checkbox" checked data-nom="${item.nom}" data-checked="true">
-            <span>${item.nom}</span>
-            <span class="courses-item-qty">${item.quantites.map(q => q.valeur).join(' + ')}</span>
+            <input type="checkbox" checked data-nom="${esc(item.nom)}" data-checked="true">
+            <span>${esc(item.nom)}</span>
+            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
           </div>`).join('')}
       </div>
     </div>` : ''
@@ -124,7 +133,6 @@ async function render() {
       })
     }
   }
-  rendering = false
 }
 
 function initSwipeCourses(semaineKey) {
@@ -215,9 +223,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   })
 
-  // Abonnement Supabase Realtime — re-render à chaque changement sur courses_etat
-  supabase
-    .channel('courses_etat')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'courses_etat' }, () => render())
-    .subscribe()
+  // Temps réel : cases cochées par l'autre, ou planning / recettes modifiés
+  dbEcouter(['courses_etat', 'planning', 'recettes'], debounce(render, 300))
 })

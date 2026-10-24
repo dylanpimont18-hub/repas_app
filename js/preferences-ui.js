@@ -1,7 +1,9 @@
 // js/preferences-ui.js
 import { CATEGORIES } from './data/ingredients.js'
-import { getAllParCategorie, addCustomIngredient, getCustomIngredients, removeCustomIngredient } from './custom-ingredients.js'
-import { setPreference, getANoter, getProgression, getProfil } from './preferences.js'
+import { getAllParCategorie, addCustomIngredient, removeCustomIngredient, invaliderCustomIngredients } from './custom-ingredients.js'
+import { setPreference, getANoter, getProgression, getProfil, invaliderPreferences } from './preferences.js'
+import { dbEcouter } from './db.js'
+import { esc, debounce } from './utils.js'
 
 let profilActif     = 'dylan'
 let categorieActive = Object.keys(CATEGORIES)[0]
@@ -61,14 +63,12 @@ function afficherProchain() {
 }
 
 async function updateProgress() {
-  const ratio = await getProgression(profilActif, categorieActive)
+  const { faits, total } = await getProgression(profilActif, categorieActive)
   const fill  = document.getElementById('progressFill')
   const label = document.getElementById('progressLabel')
-  if (fill)  fill.style.width = `${Math.round(ratio * 100)}%`
-  const all  = getAllParCategorie(categorieActive)
-  const done = Math.round(ratio * all.length)
+  if (fill)  fill.style.width = `${total ? Math.round(faits / total * 100) : 100}%`
   if (label) label.textContent =
-    `${CATEGORIES[categorieActive].label} — ${done} / ${all.length} notés`
+    `${CATEGORIES[categorieActive].label} — ${faits} / ${total} notés`
 }
 
 async function renderTableau() {
@@ -83,18 +83,18 @@ async function renderTableau() {
   </tr></thead><tbody>`
 
   for (const [catId, cat] of Object.entries(CATEGORIES)) {
-    const ings = getAllParCategorie(catId)
+    const ings = await getAllParCategorie(catId)
     if (!ings.length) continue
     html += `<tr class="cat-header"><td colspan="${2 + NIVEAUX.length}">${cat.emoji} ${cat.label}</td></tr>`
     for (const ing of ings) {
       const niveauActuel = profil[ing.id] || null
-      html += `<tr data-ing-id="${ing.id}">`
-      html += `<td><span class="ing-name"><span>${ing.emoji}</span><span>${ing.nom}</span>${ing.custom ? ' <span class="custom-badge">✦</span>' : ''}</span></td>`
+      html += `<tr data-ing-id="${esc(ing.id)}">`
+      html += `<td><span class="ing-name"><span>${esc(ing.emoji)}</span><span>${esc(ing.nom)}</span>${ing.custom ? ' <span class="custom-badge">✦</span>' : ''}</span></td>`
       for (const n of NIVEAUX) {
         const actif = niveauActuel === n.id
-        html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${ing.id}" data-niveau="${n.id}">${actif ? '●' : '○'}</button></td>`
+        html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${esc(ing.id)}" data-niveau="${n.id}">${actif ? '●' : '○'}</button></td>`
       }
-      html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${ing.id}" title="Supprimer">✕</button>` : ''}</td>`
+      html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${esc(ing.id)}" title="Supprimer">✕</button>` : ''}</td>`
       html += `</tr>`
     }
   }
@@ -107,7 +107,7 @@ async function renderTableau() {
     const delBtn = e.target.closest('.pref-delete-btn')
     if (delBtn) {
       if (!confirm(`Supprimer cet ingrédient personnalisé ?`)) return
-      removeCustomIngredient(delBtn.dataset.del)
+      await removeCustomIngredient(delBtn.dataset.del)
       await renderTableau()
       return
     }
@@ -116,7 +116,7 @@ async function renderTableau() {
     if (!btn) return
     const ingId  = btn.dataset.ing
     const niveau = btn.dataset.niveau
-    const row    = table.querySelector(`tr[data-ing-id="${ingId}"]`)
+    const row    = table.querySelector(`tr[data-ing-id="${CSS.escape(ingId)}"]`)
     if (!row) return
 
     const niveauDef = NIVEAUX.find(x => x.id === niveau)
@@ -174,7 +174,12 @@ async function soumettreAjoutIngredient(e) {
   const emoji    = document.getElementById('addIngEmoji').value.trim() || CATEGORIES[categorie]?.emoji || '🍽️'
   if (!nom) return
 
-  addCustomIngredient({ nom, categorie, emoji })
+  try {
+    await addCustomIngredient({ nom, categorie, emoji })
+  } catch (err) {
+    alert("Erreur lors de l'ajout : " + err.message)
+    return
+  }
   fermerModalAjout()
 
   // Rafraîchir la vue active
@@ -356,4 +361,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   await chargerFile()
   if (vueActive === 'tableau') await renderTableau()
   initSwipeGesture()
+
+  // Temps réel : ingrédients ajoutés ou notés depuis l'autre téléphone
+  const recharger = debounce(async () => {
+    invaliderCustomIngredients()
+    invaliderPreferences()
+    await chargerFile()
+    if (vueActive === 'tableau') await renderTableau()
+  }, 500)
+  dbEcouter(['ingredients_custom'], recharger)
+  dbEcouter(['preferences'], async (payload) => {
+    // Ignorer l'écho de nos propres notes (déjà dans le cache local)
+    const ligne  = payload.eventType === 'DELETE' ? payload.old : payload.new
+    const profil = await getProfil(ligne?.profil_nom === 'dylan' ? 'dylan' : 'femme')
+    const attendu = payload.eventType === 'DELETE' ? undefined : payload.new.niveau
+    if (ligne?.ingredient_id && profil[ligne.ingredient_id] === attendu) return
+    recharger()
+  })
 })

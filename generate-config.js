@@ -1,9 +1,8 @@
 // Exécuté par Netlify au build pour créer config.js depuis les variables d'environnement
+// Seules les valeurs publiques vont ici : les clés IA et météo restent dans les secrets Supabase (Edge Function "ai")
 const fs = require('fs')
 
 const config = `const CONFIG = {
-  CLAUDE_API_KEY:      '${process.env.CLAUDE_API_KEY      || ''}',
-  OPENWEATHER_API_KEY: '${process.env.OPENWEATHER_API_KEY || ''}',
   SUPABASE_URL:        '${process.env.SUPABASE_URL        || ''}',
   SUPABASE_ANON_KEY:   '${process.env.SUPABASE_ANON_KEY   || ''}',
 }

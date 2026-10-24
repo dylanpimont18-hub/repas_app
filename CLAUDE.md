@@ -11,8 +11,9 @@ Application web **PWA mobile-first** pour un foyer de 2 personnes (Dylan + sa fe
 ## Stack technique
 - **HTML5 / CSS3 / JS vanilla** — aucun framework, aucun build tool
 - **Supabase** — authentification + base de données (toutes les données métier)
-- **Claude API (Anthropic)** — génération de recettes par IA
-- **OpenWeatherMap API** — météo actuelle à Vierzon pour contextualiser les suggestions IA
+- **Mammouth AI** (API compatible OpenAI, modèle `claude-sonnet-5-5`) — génération de recettes, appelée **uniquement** via l'Edge Function Supabase `ai`
+- **OpenWeatherMap API** — météo à Vierzon, également via l'Edge Function `ai`
+- **Aucune clé secrète côté navigateur** : `MAMMOUTH_API_KEY` et `OPENWEATHER_API_KEY` sont des secrets Supabase
 - Fichiers servis directement (Live Server VSCode ou `npx serve .`)
 - PWA : `manifest.json` + balises `apple-mobile-web-app-*` sur toutes les pages
 
@@ -65,7 +66,10 @@ Repas/
 ├── planning.html           # Planificateur hebdomadaire
 ├── courses.html            # Liste de courses
 ├── manifest.json           # PWA manifest (icônes à compléter)
-├── config.js               # Clés API (non versionnée) : CLAUDE_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY
+├── config.js               # Non versionné : SUPABASE_URL, SUPABASE_ANON_KEY (publiques)
+├── supabase/
+│   ├── functions/ai/       # Edge Function : proxy Mammouth AI + météo
+│   └── migrations/         # Migrations SQL (foyer, ingrédients perso, temps réel)
 ├── css/
 │   ├── style.css           # Variables CSS, reset, nav, bottom nav, layout, dark mode
 │   └── components.css      # Boutons, chips, cartes, modales, planning, courses, formulaires
@@ -77,8 +81,9 @@ Repas/
     ├── dashboard.js        # Logique dashboard
     ├── preferences.js      # Logique métier préférences (lecture/écriture via db.js)
     ├── preferences-ui.js   # Rendu UI préférences (cartes + tableau)
-    ├── custom-ingredients.js # Ingrédients personnalisés ajoutés par l'utilisateur
-    ├── ai.js               # Appels Claude API + météo OpenWeatherMap + prompt engineering
+    ├── custom-ingredients.js # Ingrédients personnalisés (table ingredients_custom, partagés)
+    ├── utils.js            # Fonctions pures testables (esc, semaine ISO, quantités, catégories…)
+    ├── ai.js               # Appels IA via Edge Function + météo + prompt engineering
     ├── recettes.js         # CRUD recettes (via db.js)
     ├── recettes-ui.js      # Rendu UI recettes (liste, détail, édition)
     ├── planning.js         # Logique métier planning (via db.js)
@@ -95,10 +100,15 @@ Repas/
 ```
 preferences       { profil_nom, ingredient_id, niveau }
 recettes          { id, nom, ingredients, etapes, temps_prep, temps_cuisson,
-                    portions, vegetarien, valeurs_nutritionnelles, date }
+                    portions, vegetarien, nutrition, date }
 planning          { semaine_key, jour, moment, recette_id, portions }
 courses_etat      { semaine_key, ingredient_nom, checked }
+ingredients_custom { id, nom, categorie, emoji }
+foyer_membres     { user_id, profil_nom }   -- seuls ces comptes passent la RLS (est_membre_foyer())
 ```
+
+### Synchronisation
+Toutes les tables sont dans la publication `supabase_realtime`. Les pages s'abonnent via `dbEcouter()` (db.js) pour refléter les changements faits depuis l'autre téléphone.
 
 ### localStorage (résiduel)
 ```js
@@ -117,10 +127,11 @@ repas_theme   // "light" | "dark" — seule donnée encore en localStorage
 - Indentation : 2 espaces
 - Nommage : camelCase JS, kebab-case CSS et fichiers HTML
 - Commentaires en français
-- La clé API et les credentials Supabase sont dans `config.js` (non versionné)
+- `config.js` (non versionné) ne contient que des valeurs publiques ; les secrets vont dans Supabase
+- Tests : `node --test tests/*.test.mjs` (fonctions pures de `js/utils.js`)
 
 ## Prompt IA (règles de base)
-Chaque appel à Claude API inclut toujours :
+Chaque appel IA inclut toujours :
 - Contrainte halal (no porc, no alcool)
 - Préférences du/des profils concernés (ingrédients aimés/détestés)
 - Météo actuelle à Vierzon (OpenWeatherMap)

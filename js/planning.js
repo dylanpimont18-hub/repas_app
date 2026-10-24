@@ -1,17 +1,10 @@
 // js/planning.js
-import { dbGetPlanning, dbUpsertPlanning } from './db.js'
+import { dbGetPlanning, dbUpsertPlanning, dbUpsertPlanningLot, dbUpsertRecettes } from './db.js'
+import { getSemaineKey } from './utils.js'
 
+export { getSemaineKey }
 export const JOURS   = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
 export const MOMENTS = ['midi','soir']
-
-export function getSemaineKey(date = new Date()) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
-  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
-}
 
 export async function getPlanning(semaineKey) {
   return await dbGetPlanning(semaineKey)
@@ -25,36 +18,18 @@ export async function supprimerRepas(semaineKey, jour, moment) {
   await dbUpsertPlanning(semaineKey, jour, moment, null, null)
 }
 
-export async function importerSemaineIA(semaineKey, semaineIA, addRecetteFn) {
-  for (const [jour, repas] of Object.entries(semaineIA)) {
-    for (const [moment, recette] of Object.entries(repas)) {
-      if (recette) {
-        const id = await addRecetteFn(recette)
-        await dbUpsertPlanning(semaineKey, jour, moment, id, recette.portions || 2)
-      } else {
-        await dbUpsertPlanning(semaineKey, jour, moment, null, null)
-      }
-    }
-  }
-}
-
-export async function importerCreneaux(semaineKey, repas, addRecetteFn) {
-  for (const { jour, moment, recette } of repas) {
-    if (recette) {
-      const id = await addRecetteFn(recette)
-      await dbUpsertPlanning(semaineKey, jour, moment, id, recette.portions || 2)
-    }
-  }
-}
-
-// Import multi-semaines : semaineKeys = { 1: 'YYYY-W01', 2: 'YYYY-W02' }
-export async function importerCreneauxMultiSemaine(repas, addRecetteFn, semaineKeys) {
-  for (const { semaine, jour, moment, recette } of repas) {
-    if (!recette) continue
-    const key = semaineKeys[semaine] || semaineKeys[1]
-    const id = await addRecetteFn(recette)
-    await dbUpsertPlanning(key, jour, moment, id, recette.portions || 2)
-  }
+// Import des repas générés par l'IA : 2 requêtes au total (recettes puis planning)
+// semaineKeys = { 1: 'YYYY-W01', 2: 'YYYY-W02' } — la semaine 1 sert par défaut
+export async function importerCreneaux(repas, semaineKeys) {
+  const valides = repas.filter(r => r.recette && JOURS.includes(r.jour) && MOMENTS.includes(r.moment))
+  const ids = await dbUpsertRecettes(valides.map(r => r.recette))
+  await dbUpsertPlanningLot(valides.map((r, i) => ({
+    semaine_key: semaineKeys[r.semaine] || semaineKeys[1],
+    jour:        r.jour,
+    moment:      r.moment,
+    recette_id:  ids[i],
+    portions:    r.recette.portions || 2,
+  })))
 }
 
 export async function getJoursAvecRepas(semaineKey) {
@@ -62,4 +37,9 @@ export async function getJoursAvecRepas(semaineKey) {
   return JOURS.flatMap(jour =>
     MOMENTS.filter(m => planning[jour]?.[m]?.id).map(m => ({ jour, moment: m, ...planning[jour][m] }))
   )
+}
+
+// Ids des recettes présentes dans un planning
+export function idsDuPlanning(planning) {
+  return JOURS.flatMap(j => MOMENTS.map(m => planning[j]?.[m]?.id)).filter(Boolean)
 }

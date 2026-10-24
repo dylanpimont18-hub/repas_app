@@ -1,7 +1,7 @@
 // js/app.js
-import { load, save } from './storage.js'
-import { KEYS }       from './storage.js'
+import { load, save, KEYS } from './storage.js'
 import { dbGetSession, dbSignOut } from './db.js'
+import { esc } from './utils.js'
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme)
@@ -43,15 +43,13 @@ export async function renderModalFlash() {
   const { genererDerniereMinute }                                       = await import('./ai.js')
   const { getJoursAvecRepas, getSemaineKey: gsk, JOURS, MOMENTS,
           assignerRepas }                                                = await import('./planning.js')
-  const { getRecetteById, addRecette }                                  = await import('./recettes.js')
+  const { getRecettesByIds, addRecette }                                = await import('./recettes.js')
 
   const semaineKey = gsk()
   const repasExist = await getJoursAvecRepas(semaineKey)
+  const recettesSemaine = await getRecettesByIds(repasExist.map(r => r.id))
   const ingredientsDispos = [...new Set(
-    (await Promise.all(repasExist.map(async r => {
-      const rec = await getRecetteById(r.id)
-      return rec ? rec.ingredients.map(i => i.nom) : []
-    }))).flat()
+    Object.values(recettesSemaine).flatMap(rec => (rec.ingredients || []).map(i => i.nom))
   )]
 
   let pourQui    = 'deux'
@@ -72,14 +70,14 @@ export async function renderModalFlash() {
       </div>
       ${!recette && !loading ? `
         <textarea id="flashConsignes" class="gen-chat-input" rows="2" style="margin-bottom:0.75rem;"
-          placeholder="Instructions libres… ex : ramen, poulet rôti, plat rapide, cuisine marocaine">${consignes}</textarea>
+          placeholder="Instructions libres… ex : ramen, poulet rôti, plat rapide, cuisine marocaine">${esc(consignes)}</textarea>
       ` : ''}
       ${loading ? '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>' : ''}
-      ${error   ? `<p class="text-sm" style="color:#c0392b;margin-bottom:0.75rem;">${error}</p>` : ''}
+      ${error   ? `<p class="text-sm" style="color:#c0392b;margin-bottom:0.75rem;">${esc(error)}</p>` : ''}
       ${recette ? `
         <div class="card" style="margin-bottom:1rem;">
-          <div class="recipe-name" style="margin-bottom:0.3rem;">${recette.nom}</div>
-          <div class="recipe-meta">⏱ ${recette.temps_prep + recette.temps_cuisson} min${recette.vegetarien ? ' · 🌿' : ''}</div>
+          <div class="recipe-name" style="margin-bottom:0.3rem;">${esc(recette.nom)}</div>
+          <div class="recipe-meta">⏱ ${(recette.temps_prep || 0) + (recette.temps_cuisson || 0)} min${recette.vegetarien ? ' · 🌿' : ''}</div>
         </div>
         <div class="flex gap-sm">
           <button class="btn btn-primary btn-sm" id="flashAjouter">Ajouter au planning</button>
@@ -107,21 +105,21 @@ export async function renderModalFlash() {
     content.querySelector('#flashGenerer')?.addEventListener('click', doGenerate)
     content.querySelector('#flashAutre')?.addEventListener('click', doGenerate)
 
-    content.querySelector('#flashAjouter')?.addEventListener('click', async () => {
+    content.querySelector('#flashAjouter')?.addEventListener('click', async (e) => {
       if (!recetteGen) return
-      const id      = await addRecette(recetteGen)
-      const sk      = gsk()
-      const { getPlanning } = await import('./planning.js')
-      const planning = await getPlanning(sk)
-      let   slot     = null
-      for (const j of JOURS) {
-        for (const m of MOMENTS) {
-          if (!planning[j]?.[m]?.id) { slot = { jour: j, moment: m }; break }
-        }
-        if (slot) break
+      e.target.disabled = true
+      try {
+        const id       = await addRecette(recetteGen)
+        const { getPlanning } = await import('./planning.js')
+        const planning = await getPlanning(semaineKey)
+        // Premier créneau libre de la semaine
+        const slot = JOURS.flatMap(jour => MOMENTS.map(moment => ({ jour, moment })))
+          .find(({ jour, moment }) => !planning[jour]?.[moment]?.id)
+        if (slot) await assignerRepas(semaineKey, slot.jour, slot.moment, id, recetteGen.portions || 2)
+        document.getElementById('modalFlash').classList.add('hidden')
+      } catch (err) {
+        draw(false, recetteGen, err.message)
       }
-      if (slot) await assignerRepas(sk, slot.jour, slot.moment, id, recetteGen.portions || 2)
-      document.getElementById('modalFlash').classList.add('hidden')
     })
   }
 

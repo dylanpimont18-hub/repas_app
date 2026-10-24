@@ -1,8 +1,10 @@
 // js/planning-ui.js
 import { getSemaineKey, getPlanning, assignerRepas, supprimerRepas,
-         importerCreneaux, importerCreneauxMultiSemaine, JOURS, MOMENTS } from './planning.js'
-import { getRecettes, addRecette, getRecetteById } from './recettes.js'
-import { genererCreneaux, getMeteo, getApiKey, saveApiKey } from './ai.js'
+         importerCreneaux, idsDuPlanning, JOURS, MOMENTS } from './planning.js'
+import { getRecettes, getRecettesByIds } from './recettes.js'
+import { genererCreneaux, getMeteo } from './ai.js'
+import { dbEcouter } from './db.js'
+import { esc, debounce } from './utils.js'
 
 const JOURS_LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu',
                       vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -33,62 +35,6 @@ function getDatesDeSemaine(key) {
 let slotsPourGeneration = null
 let perimetre = 1  // 1 ou 2 semaines
 
-// ── Popover contextuel ──
-let popoverEl = null
-
-function creerPopover() {
-  const el = document.createElement('div')
-  el.className = 'planning-popover'
-  el.style.display = 'none'
-  document.body.appendChild(el)
-  document.addEventListener('click', (e) => {
-    if (popoverEl && !popoverEl.contains(e.target)) fermerPopover()
-  }, true)
-  return el
-}
-
-function fermerPopover() {
-  if (popoverEl) popoverEl.style.display = 'none'
-}
-
-function ouvrirPopover(cellEl, recetteId) {
-  if (!popoverEl) popoverEl = creerPopover()
-  const rect = cellEl.getBoundingClientRect()
-
-  popoverEl.innerHTML = `
-    <button data-action="voir">👁 Voir la recette</button>
-    <button data-action="changer">✏️ Changer</button>
-    <button data-action="supprimer" class="pop-delete">🗑 Supprimer</button>`
-
-  popoverEl.querySelector('[data-action="voir"]').addEventListener('click', () => {
-    fermerPopover()
-    window.location.href = `recettes.html?id=${recetteId}&from=planning`
-  })
-  popoverEl.querySelector('[data-action="changer"]').addEventListener('click', () => {
-    fermerPopover()
-    ouvrirSelectRecette()
-  })
-  popoverEl.querySelector('[data-action="supprimer"]').addEventListener('click', async () => {
-    fermerPopover()
-    await supprimerRepas(semaineKey, slotEnCours.jour, slotEnCours.moment)
-    await renderGrid()
-  })
-
-  popoverEl.style.display = 'flex'
-
-  // Sur mobile (≤ 640px) le popover est ancré en bas via CSS — pas de positionnement JS
-  if (window.innerWidth <= 640) return
-
-  // Desktop : positionner près de la cellule sans déborder de l'écran
-  const pw = 160, ph = 110
-  let top  = rect.bottom + 4
-  let left = rect.left
-  if (top + ph > window.innerHeight) top = rect.top - ph - 4
-  if (left + pw > window.innerWidth)  left = window.innerWidth - pw - 8
-  popoverEl.style.top  = `${top}px`
-  popoverEl.style.left = `${left}px`
-}
-
 function getSemaineDecalee(offset) {
   const d = new Date()
   d.setDate(d.getDate() + offset * 7)
@@ -100,50 +46,13 @@ async function renderGrid() {
   const labelEl  = document.getElementById('labelSemaine')
   if (labelEl) labelEl.textContent = semaineKey
 
-  // Pre-fetch toutes les recettes de la semaine en parallèle
-  const ids = [...new Set(
-    JOURS.flatMap(j => MOMENTS.map(m => planning[j]?.[m]?.id).filter(Boolean))
-  )]
-  const recettesArr = await Promise.all(ids.map(id => getRecetteById(id)))
-  const recettesMap = Object.fromEntries(ids.map((id, i) => [id, recettesArr[i]]))
+  // Toutes les recettes de la semaine en une requête
+  const recettesMap = await getRecettesByIds(idsDuPlanning(planning))
 
   const grid = document.getElementById('planningGrid')
   if (!grid) return
 
   renderListView(planning, recettesMap, grid)
-}
-
-function renderGridView(planning, recettesMap, grid) {
-  grid.className = 'planning-grid'
-  const dates = getDatesDeSemaine(semaineKey)
-
-  let html = '<div class="planning-header-cell"></div>'
-  JOURS.forEach(j => { html += `<div class="planning-header-cell">${JOURS_LABEL[j]}<span class="planning-header-date">${dates[j]}</span></div>` })
-
-  MOMENTS.forEach(moment => {
-    html += `<div class="planning-label-cell"><span>${moment === 'midi' ? '☀️' : '🌙'}</span><span>${moment}</span></div>`
-    JOURS.forEach(jour => {
-      const slot    = planning[jour]?.[moment]
-      const recette = slot?.id ? recettesMap[slot.id] : null
-      html += `<div class="planning-cell" data-jour="${jour}" data-moment="${moment}">`
-      html += recette
-        ? `<span class="meal-tag" title="${recette.nom}">${recette.nom}</span>`
-        : `<span class="meal-empty">+</span>`
-      html += `</div>`
-    })
-  })
-
-  grid.innerHTML = html
-  grid.querySelectorAll('.planning-cell').forEach(cell => {
-    cell.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const jour   = cell.dataset.jour
-      const moment = cell.dataset.moment
-      slotEnCours = { jour, moment }
-      const slot = planning[jour]?.[moment]
-      if (slot?.id) { ouvrirPopover(cell, slot.id) } else { fermerPopover(); ouvrirSelectRecette() }
-    })
-  })
 }
 
 function renderListView(planning, recettesMap, grid) {
@@ -165,7 +74,7 @@ function renderListView(planning, recettesMap, grid) {
         <div class="list-slot-content">
           <span class="list-slot-label">${moment === 'midi' ? 'Midi' : 'Soir'}</span>
           ${recette
-            ? `<span class="list-meal-name">${recette.nom}</span>`
+            ? `<span class="list-meal-name">${esc(recette.nom)}</span>`
             : `<span class="list-meal-empty">+ Ajouter</span>`
           }
         </div>
@@ -189,7 +98,7 @@ function renderListView(planning, recettesMap, grid) {
       slotEnCours = { jour, moment }
       const s = planning[jour]?.[moment]
       if (s?.id) {
-        window.location.href = `recettes.html?id=${s.id}&from=planning`
+        window.location.href = `recettes.html?id=${encodeURIComponent(s.id)}&from=planning`
       } else {
         ouvrirSelectRecette()
       }
@@ -222,8 +131,8 @@ async function ouvrirSelectRecette() {
   list.innerHTML = r.length === 0
     ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette — générez-en d\'abord via IA.</p>'
     : r.map(x => `
-        <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;" data-id="${x.id}">
-          <div class="recipe-name">${x.nom}</div>
+        <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;" data-id="${esc(x.id)}">
+          <div class="recipe-name">${esc(x.nom)}</div>
           <div class="recipe-meta"><span>⏱ ${x.temps_prep + x.temps_cuisson} min</span>${x.vegetarien ? '<span>🌿</span>' : ''}</div>
         </div>`).join('')
 
@@ -242,16 +151,6 @@ async function ouvrirSelectRecette() {
     await renderGrid()
   })
   modal.classList.remove('hidden')
-}
-
-function demanderCleApi(statusEl) {
-  const key = prompt('🔑 Clé API Claude manquante.\n\nColle ta clé ici (commence par sk-ant-…) :')
-  if (key && key.trim().startsWith('sk-ant')) {
-    saveApiKey(key.trim())
-    if (statusEl) statusEl.textContent = '✅ Clé enregistrée — relance la génération.'
-  } else if (key !== null) {
-    if (statusEl) statusEl.textContent = '❌ Clé invalide (doit commencer par sk-ant-).'
-  }
 }
 
 async function initModalGen() {
@@ -407,7 +306,7 @@ async function initModalGen() {
     if (status) status.textContent = `0 / ${slots.length} recettes…`
 
     try {
-      const meteo     = modal._meteo || { avgTemp: 20, saison: 'été', description: '' }
+      const meteo     = modal._meteo || await getMeteo()
       const consignes = document.getElementById('consignesLibres')?.value.trim() || ''
       const result    = await genererCreneaux(
         { slots, pourQui, meteo, contraintes: { ...contraintes, consignes } },
@@ -417,12 +316,7 @@ async function initModalGen() {
           if (progressFill) progressFill.style.width = (capped / total * 95) + '%'
         }
       )
-      if (perimetre === 2) {
-        const key2 = getSemaineDecalee(semaineOffset + 1)
-        await importerCreneauxMultiSemaine(result.repas, addRecette, { 1: semaineKey, 2: key2 })
-      } else {
-        await importerCreneaux(semaineKey, result.repas, addRecette)
-      }
+      await importerCreneaux(result.repas || [], { 1: semaineKey, 2: getSemaineDecalee(semaineOffset + 1) })
 
       if (progressFill) progressFill.style.width = '100%'
       if (status) status.textContent = `✅ ${slots.length} / ${slots.length} — Terminé !`
@@ -435,12 +329,7 @@ async function initModalGen() {
       }, 900)
     } catch (e) {
       if (progressFill) progressFill.style.width = '0%'
-      if (e.message === 'CLE_MANQUANTE') {
-        if (progressWrap) progressWrap.classList.add('hidden')
-        demanderCleApi(status)
-      } else {
-        if (status) status.textContent = `❌ ${e.message}`
-      }
+      if (status) status.textContent = `❌ ${e.message}`
     } finally {
       if (btnLancer) { btnLancer.disabled = false; btnLancer.textContent = '✨ Générer les repas' }
     }
@@ -462,4 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   })
   document.getElementById('closeRecetteSelect')?.addEventListener('click', () =>
     document.getElementById('modalRecetteSelect')?.classList.add('hidden'))
+
+  // Temps réel : refléter les changements faits depuis l'autre téléphone
+  dbEcouter(['planning', 'recettes'], debounce(renderGrid, 300))
 })

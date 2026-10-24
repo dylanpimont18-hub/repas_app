@@ -1,11 +1,6 @@
-// js/storage.js
+// js/storage.js — Helpers localStorage (préférences d'affichage propres à chaque appareil)
 export const KEYS = {
-  profilDylan:  'repas_profil_dylan',
-  profilFemme:  'repas_profil_femme',
-  recettes:     'repas_recettes',
-  planning:     'repas_planning',
-  coursesEtat:  'repas_courses_etat',
-  theme:        'repas_theme',
+  theme: 'repas_theme',
 }
 
 export function load(key, defaultValue = null) {
@@ -16,9 +11,9 @@ export function load(key, defaultValue = null) {
 }
 
 export function save(key, value) {
-  localStorage.setItem(key, JSON.stringify(value))
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* navigation privée */ }
 }
 
 export function remove(key) {
-  localStorage.removeItem(key)
+  try { localStorage.removeItem(key) } catch { /* navigation privée */ }
 }

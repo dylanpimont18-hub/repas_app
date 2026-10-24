@@ -1,12 +1,10 @@
 // js/recettes-ui.js
 import { getRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
+import { dbEcouter } from './db.js'
+import { esc, debounce } from './utils.js'
 
 let filtres = {}
 let recetteEnEdition = null
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-}
 
 async function renderList() {
   const recettes  = await getRecettes(filtres)
@@ -15,8 +13,8 @@ async function renderList() {
   container.innerHTML = recettes.length === 0
     ? '<p class="text-muted">Aucune recette. Générez-en depuis le planning !</p>'
     : recettes.map(r => `
-        <div class="recipe-card" style="cursor:pointer;" data-id="${r.id}">
-          <div class="recipe-name">${r.nom}</div>
+        <div class="recipe-card" style="cursor:pointer;" data-id="${esc(r.id)}">
+          <div class="recipe-name">${esc(r.nom)}</div>
           <div class="recipe-meta">
             <span>⏱ ${r.temps_prep + r.temps_cuisson} min</span>
             <span>👤 ${r.portions} pers.</span>
@@ -48,11 +46,11 @@ async function ouvrirDetail(id) {
     </div>` : ''}
     <h3 style="margin-bottom:0.5rem;">Ingrédients</h3>
     <ul style="margin-bottom:1rem;">
-      ${r.ingredients.map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
+      ${(r.ingredients || []).map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
     </ul>
     <h3 style="margin-bottom:0.5rem;">Préparation</h3>
     <ol style="padding-left:1.25rem;">
-      ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
+      ${(r.etapes || []).map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
     </ol>
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
       <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">🗑 Supprimer</button>
@@ -240,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const targetId = params.get('id')
   if (targetId) {
     await ouvrirDetail(targetId)
-    const card = document.querySelector(`[data-id="${targetId}"]`)
+    const card = document.querySelector(`[data-id="${CSS.escape(targetId)}"]`)
     if (card) {
       card.style.outline = '2px solid var(--color-primary)'
       card.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -289,4 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Soumission formulaire
   document.getElementById('formEditRecette')?.addEventListener('submit', soumettreFormEdit)
+
+  // Temps réel : nouvelles recettes ou modifications faites par l'autre membre du foyer
+  dbEcouter(['recettes'], debounce(renderList, 300))
 })

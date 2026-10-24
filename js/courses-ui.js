@@ -3,6 +3,7 @@ import { genererListeCycle, getEtatCourses, toggleCourse, resetCourses } from '.
 import { debutCycle, decalerCycle, cleCycle, labelCycle } from './cycle.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce, combinerQuantites } from './utils.js'
+import { icone } from './icones.js'
 
 let enCours         = null   // rendu en cours (Promise)
 let aRefaire        = false  // un changement est arrivé pendant le rendu
@@ -10,8 +11,8 @@ let acheteesOuverte = false
 let samedi          = debutCycle()
 
 const PARTIES = [
-  { id: 'samedi',   titre: '🛒 Samedi — magasin', sous: 'Samedi soir → mardi (dont la session du dimanche)' },
-  { id: 'mercredi', titre: '🚗 Mercredi — drive',  sous: 'Mercredi → samedi midi (dont la session du mercredi)' },
+  { id: 'samedi',   icone: 'panier',  titre: 'Samedi, au magasin', sous: 'Samedi soir → mardi (dont la session du dimanche)' },
+  { id: 'mercredi', icone: 'voiture', titre: 'Mercredi, en drive', sous: 'Mercredi → samedi midi (dont la session du mercredi)' },
 ]
 
 // Évite les rendus concurrents sans perdre de mise à jour : si un rendu est en cours,
@@ -28,14 +29,6 @@ async function render() {
 }
 
 const ORDRE = ['Fruits & Légumes','Viandes & Poissons','Féculents','Laitiers & Œufs','Épicerie & Condiments','Divers']
-const ICONE = {
-  'Fruits & Légumes':      '🥬',
-  'Viandes & Poissons':    '🥩',
-  'Féculents':             '🍚',
-  'Laitiers & Œufs':       '🥛',
-  'Épicerie & Condiments': '🌿',
-  'Divers':                '🛒',
-}
 
 async function renderUneFois() {
   const semaineKey = cleCycle(samedi)
@@ -56,14 +49,14 @@ async function renderUneFois() {
     const rayons = ORDRE.filter(cat => actifs[cat]?.length)
     if (!rayons.length) return ''
     return `<div class="courses-partie">
-      <div class="courses-partie-titre">${partie.titre}<div class="text-xs text-muted" style="font-family:inherit;">${partie.sous}</div></div>
+      <div class="courses-partie-titre">${icone(partie.icone)}${partie.titre}<div class="text-xs text-muted">${partie.sous}</div></div>
       ${rayons.map(cat => `
       <div class="courses-group">
-        <div class="courses-group-title">${ICONE[cat]} ${cat}</div>
+        <div class="courses-group-title">${cat}</div>
         ${actifs[cat].map(item => `<div class="courses-item">
             <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
             <span class="courses-item-label">${esc(item.nom)}</span>
-            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
+            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
           </div>`).join('')}
       </div>`).join('')}
     </div>`
@@ -73,7 +66,7 @@ async function renderUneFois() {
   const htmlAchetees = achetees.length ? `
     <div id="coursesAchetees">
       <div id="coursesAcheteesHeader">
-        <span>✓ Achetées (<span id="coursesAcheteesCount">${achetees.length}</span>)</span>
+        <span>${icone('check')}Achetées (<span id="coursesAcheteesCount">${achetees.length}</span>)</span>
         <span id="coursesAcheteesToggle">${acheteesOuverte ? '▲' : '▼'}</span>
       </div>
       <div id="coursesAcheteesBody" class="${acheteesOuverte ? '' : 'hidden'}">
@@ -81,7 +74,7 @@ async function renderUneFois() {
           <div class="courses-achetee-item">
             <input type="checkbox" checked data-nom="${esc(item.nom)}" data-checked="true">
             <span>${esc(item.nom)}</span>
-            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
+            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
           </div>`).join('')}
       </div>
     </div>` : ''
@@ -148,7 +141,7 @@ function initSwipeCourses(semaineKey) {
     // Injecter le fond visuel
     const bg = document.createElement('div')
     bg.className = 'courses-item-swipe-bg'
-    bg.textContent = cb.dataset.checked === 'false' ? '✓' : '↩'
+    bg.innerHTML = icone(cb.dataset.checked === 'false' ? 'check' : 'annuler')
     item.appendChild(bg)
 
     let startX = 0, startY = 0, active = false, directionLocked = false, isHorizontal = false

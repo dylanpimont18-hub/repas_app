@@ -16,24 +16,23 @@
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html" class="nav-logo">🍽️ Repas</a>
-    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <a href="index.html" class="nav-logo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-marmite"/></svg><span>Repas</span></a>
     <div class="nav-links" id="navLinks">
-      <a href="planning.html" class="active">📅 Planning</a>
-      <a href="recettes.html">📖 Recettes</a>
-      <a href="preferences.html">❤️ Préférences</a>
-      <a href="courses.html">🛒 Courses</a>
-      <a href="reglages.html">⚙️ Réglages</a>
+      <a href="planning.html" class="active">Planning</a>
+      <a href="recettes.html">Recettes</a>
+      <a href="preferences.html">Préférences</a>
+      <a href="courses.html">Courses</a>
+      <a href="reglages.html">Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
-    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
-    <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
+    <button class="nav-flash" id="btnFlash" aria-label="Envie du moment"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-eclair"/></svg><span class="nav-flash-label">Envie</span></button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème" aria-label="Changer le thème"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lune"/></svg></button>
+    <button class="nav-theme" id="btnLogout" title="Se déconnecter" aria-label="Se déconnecter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-sortie"/></svg></button>
   </nav>
 
   <div class="modal-overlay hidden" id="modalFlash">
     <div class="modal">
-      <button class="modal-close" id="modalClose">✕</button>
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
       <div id="modalContent"></div>
     </div>
   </div>
@@ -41,14 +40,14 @@
   <main class="main planning-main">
     <div class="section-header planning-section-header">
       <div class="planning-header-top">
-        <h1 class="page-title" style="margin:0;">📅 Planning</h1>
-        <button class="btn btn-primary btn-sm" id="btnGenererSemaine">✨ Remplir</button>
+        <h1 class="page-title" style="margin:0;">Planning</h1>
+        <button class="btn btn-primary btn-sm" id="btnGenererSemaine"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Remplir</button>
       </div>
       <div class="planning-header-nav">
-        <button class="btn btn-secondary btn-sm" id="btnPrevWeek">←</button>
+        <button class="btn btn-secondary btn-sm" id="btnPrevWeek" aria-label="Cycle précédent"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-gauche"/></svg></button>
         <span id="labelSemaine" class="text-sm text-muted planning-week-label"></span>
         <a href="reglages.html#reserve" id="badgeReserve" class="reserve-badge hidden" title="Réserve congélo"></a>
-        <button class="btn btn-secondary btn-sm" id="btnNextWeek">→</button>
+        <button class="btn btn-secondary btn-sm" id="btnNextWeek" aria-label="Cycle suivant"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-droite"/></svg></button>
       </div>
     </div>
 <div class="planning-grid-wrapper">
@@ -57,7 +56,7 @@
 
     <div class="modal-overlay hidden" id="modalRecetteSelect">
       <div class="modal">
-        <button class="modal-close" id="closeRecetteSelect">✕</button>
+        <button class="modal-close" id="closeRecetteSelect" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
         <p class="modal-title">Choisir une recette</p>
         <div id="recetteSelectList" style="max-height:360px;overflow-y:auto;"></div>
       </div>
@@ -65,14 +64,14 @@
 
     <div class="modal-overlay hidden" id="modalGenSemaine">
       <div class="modal gen-modal">
-        <button class="modal-close" id="closeGenSemaine">✕</button>
-        <p class="modal-title">✨ Remplir le cycle</p>
+        <button class="modal-close" id="closeGenSemaine" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
+        <p class="modal-title">Remplir le cycle</p>
 
         <div class="gen-section">
           <div class="gen-section-label">Envies</div>
           <div id="genFiltres" class="gen-chips-wrap"></div>
           <input id="genStyle" class="form-input" style="margin-top:0.5rem;" type="text"
-            placeholder="✍️ Style libre… ex : asiatique, maghrébin, plats du Sud">
+            placeholder="Style libre : asiatique, maghrébin…" aria-label="Style libre">
         </div>
 
         <div class="gen-section">
@@ -87,8 +86,8 @@
           <p class="text-xs text-muted" id="genStatus" style="margin-bottom:0.5rem;text-align:center;"></p>
           <button class="btn btn-secondary btn-full hidden" id="btnCompleterIA" style="margin-bottom:0.5rem;"></button>
           <div class="gen-actions">
-            <button class="btn btn-primary" id="btnLancerGen">📖 Mes recettes</button>
-            <button class="btn btn-accent" id="btnGenererIA">✨ Générer avec l'IA</button>
+            <button class="btn btn-primary" id="btnLancerGen"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Mes recettes</button>
+            <button class="btn btn-accent" id="btnGenererIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Générer avec l'IA</button>
           </div>
           <p class="text-xs text-muted gen-aide">« Mes recettes » pioche dans ta bibliothèque, sans IA. « Générer » crée de nouvelles recettes pour tous les créneaux choisis.</p>
         </div>

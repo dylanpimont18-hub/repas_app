@@ -15,54 +15,53 @@
   <link rel="stylesheet" href="css/components.css">
 </head>
 <body>
-  <a href="planning.html" class="back-banner hidden" id="backBanner">← Retour au planning</a>
+  <a href="planning.html" class="back-banner hidden" id="backBanner"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-gauche"/></svg>Retour au planning</a>
   <nav class="nav">
-    <a href="index.html" class="nav-logo">🍽️ Repas</a>
-    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <a href="index.html" class="nav-logo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-marmite"/></svg><span>Repas</span></a>
     <div class="nav-links" id="navLinks">
-      <a href="planning.html">📅 Planning</a>
-      <a href="recettes.html" class="active">📖 Recettes</a>
-      <a href="preferences.html">❤️ Préférences</a>
-      <a href="courses.html">🛒 Courses</a>
-      <a href="reglages.html">⚙️ Réglages</a>
+      <a href="planning.html">Planning</a>
+      <a href="recettes.html" class="active">Recettes</a>
+      <a href="preferences.html">Préférences</a>
+      <a href="courses.html">Courses</a>
+      <a href="reglages.html">Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
-    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
-    <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
+    <button class="nav-flash" id="btnFlash" aria-label="Envie du moment"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-eclair"/></svg><span class="nav-flash-label">Envie</span></button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème" aria-label="Changer le thème"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lune"/></svg></button>
+    <button class="nav-theme" id="btnLogout" title="Se déconnecter" aria-label="Se déconnecter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-sortie"/></svg></button>
   </nav>
 
   <div class="modal-overlay hidden" id="modalFlash">
     <div class="modal">
-      <button class="modal-close" id="modalClose">✕</button>
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
       <div id="modalContent"></div>
     </div>
   </div>
 
   <main class="main">
     <div class="section-header">
-      <h1 class="page-title">📖 Recettes</h1>
+      <h1 class="page-title">Recettes</h1>
       <div class="flex gap-sm">
-        <button class="chip" id="filtreVeg">🌿 Végé</button>
-        <button class="chip" id="filtreRapide">⚡ Rapide</button>
+        <button class="chip" id="filtreVeg"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-feuille"/></svg>Végé</button>
+        <button class="chip" id="filtreRapide"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-horloge"/></svg>Rapide</button>
       </div>
     </div>
     <div style="margin-bottom:1rem;position:relative;">
       <input type="search" id="rechercheRecette" class="form-input"
-        placeholder="🔍 Rechercher une recette…"
+        placeholder="Rechercher une recette" aria-label="Rechercher une recette"
         style="padding-left:0.9rem;" autocomplete="off">
     </div>
     <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>
     <div class="modal-overlay hidden" id="modalDetail">
       <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
-        <button class="modal-close" id="closeDetail">✕</button>
+        <button class="modal-close" id="closeDetail" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
         <div id="detailContent"></div>
       </div>
     </div>
     <div class="modal-overlay hidden" id="modalEditRecette">
       <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
-        <button class="modal-close" id="closeEditRecette">✕</button>
-        <p class="modal-title" id="editRecetteTitle">✏️ Modifier la recette</p>
+        <button class="modal-close" id="closeEditRecette" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
+        <p class="modal-title" id="editRecetteTitle">Modifier la recette</p>
         <form id="formEditRecette" autocomplete="off">
           <!-- nom -->
           <div class="form-group">
@@ -89,7 +88,7 @@
             <div id="editTags" class="gen-chips-wrap"></div>
           </div>
           <div class="form-group">
-            <label class="form-label">🙈 Légumes cachés (une ligne par légume : « légume : astuce »)</label>
+            <label class="form-label">Légumes cachés (une ligne par légume : « légume : astuce »)</label>
             <textarea class="form-input" id="editCaches" rows="2" placeholder="Courgette : mixer dans la sauce"></textarea>
           </div>
           <div class="form-group">
@@ -112,7 +111,7 @@
             </div>
             <div class="form-group" style="margin:0;display:flex;flex-direction:column;justify-content:center;">
               <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.9rem;cursor:pointer;padding-top:1.4rem;">
-                <input type="checkbox" id="editVeg" style="width:18px;height:18px;"> 🌿 Végétarien
+                <input type="checkbox" id="editVeg" style="width:18px;height:18px;"> Végétarien
               </label>
             </div>
           </div>

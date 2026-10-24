@@ -56,7 +56,7 @@ export function decalerCycle(samedi, n) { return ajouterJours(samedi, 7 * n) }
 export function cleCycle(samedi) { return `${getSemaineKey(samedi)}-C` }
 
 export function labelCycle(samedi) {
-  return `Sam ${dateCourte(samedi)} soir → Sam ${dateCourte(ajouterJours(samedi, 7))} midi`
+  return `Sam ${dateCourte(samedi)} → Sam ${dateCourte(ajouterJours(samedi, 7))}`
 }
 
 // Semaines ISO couvertes par le cycle (pour charger le planning)
@@ -125,7 +125,7 @@ export function groupesDuCycle(creneaux) {
   groupes.forEach(g => {
     const c0 = g.creneaux[0]
     g.titre = g.enSession
-      ? `🍳 Préparé ${g.cuisineLe} → ${g.jours.map(j => LABEL_JOUR[j]).join(' · ')}`
+      ? `Préparé ${g.cuisineLe} → ${g.jours.map(j => LABEL_JOUR[j]).join(' · ')}`
       : `${LABEL_JOUR[c0.jour]} ${dateCourte(c0.date)} · sur place`
   })
   return groupes

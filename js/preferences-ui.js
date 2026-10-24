@@ -4,6 +4,7 @@ import { getAllParCategorie, addCustomIngredient, removeCustomIngredient, invali
 import { setPreference, getANoter, getProgression, getProfil, invaliderPreferences } from './preferences.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
+import { icone } from './icones.js'
 
 let profilActif     = 'dylan'
 let categorieActive = Object.keys(CATEGORIES)[0]
@@ -12,10 +13,10 @@ let vueActive       = localStorage.getItem('repas_pref_view_mode') || 'cartes'
 let tableClickHandler = null
 
 const NIVEAUX = [
-  { id: 'j_aime_pas', label: '✗ Non',    cls: 'active-naime'  },
+  { id: 'j_aime_pas', label: 'Non',    cls: 'active-naime'  },
   { id: 'neutre',     label: '○ Neutre', cls: 'active-neutre' },
-  { id: 'j_aime',     label: '♥ J\'aime', cls: 'active-aime'   },
-  { id: 'j_adore',    label: '★ J\'adore', cls: 'active-adore'  },
+  { id: 'j_aime',     label: 'J\'aime', cls: 'active-aime'   },
+  { id: 'j_adore',    label: 'J\'adore', cls: 'active-adore'  },
 ]
 
 function renderCatChips() {
@@ -59,7 +60,7 @@ function afficherProchain() {
   const cardCat   = document.getElementById('cardCat')
   if (cardEmoji) cardEmoji.textContent = ing.emoji
   if (cardNom)   cardNom.textContent   = ing.nom
-  if (cardCat)   cardCat.textContent   = (ing.custom ? '✦ Personnalisé · ' : '') + (CATEGORIES[ing.categorie]?.label || '')
+  if (cardCat)   cardCat.textContent   = (ing.custom ? 'Personnalisé · ' : '') + (CATEGORIES[ing.categorie]?.label || '')
 }
 
 async function updateProgress() {
@@ -89,12 +90,12 @@ async function renderTableau() {
     for (const ing of ings) {
       const niveauActuel = profil[ing.id] || null
       html += `<tr data-ing-id="${esc(ing.id)}">`
-      html += `<td><span class="ing-name"><span>${esc(ing.emoji)}</span><span>${esc(ing.nom)}</span>${ing.custom ? ' <span class="custom-badge">✦</span>' : ''}</span></td>`
+      html += `<td><span class="ing-name"><span>${esc(ing.emoji)}</span><span>${esc(ing.nom)}</span>${ing.custom ? ' <span class="custom-badge">perso</span>' : ''}</span></td>`
       for (const n of NIVEAUX) {
         const actif = niveauActuel === n.id
         html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${esc(ing.id)}" data-niveau="${n.id}">${actif ? '●' : '○'}</button></td>`
       }
-      html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${esc(ing.id)}" title="Supprimer">✕</button>` : ''}</td>`
+      html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${esc(ing.id)}" title="Supprimer" aria-label="Supprimer ${esc(ing.nom)}">${icone('croix')}</button>` : ''}</td>`
       html += `</tr>`
     }
   }
@@ -219,9 +220,9 @@ function initSwipeGesture() {
   const DIRECTION_NIVEAU = { right: 'j_adore', left: 'j_aime_pas', up: 'j_aime', down: 'neutre' }
 
   const indicators = {
-    right: creerIndicateur('swipe-indicator swipe-indicator-right', "❤️ J'adore"),
-    left:  creerIndicateur('swipe-indicator swipe-indicator-left',  '✗ Non'),
-    up:    creerIndicateur('swipe-indicator swipe-indicator-up',    '♥ J\'aime'),
+    right: creerIndicateur('swipe-indicator swipe-indicator-right', "J'adore"),
+    left:  creerIndicateur('swipe-indicator swipe-indicator-left',  'Non'),
+    up:    creerIndicateur('swipe-indicator swipe-indicator-up',    'J\'aime'),
     down:  creerIndicateur('swipe-indicator swipe-indicator-down',  '○ Neutre'),
   }
   Object.values(indicators).forEach(el => card.appendChild(el))

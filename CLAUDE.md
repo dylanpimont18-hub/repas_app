@@ -124,6 +124,10 @@ repas_theme   // "light" | "dark" — seule donnée encore en localStorage
 - **Modales bottom sheet** : s'ouvrent depuis le bas de l'écran (pattern iOS natif)
 - **Dark mode** : toggle dans la nav du haut, persisté en localStorage
 - **Typographie** : serif élégant (Georgia) pour les titres, sans-serif system pour le texte
+- **Icônes** : SVG du sprite `js/icones.js` uniquement — pas d'emoji comme icône d'interface (les emojis d'ingrédients restent du contenu)
+- **Couleurs** : toujours via les tokens de `css/style.css` (`--color-primary`, `--color-on-primary`, `--color-accent`, `--color-danger`, `--color-info`…), contrastes vérifiés ≥ 4,5:1 en clair et en sombre
+- **Tactile** : cibles ≥ 44 px sur mobile (ou zone élargie par `::after`), encoche gérée par `env(safe-area-inset-*)`
+- **Grand écran** (≥ 1024 px) : menu en haut, fenêtres centrées, frise du planning
 
 ## Conventions de code
 - Indentation : 2 espaces

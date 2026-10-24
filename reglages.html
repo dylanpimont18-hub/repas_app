@@ -16,50 +16,49 @@
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html" class="nav-logo">🍽️ Repas</a>
-    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <a href="index.html" class="nav-logo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-marmite"/></svg><span>Repas</span></a>
     <div class="nav-links" id="navLinks">
-      <a href="planning.html">📅 Planning</a>
-      <a href="recettes.html">📖 Recettes</a>
-      <a href="preferences.html">❤️ Préférences</a>
-      <a href="courses.html">🛒 Courses</a>
-      <a href="reglages.html" class="active">⚙️ Réglages</a>
+      <a href="planning.html">Planning</a>
+      <a href="recettes.html">Recettes</a>
+      <a href="preferences.html">Préférences</a>
+      <a href="courses.html">Courses</a>
+      <a href="reglages.html" class="active">Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
-    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
-    <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
+    <button class="nav-flash" id="btnFlash" aria-label="Envie du moment"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-eclair"/></svg><span class="nav-flash-label">Envie</span></button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème" aria-label="Changer le thème"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lune"/></svg></button>
+    <button class="nav-theme" id="btnLogout" title="Se déconnecter" aria-label="Se déconnecter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-sortie"/></svg></button>
   </nav>
 
   <div class="modal-overlay hidden" id="modalFlash">
     <div class="modal">
-      <button class="modal-close" id="modalClose">✕</button>
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
       <div id="modalContent"></div>
     </div>
   </div>
 
   <main class="main">
     <div class="section-header">
-      <h1 class="page-title">⚙️ Réglages</h1>
+      <h1 class="page-title">Réglages</h1>
     </div>
 
     <section class="card" style="margin-bottom:1.25rem;">
-      <h2 class="section-title" style="margin-bottom:0.3rem;">👨‍👩‍👧‍👦 Modèle de semaine</h2>
+      <h2 class="section-title" style="margin-bottom:0.3rem;">Modèle de semaine</h2>
       <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Qui mange à chaque repas, et quel jour le plat est cuisiné. Partagé entre vos deux téléphones.</p>
-      <div style="overflow-x:auto;"><table class="modele-table" id="modeleTable"></table></div>
-      <button class="btn btn-primary btn-sm" id="btnSaveModele" style="margin-top:0.75rem;">💾 Enregistrer</button>
-      <button class="btn btn-ghost btn-sm" id="btnResetModele" style="margin-top:0.75rem;">↺ Valeurs par défaut</button>
+      <div class="modele-grille" id="modeleTable"></div>
+      <button class="btn btn-primary btn-sm" id="btnSaveModele" style="margin-top:0.75rem;">Enregistrer</button>
+      <button class="btn btn-ghost btn-sm" id="btnResetModele" style="margin-top:0.75rem;"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-annuler"/></svg>Valeurs par défaut</button>
       <p class="text-xs text-muted" id="modeleStatus" style="margin-top:0.4rem;"></p>
     </section>
 
     <section class="card" id="reserve" style="margin-bottom:1.25rem;">
-      <h2 class="section-title" style="margin-bottom:0.3rem;">❄️ Réserve congélo</h2>
+      <h2 class="section-title" style="margin-bottom:0.3rem;">Réserve congélo</h2>
       <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Plats mis de côté. Ils sont proposés en priorité quand tu remplis le planning.</p>
       <div id="reserveList"></div>
     </section>
 
     <section class="card" style="margin-bottom:1.25rem;">
-      <h2 class="section-title" style="margin-bottom:0.3rem;">🔄 Anciennes recettes</h2>
+      <h2 class="section-title" style="margin-bottom:0.3rem;">Anciennes recettes</h2>
       <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Complète par l'IA les recettes créées avant le nouveau format (description, composants, tags, conservation, légumes cachés).</p>
       <button class="btn btn-secondary btn-sm" id="btnConvertir"></button>
       <p class="text-xs text-muted" id="convertirStatus" style="margin-top:0.4rem;"></p>

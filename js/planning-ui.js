@@ -6,38 +6,39 @@ import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
          remplirDepuisBibliotheque, completerParIA, ideeIA } from './propositions.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
+import { icone } from './icones.js'
 
 let samedi  = debutCycle()
 let donnees = null
 let creneauEnCours = null
 
-const SOURCES = { biblio: ['📖', 'biblio'], ia: ['✨', 'IA'], reste: ['🍱', 'reste'], reserve: ['❄️', 'congélo'], manuel: ['', ''] }
+const SOURCES = { biblio: ['livre', 'biblio'], ia: ['etincelle', 'IA'], reste: ['boite', 'reste'], reserve: ['flocon', 'congélo'], manuel: ['', ''] }
 
 const ecranLarge = window.matchMedia('(min-width: 1024px)')
 const JOUR_COURT = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu', vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
 
 function badgePortions(c, portions) {
-  return c.profils.length === 1 && c.profils[0] === 'femme' && portions === 1 ? '👩 1' : `👥 ${portions}`
+  return `${icone(portions <= 1 ? 'personne' : 'famille')}${portions}`
 }
 
 // Contenu d'un créneau (identique sur mobile et sur la frise ordinateur ; seule la mise en page change)
 function htmlCreneau(c, { avecJour = true } = {}) {
   const occ = donnees.occupation[c.cle]
   const recette = occ ? donnees.recettesMap[occ.id] : null
-  const [icone, label] = SOURCES[occ?.source] || SOURCES.manuel
-  const moment = `${c.moment === 'midi' ? '☀️' : '🌙'} ${avecJour ? `${JOUR_COURT[c.jour]} ` : ''}${c.moment}`
+  const [ico, label] = SOURCES[occ?.source] || SOURCES.manuel
+  const moment = `${icone(c.moment === 'midi' ? 'soleil' : 'lune')}${avecJour ? `${JOUR_COURT[c.jour]} ` : ''}${c.moment}`
   return `<div class="slot${recette ? '' : ' slot-libre'}" data-cle="${esc(c.cle)}">
     <div class="slot-ligne">
       <span class="slot-moment">${moment}</span>
-      <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions">${badgePortions(c, occ?.portions ?? c.portions)}</button>
-      ${label ? `<span class="source-tag source-${esc(occ.source)}">${icone} ${label}</span>` : ''}
+      <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions" aria-label="Portions : ${occ?.portions ?? c.portions}">${badgePortions(c, occ?.portions ?? c.portions)}</button>
+      ${label ? `<span class="source-tag source-${esc(occ.source)}">${icone(ico)}<span class="source-txt">${label}</span></span>` : ''}
       ${recette ? `<span class="slot-actions">
-        <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition">↻</button>
-        <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat">✏️</button>
-        <button class="slot-btn slot-btn-del" data-action="supprimer" data-cle="${esc(c.cle)}" title="Vider" aria-label="Vider">🗑</button>
+        <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition">${icone('autre')}</button>
+        <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat">${icone('crayon')}</button>
+        <button class="slot-btn slot-btn-del" data-action="supprimer" data-cle="${esc(c.cle)}" title="Vider" aria-label="Vider">${icone('poubelle')}</button>
       </span>` : ''}
     </div>
-    ${recette ? `<div class="slot-nom">${esc(recette.nom)}</div>` : '<div class="slot-vide">+ Choisir un plat</div>'}
+    ${recette ? `<div class="slot-nom">${esc(recette.nom)}</div>` : `<div class="slot-vide">${icone('plus')}Choisir un plat</div>`}
   </div>`
 }
 
@@ -45,7 +46,7 @@ function htmlCreneau(c, { avecJour = true } = {}) {
 function htmlListe() {
   return groupesDuCycle(donnees.creneaux).map(g => `
     <section class="cycle-groupe${g.enSession ? ' cycle-groupe-session' : ''}">
-      <h2 class="cycle-groupe-titre">${esc(g.titre)}</h2>
+      <h2 class="cycle-groupe-titre">${g.enSession ? icone('marmite') : ''}${esc(g.titre)}</h2>
       ${g.creneaux.map(c => htmlCreneau(c)).join('')}
     </section>`).join('')
 }
@@ -76,9 +77,9 @@ function htmlFrise() {
       <span class="frise-jour-nom">${JOUR_COURT[j.jour]}</span> <span class="frise-jour-date">${j.date.getDate()}</span></div>`).join('')}
     <div class="frise-label">Cuisine</div>
     ${bandes.map(b => `<div class="frise-bande${b.enSession ? ' frise-bande-session' : ''}" style="grid-column:${b.debut + 2} / ${b.fin + 3}">
-      ${b.enSession ? `🍳 Préparé ${esc(b.cuisineLe)}` : 'Sur place'}</div>`).join('')}
+      ${b.enSession ? `${icone('marmite')}Préparé ${esc(b.cuisineLe)}` : 'Sur place'}</div>`).join('')}
     ${['midi', 'soir'].map(m => `
-      <div class="frise-label">${m === 'midi' ? '☀️ Midi' : '🌙 Soir'}</div>
+      <div class="frise-label">${m === 'midi' ? `${icone('soleil')}Midi` : `${icone('lune')}Soir`}</div>
       ${jours.map((j, i) => j.creneaux[m]
         ? `<div class="frise-cellule" style="${col(i)}">${htmlCreneau(j.creneaux[m], { avecJour: false })}</div>`
         : `<div class="frise-cellule frise-hors" style="${col(i)}" aria-hidden="true"></div>`).join('')}`).join('')}
@@ -97,7 +98,8 @@ function afficher() {
 
   const badge = document.getElementById('badgeReserve')
   if (badge) {
-    badge.textContent = `❄️ ${donnees.reserve.length}`
+    badge.innerHTML = `${icone('flocon')}${donnees.reserve.length}`
+    badge.setAttribute('aria-label', `Réserve congélo : ${donnees.reserve.length} plat(s)`)
     badge.classList.toggle('hidden', donnees.reserve.length === 0)
   }
 
@@ -123,7 +125,7 @@ async function actionCreneau(action, cle, bouton) {
   if (action === 'suivant') {
     const { filtres, style } = lireFiltres()
     const [prochain] = proposerPourCreneau(donnees, c, { filtres, style }, 1)
-    if (bouton) { bouton.disabled = true; bouton.textContent = '⏳' }
+    if (bouton) { bouton.disabled = true; bouton.innerHTML = '<span class="loader loader-mini"></span>' }
     try {
       if (prochain) {
         await enregistrerCreneaux([{ creneau: c, recetteId: prochain.id, source: 'biblio' }])
@@ -147,7 +149,7 @@ async function ouvrirSelectRecette() {
   const carte = (x, compat) => `
     <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;${compat ? '' : 'opacity:0.6;'}" data-id="${esc(x.id)}">
       <div class="recipe-name">${esc(x.nom)}</div>
-      <div class="recipe-meta"><span>⏱ ${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? '<span>🌿</span>' : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
+      <div class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
     </div>`
   list.innerHTML = `<p class="text-xs text-muted" style="margin-bottom:0.5rem;">${esc(labelCreneau(creneauEnCours))} · les mieux adaptées d'abord</p>`
     + (donnees.recettes.length === 0 ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette pour l\'instant.</p>' : '')
@@ -194,7 +196,7 @@ function initModalGen() {
     const vides = donnees.creneaux.filter(c => !donnees.occupation[c.cle])
     chipsWrap.innerHTML = (vides.length ? '' : '<p class="text-xs text-muted" style="width:100%;">Tout est rempli : sélectionne les créneaux à remplacer.</p>')
       + donnees.creneaux.map(c => `<button class="chip ${donnees.occupation[c.cle] ? '' : 'active'}" data-cle="${esc(c.cle)}">
-          ${esc(labelCreneau(c))} ${c.portions === 1 ? '👩' : ''}</button>`).join('')
+          ${esc(labelCreneau(c))}${c.portions === 1 ? icone('personne') : ''}</button>`).join('')
     status.textContent = ''
     btnIA.classList.add('hidden')
     progress.classList.add('hidden')
@@ -212,17 +214,17 @@ function initModalGen() {
     const cles = [...chipsWrap.querySelectorAll('.chip.active')].map(c => c.dataset.cle)
     if (!cles.length) { status.textContent = 'Sélectionne au moins un créneau.'; return }
     btnBiblio.disabled = true
-    status.textContent = '⏳ Recherche dans tes recettes…'
+    status.textContent = 'Recherche dans tes recettes…'
     try {
       const { nbProposes, vides } = await remplirDepuisBibliotheque(donnees, cles, sel)
       videsRestants = vides
-      status.textContent = `✅ ${nbProposes} repas proposés depuis tes recettes` + (vides.length ? ` · ${vides.length} sans idée` : '')
-      btnIA.textContent = `✨ Compléter avec l'IA (${vides.length} repas)`
+      status.textContent = `${nbProposes} repas proposés depuis tes recettes` + (vides.length ? ` · ${vides.length} sans idée` : '')
+      btnIA.innerHTML = `${icone('etincelle')}Compléter avec l'IA (${vides.length} repas)`
       btnIA.classList.toggle('hidden', vides.length === 0)
       await renderGrid()
       if (!vides.length) setTimeout(() => modal.classList.add('hidden'), 900)
     } catch (e) {
-      status.textContent = `❌ ${e.message}`
+      status.textContent = e.message
     } finally {
       btnBiblio.disabled = false
     }
@@ -246,13 +248,13 @@ function initModalGen() {
         fill.style.width = `${k / total * 95}%`
       })
       fill.style.width = '100%'
-      status.textContent = `✅ ${nbCrees} nouvelles recettes ajoutées` + (rejets.length ? ` · refusées (contraintes) : ${rejets.join(', ')}` : '')
+      status.textContent = `${nbCrees} nouvelles recettes ajoutées` + (rejets.length ? ` · refusées (contraintes) : ${rejets.join(', ')}` : '')
       videsRestants = []
       btnIA.classList.add('hidden')
       await renderGrid()
     } catch (e) {
       fill.style.width = '0%'
-      status.textContent = `❌ ${e.message}`
+      status.textContent = e.message
     } finally {
       bouton.disabled = false
       btnBiblio.disabled = false

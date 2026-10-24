@@ -5,6 +5,7 @@ import { dbEcouter }                         from './db.js'
 import { chargerCycle }                      from './planning.js'
 import { debutCycle, dateIso }               from './cycle.js'
 import { esc, debounce }                     from './utils.js'
+import { icone }                             from './icones.js'
 
 const JOURS_LABEL = {
   lundi: 'Lun', mardi: 'Mar', mercredi: 'Mer', jeudi: 'Jeu',
@@ -54,11 +55,11 @@ async function render() {
       const r = repasAujourdhui.soir
       ceSoirContainer.innerHTML = `
         <a href="recettes.html?id=${encodeURIComponent(r.id)}&from=dashboard" class="card" style="display:flex;align-items:center;gap:1rem;padding:1rem;text-decoration:none;color:inherit;border-left:4px solid var(--color-primary);margin-bottom:1.5rem;">
-          <span style="font-size:1.75rem;">🌙</span>
+          <span class="ce-soir-icone">${icone('lune')}</span>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.2rem;">Ce soir</div>
+            <div class="ce-soir-label">Ce soir</div>
             <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.nom)}</div>
-            <div style="font-size:0.78rem;color:var(--color-text-muted);">⏱ ${r.temps_prep + r.temps_cuisson} min${r.vegetarien ? ' · 🌿' : ''}</div>
+            <div style="font-size:0.78rem;color:var(--color-text-muted);">${icone('horloge')} ${r.temps_prep + r.temps_cuisson} min${r.vegetarien ? ' · végé' : ''}</div>
           </div>
           <span style="color:var(--color-primary);font-size:1rem;">›</span>
         </a>`
@@ -67,19 +68,19 @@ async function render() {
       const r = repasAujourdhui.midi
       ceSoirContainer.innerHTML = `
         <div class="card" style="display:flex;align-items:center;gap:1rem;padding:1rem;border-left:4px solid var(--color-accent);margin-bottom:1.5rem;opacity:0.85;">
-          <span style="font-size:1.75rem;">☀️</span>
+          <span class="ce-soir-icone">${icone('soleil')}</span>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.2rem;">Midi aujourd'hui</div>
+            <div class="ce-soir-label">Midi aujourd'hui</div>
             <div style="font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.nom)}</div>
           </div>
         </div>`
     } else {
       ceSoirContainer.innerHTML = `
         <a href="planning.html" class="card" style="display:flex;align-items:center;gap:1rem;padding:1rem;text-decoration:none;color:inherit;border-left:4px solid var(--color-border);margin-bottom:1.5rem;opacity:0.7;">
-          <span style="font-size:1.75rem;">🌙</span>
+          <span class="ce-soir-icone">${icone('lune')}</span>
           <div style="flex:1;">
-            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.2rem;">Ce soir</div>
-            <div style="font-size:0.88rem;color:var(--color-text-muted);">Aucun repas planifié → Ajouter</div>
+            <div class="ce-soir-label">Ce soir</div>
+            <div style="font-size:0.88rem;color:var(--color-text-muted);">Aucun repas prévu. Ajouter un plat</div>
           </div>
           <span style="color:var(--color-primary);font-size:1rem;">›</span>
         </a>`
@@ -104,8 +105,8 @@ async function render() {
     dashSemaine.innerHTML = jours.map(j => `
       <a href="planning.html" class="apercu-jour${j.iso === aujourdHui ? ' apercu-aujourdhui' : ''}">
         <div class="apercu-jour-nom">${JOURS_LABEL[j.jour]} ${j.date.getDate()}</div>
-        ${ligne('☀️', j.repas.midi, 'midi' in j.repas)}
-        ${ligne('🌙', j.repas.soir, 'soir' in j.repas)}
+        ${ligne(icone('soleil'), j.repas.midi, 'midi' in j.repas)}
+        ${ligne(icone('lune'), j.repas.soir, 'soir' in j.repas)}
       </a>`).join('')
   }
 }

@@ -8,9 +8,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 .btn:active { transform: scale(0.96); opacity: 0.85; }
-.btn-primary   { background: var(--color-primary); color: white; }
+.btn-primary   { background: var(--color-primary); color: var(--color-on-primary); }
+.btn-primary:hover { background: var(--color-primary-hover); }
 .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
-.btn-accent    { background: var(--color-accent); color: white; }
+.btn-accent    { background: var(--color-accent); color: var(--color-on-accent); }
 .btn-ghost     { background: transparent; color: var(--color-primary); }
 .btn-sm        { padding: 0.45rem 0.85rem; font-size: 0.82rem; min-height: 38px; }
 .btn-full      { width: 100%; }
@@ -26,7 +27,7 @@
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.chip.active        { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+.chip.active        { background: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); }
 .chip-accent.active { background: var(--color-accent); border-color: var(--color-accent); }
 .chip:active        { opacity: 0.8; }
 
@@ -89,10 +90,10 @@
   transition: transform 0.1s; -webkit-tap-highlight-color: transparent;
 }
 .pref-btn:active      { transform: scale(0.95); }
-.pref-btn-naime  { background: #ffebeb; color: #c0392b; }
-.pref-btn-neutre { background: #fff3e0; color: #d35400; }
-.pref-btn-aime   { background: #e8f5e9; color: #27ae60; }
-.pref-btn-adore  { background: #fce4ec; color: #c0392b; }
+.pref-btn-naime  { background: #ffebeb; color: #b3261e; }
+.pref-btn-neutre { background: #fff3e0; color: #8f3b00; }
+.pref-btn-aime   { background: #e8f5e9; color: #1b6b37; }
+.pref-btn-adore  { background: #fce4ec; color: #a3133f; }
 
 /* ── Progress bar ── */
 .progress-bar  { background: var(--color-border); border-radius: 999px; height: 6px; overflow: hidden; }
@@ -159,7 +160,7 @@
   border-radius: var(--radius-md); overflow: hidden;
 }
 .planning-list-day-header {
-  background: var(--color-primary); color: white;
+  background: var(--color-primary); color: var(--color-on-primary);
   padding: 0.55rem 1rem; font-size: 0.875rem; font-weight: 700;
   display: flex; align-items: center; justify-content: space-between;
 }
@@ -186,7 +187,7 @@
   -webkit-tap-highlight-color: transparent; transition: background 0.1s;
 }
 .list-act-btn:active { background: var(--color-bg); }
-.list-act-del { color: #c0392b; border-color: rgba(192,57,43,0.25); }
+.list-act-del { color: var(--color-danger); border-color: var(--color-border); }
 
 /* ── Popover planning — toujours en bas ── */
 .planning-popover {
@@ -213,7 +214,7 @@
 
 /* ── Bandeau retour planning ── */
 .back-banner {
-  background: var(--color-primary); color: white;
+  background: var(--color-primary); color: var(--color-on-primary);
   padding: 0.65rem 1rem; display: flex; align-items: center; gap: 0.5rem;
   font-size: 0.88rem; font-weight: 600; cursor: pointer; text-decoration: none;
   min-height: 48px;
@@ -285,15 +286,15 @@
 }
 .courses-item-swipe-bg {
   position: absolute; right: 0; top: 0; bottom: 0;
-  background: var(--color-accent); color: white;
+  background: var(--color-accent); color: var(--color-on-accent);
   display: flex; align-items: center; padding: 0 1.25rem;
   font-size: 1.1rem; pointer-events: none; opacity: 0;
   transition: opacity 0.1s;
 }
 .courses-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--color-primary); }
 .courses-item.checked .courses-item-label { text-decoration: line-through; color: var(--color-text-muted); }
-.courses-item-label { flex: 1; font-size: 0.9rem; }
-.courses-item-qty   { font-size: 0.8rem; color: var(--color-text-muted); }
+.courses-item-label { flex: 1 1 45%; min-width: 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+.courses-item-qty   { flex: 0 1 auto; max-width: 52%; font-size: 0.8rem; color: var(--color-text-muted); text-align: right; overflow-wrap: anywhere; }
 
 /* ── Dashboard tiles ── */
 .dashboard-grid {
@@ -336,7 +337,7 @@
   font-size: 0.85rem; cursor: pointer; color: var(--color-text-muted);
   min-height: 40px; -webkit-tap-highlight-color: transparent;
 }
-.view-toggle button.active { background: var(--color-primary); color: white; }
+.view-toggle button.active { background: var(--color-primary); color: var(--color-on-primary); }
 
 /* ── Tableau récap préférences ── */
 .pref-table { width: 100%; border-collapse: collapse; }
@@ -358,10 +359,10 @@
   background: none; font-size: 0.72rem; cursor: pointer; white-space: nowrap; min-height: 32px;
   -webkit-tap-highlight-color: transparent;
 }
-.pref-radio-btn.active-naime  { background: #ffebeb; color: #c0392b; border-color: #c0392b; }
-.pref-radio-btn.active-neutre { background: #fff3e0; color: #d35400; border-color: #d35400; }
-.pref-radio-btn.active-aime   { background: #e8f5e9; color: #27ae60; border-color: #27ae60; }
-.pref-radio-btn.active-adore  { background: #fce4ec; color: #c0392b; border-color: #e91e8c; }
+.pref-radio-btn.active-naime  { background: #ffebeb; color: #b3261e; border-color: #b3261e; }
+.pref-radio-btn.active-neutre { background: #fff3e0; color: #8f3b00; border-color: #8f3b00; }
+.pref-radio-btn.active-aime   { background: #e8f5e9; color: #1b6b37; border-color: #1b6b37; }
+.pref-radio-btn.active-adore  { background: #fce4ec; color: #a3133f; border-color: #a3133f; }
 [data-theme="dark"] .pref-radio-btn.active-naime  { background: #3d1515; color: #e57373; border-color: #e57373; }
 [data-theme="dark"] .pref-radio-btn.active-neutre { background: #2d1f0a; color: #ffb74d; border-color: #ffb74d; }
 [data-theme="dark"] .pref-radio-btn.active-aime   { background: #0f2d14; color: #66bb6a; border-color: #66bb6a; }
@@ -440,11 +441,12 @@
   border: 1px solid var(--color-border); color: var(--color-text-muted);
 }
 .source-biblio  { border-color: var(--color-accent); color: var(--color-accent); }
-.source-ia      { border-color: #8e5bb5; color: #8e5bb5; }
+.source-ia      { border-color: #7a4aa0; color: #7a4aa0; }
+[data-theme="dark"] .source-ia { border-color: #c9a6e6; color: #c9a6e6; }
 .source-reste   { border-color: var(--color-primary); color: var(--color-primary); }
-.source-reserve { border-color: #6f8bb5; color: #6f8bb5; }
+.source-reserve { border-color: var(--color-info); color: var(--color-info); }
 .reserve-badge {
-  font-size: 0.78rem; text-decoration: none; color: #6f8bb5; border: 1px solid #6f8bb5;
+  font-size: 0.78rem; text-decoration: none; color: var(--color-info); border: 1px solid var(--color-info); min-height: 32px; position: relative;
   border-radius: 10px; padding: 0.15rem 0.5rem; white-space: nowrap;
 }
 
@@ -462,7 +464,7 @@
 /* ── Recette structurée ── */
 .recette-composants { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.2rem 0.6rem; font-size: 0.85rem; margin-bottom: 1rem; }
 .recette-composants b { color: var(--color-text-muted); font-weight: 600; }
-.astuce-cachee { font-size: 0.82rem; background: rgba(125,158,125,0.15); border-radius: 8px; padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
+.astuce-cachee { font-size: 0.82rem; background: var(--color-accent-soft); border-radius: 8px; padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
 
 /* ── Courses : deux parties ── */
 .courses-partie { margin-bottom: 1.5rem; }
@@ -485,7 +487,7 @@
   border-bottom: 1px solid var(--color-border-light);
 }
 .cycle-groupe-session { border-color: var(--color-accent); }
-.cycle-groupe-session .cycle-groupe-titre { background: rgba(125,158,125,0.16); color: var(--color-text); }
+.cycle-groupe-session .cycle-groupe-titre { background: var(--color-accent-soft); color: var(--color-text); }
 
 .slot {
   padding: 0.6rem 0.9rem 0.7rem; cursor: pointer;
@@ -504,7 +506,7 @@
   display: inline-flex; align-items: center; justify-content: center;
 }
 .slot-btn:active { background: var(--color-bg); }
-.slot-btn-del { color: #c0392b; border-color: rgba(192,57,43,0.25); }
+.slot-btn-del { color: var(--color-danger); }
 .slot-nom {
   font-size: 1rem; font-weight: 650; line-height: 1.3; margin-top: 0.15rem;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -538,8 +540,8 @@
   .nav-links a:hover { color: #f0e8dc; background: rgba(255,255,255,0.06); }
   .nav-links a.active { color: #f0e8dc; background: rgba(255,255,255,0.1); }
   #btnReglages { display: none; }
-  .nav-flash { width: auto; padding: 0 0.9rem; font-size: 0.9rem; font-weight: 600; gap: 0.35rem; }
-  .nav-flash::before { display: none; }
+  .nav-flash { width: auto; padding: 0 0.9rem; font-size: 0.9rem; font-weight: 600; gap: 0.4rem; }
+  .nav-flash-label { display: inline; }
   .page-title { font-size: 1.9rem; }
 
   /* Fenêtres centrées plutôt qu'en bas d'écran */
@@ -591,7 +593,7 @@
   border-radius: var(--radius-sm); border: 1px dashed var(--color-border); text-align: center;
 }
 .frise-bande-session {
-  border: none; background: rgba(125,158,125,0.22); color: var(--color-text); font-weight: 650;
+  border: none; background: var(--color-accent-soft); color: var(--color-text); font-weight: 650;
   text-align: left;
 }
 .frise-cellule { min-height: 8.5rem; display: flex; }
@@ -629,7 +631,7 @@
 .apercu-jour:last-child { border-bottom: none; }
 .apercu-jour-nom { grid-row: span 2; font-weight: 700; font-size: 0.85rem; color: var(--color-text-muted); align-self: center; }
 .apercu-repas { grid-column: 2; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.apercu-aujourdhui { background: rgba(201,125,78,0.08); }
+.apercu-aujourdhui { background: var(--color-primary-soft); }
 .apercu-aujourdhui .apercu-jour-nom { color: var(--color-primary); }
 @media (min-width: 1024px) {
   .apercu-cycle { flex-direction: row; }
@@ -667,4 +669,116 @@
   .courses-item-label { font-size: 10.5pt; color: #000; }
   .courses-item-qty { font-size: 10pt; color: #000; }
   * { box-shadow: none !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+
+/* ══ Icônes dans les composants ══ */
+.btn .ic, .chip .ic { width: 1.1em; height: 1.1em; }
+.chip { gap: 0.35rem; }
+.dashboard-tile .tile-icon { display: flex; color: var(--color-primary); }
+.dashboard-tile .tile-icon .ic { width: 28px; height: 28px; }
+.ce-soir-icone { display: flex; color: var(--color-primary); }
+.ce-soir-icone .ic { width: 28px; height: 28px; }
+.slot-moment { display: inline-flex; align-items: center; gap: 0.3rem; }
+.slot-moment .ic { width: 15px; height: 15px; }
+.slot-vide { display: inline-flex; align-items: center; gap: 0.3rem; }
+.slot-btn .ic { width: 17px; height: 17px; }
+.source-tag { display: inline-flex; align-items: center; gap: 0.2rem; }
+.source-tag .ic { width: 11px; height: 11px; }
+.portions-badge { display: inline-flex; align-items: center; gap: 0.25rem; }
+.portions-badge .ic { width: 13px; height: 13px; }
+.cycle-groupe-titre { display: flex; align-items: center; gap: 0.4rem; }
+.cycle-groupe-titre .ic { width: 16px; height: 16px; color: var(--color-accent); }
+.frise-bande { display: flex; align-items: center; justify-content: center; gap: 0.35rem; }
+.frise-bande-session { justify-content: flex-start; }
+.frise-bande .ic { width: 15px; height: 15px; }
+.frise-label { display: flex; align-items: center; gap: 0.3rem; }
+.frise-label .ic { width: 15px; height: 15px; }
+.reserve-badge { display: inline-flex; align-items: center; gap: 0.3rem; }
+.reserve-badge .ic { width: 14px; height: 14px; }
+.courses-partie-titre { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.45rem; }
+.courses-partie-titre .ic { width: 20px; height: 20px; color: var(--color-primary); }
+.courses-partie-titre > div { flex-basis: 100%; }
+#coursesAcheteesHeader .ic { width: 16px; height: 16px; margin-right: 0.3rem; }
+.courses-item-swipe-bg .ic { width: 20px; height: 20px; }
+.recipe-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.recipe-meta .ic { width: 14px; height: 14px; }
+.recipe-tag-veg { border-color: var(--color-accent); color: var(--color-accent); }
+.astuce-cachee { display: flex; gap: 0.5rem; align-items: flex-start; }
+.astuce-cachee .ic { width: 16px; height: 16px; margin-top: 0.15rem; color: var(--color-accent); }
+.envie-apercu div { display: flex; align-items: center; gap: 0.4rem; }
+.modele-table th .ic { width: 15px; height: 15px; margin-right: 0.25rem; }
+.modal-close .ic { width: 20px; height: 20px; }
+.back-banner .ic { width: 18px; height: 18px; }
+.loader-mini { width: 14px; height: 14px; border-width: 2px; }
+
+/* Zones tactiles ≥ 44 px sur mobile */
+.slot-btn { width: 40px; height: 40px; position: relative; }
+.slot-btn::after { content: ''; position: absolute; inset: -3px; }
+.portions-badge { min-height: 30px; padding: 0.2rem 0.5rem; position: relative; }
+.portions-badge::after { content: ''; position: absolute; inset: -7px -2px; }
+.modal-close { width: 44px; height: 44px; top: 0.75rem; right: 0.75rem; }
+.list-act-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Cibles tactiles ≥ 44 px sur mobile (audit) */
+@media (max-width: 1023px) {
+  .btn-sm { min-height: 44px; }
+  .chip, .gen-chips-wrap .chip { min-height: 40px; position: relative; }
+  .chip::after, .reserve-badge::after { content: ''; position: absolute; inset: -4px -2px; }
+  .modele-table select, .modele-table input { min-height: 40px; }
+}
+
+/* ══ Réglages : modèle de semaine, un bloc par jour ══ */
+.modele-grille { display: grid; gap: 0.6rem; }
+.modele-jour { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.6rem 0.75rem; background: var(--color-bg); }
+.modele-jour-tete { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+.modele-jour-nom { font-family: var(--font-serif); font-weight: 700; font-size: 1rem; }
+.modele-cuisine { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--color-text-muted); }
+.modele-cuisine .ic { width: 15px; height: 15px; color: var(--color-accent); }
+.modele-repas { display: grid; grid-template-columns: 4.2rem 1fr 4rem; gap: 0.5rem; align-items: center; margin-top: 0.35rem; }
+.modele-moment { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--color-text-muted); }
+.modele-moment .ic { width: 15px; height: 15px; }
+.modele-grille select, .modele-grille input {
+  min-height: 42px; padding: 0.35rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-text); font-size: 0.9rem; font-family: inherit; width: 100%;
+}
+.modele-cuisine select { width: auto; min-height: 42px; font-size: 0.85rem; }
+.modele-grille input { text-align: center; }
+@media (min-width: 1024px) { .modele-grille { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); } }
+
+/* ══ Préférences : en-tête resserré, catégories défilantes sur mobile ══ */
+#preferences-header-row .view-toggle { margin-bottom: 0; }
+#catChips { margin-bottom: 1.25rem !important; }
+@media (max-width: 1023px) {
+  #catChips { flex-wrap: nowrap !important; overflow-x: auto; margin-left: -1rem; margin-right: -1rem; padding: 0 1rem 0.25rem; scrollbar-width: none; scroll-snap-type: x proximity; }
+  #catChips::-webkit-scrollbar { display: none; }
+  #catChips .chip { flex-shrink: 0; scroll-snap-align: start; }
+}
+
+/* ══ Courses : en-tête équilibré ══ */
+.courses-entete { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; }
+.courses-nav { display: flex; align-items: center; gap: 0.5rem; }
+.courses-nav .btn { min-width: 44px; padding: 0.4rem 0.7rem; }
+.courses-periode { flex: 1; text-align: center; font-weight: 600; font-size: 0.9rem; color: var(--color-text); }
+.courses-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.courses-partie-titre > div { font-family: var(--font-sans); font-size: 0.78rem !important; margin-top: 0.15rem; }
+@media (min-width: 1024px) {
+  .courses-entete { flex-direction: row; justify-content: flex-end; width: auto; gap: 1rem; }
+  .courses-periode { min-width: 11rem; }
+  .courses-actions { display: flex; }
+}
+
+.ce-soir-label { font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted); margin-bottom: 0.15rem; }
+@media (min-width: 1024px) {
+  /* Préférences : carte de notation à taille humaine */
+  #vueCartes > .flex-center { max-width: 520px; margin: 0 auto; }
+  #vueCartes .ingredient-card { cursor: grab; }
+  /* Badge du menu : à côté du mot plutôt que dessus */
+  .nav-links .nav-badge { position: static; margin-left: 0.35rem; vertical-align: 1px; }
+}
+
+/* Petits écrans : étiquette d'origine réduite à son icône pour garder les boutons alignés */
+@media (max-width: 399px) {
+  .slot .source-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .slot .source-tag { padding: 0.15rem 0.3rem; }
 }

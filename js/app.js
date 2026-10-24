@@ -1,11 +1,14 @@
 // js/app.js
 import { load, save, KEYS } from './storage.js'
 import { dbGetSession, dbSignOut } from './db.js'
+import { icone, injecterSprite } from './icones.js'
+
+injecterSprite()
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme)
   const btn = document.getElementById('btnTheme')
-  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙'
+  if (btn) btn.innerHTML = icone(theme === 'dark' ? 'soleil' : 'lune')
 }
 
 function initTheme() {
@@ -66,8 +69,8 @@ function injectBoutonReglages() {
   a.href = 'reglages.html'
   a.className = 'nav-theme'
   a.title = 'Réglages'
-  a.textContent = '⚙️'
-  a.style.textDecoration = 'none'
+  a.setAttribute('aria-label', 'Réglages')
+  a.innerHTML = icone('reglages')
   theme.before(a)
 }
 
@@ -81,18 +84,18 @@ function initLogout() {
 function injectBottomNav() {
   const current = location.pathname.split('/').pop() || 'index.html'
   const pages = [
-    { href: 'index.html',       icon: '🏠', label: 'Accueil'   },
-    { href: 'planning.html',    icon: '📅', label: 'Planning'  },
-    { href: 'recettes.html',    icon: '📖', label: 'Recettes'  },
-    { href: 'preferences.html', icon: '❤️', label: 'Prefs'     },
-    { href: 'courses.html',     icon: '🛒', label: 'Courses'   },
+    { href: 'index.html',       icon: 'accueil',    label: 'Accueil'   },
+    { href: 'planning.html',    icon: 'calendrier', label: 'Planning'  },
+    { href: 'recettes.html',    icon: 'livre',      label: 'Recettes'  },
+    { href: 'preferences.html', icon: 'coeur',      label: 'Goûts'     },
+    { href: 'courses.html',     icon: 'panier',     label: 'Courses'   },
   ]
   const nav = document.createElement('nav')
   nav.className = 'bottom-nav'
   nav.id = 'bottomNav'
   nav.innerHTML = pages.map(p =>
     `<a href="${p.href}" class="bottom-nav-item${p.href === current ? ' active' : ''}">
-      <span class="bottom-nav-icon">${p.icon}</span>
+      <span class="bottom-nav-icon">${icone(p.icon)}</span>
       <span class="bottom-nav-label">${p.label}</span>
     </a>`
   ).join('')

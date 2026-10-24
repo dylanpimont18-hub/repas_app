@@ -16,52 +16,51 @@
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html" class="nav-logo">🍽️ Repas</a>
-    <button class="nav-burger" id="navBurger" aria-label="Menu">☰</button>
+    <a href="index.html" class="nav-logo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-marmite"/></svg><span>Repas</span></a>
     <div class="nav-links" id="navLinks">
-      <a href="planning.html">📅 Planning</a>
-      <a href="recettes.html">📖 Recettes</a>
-      <a href="preferences.html">❤️ Préférences</a>
-      <a href="courses.html">🛒 Courses</a>
-      <a href="reglages.html">⚙️ Réglages</a>
+      <a href="planning.html">Planning</a>
+      <a href="recettes.html">Recettes</a>
+      <a href="preferences.html">Préférences</a>
+      <a href="courses.html">Courses</a>
+      <a href="reglages.html">Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
-    <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
-    <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
+    <button class="nav-flash" id="btnFlash" aria-label="Envie du moment"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-eclair"/></svg><span class="nav-flash-label">Envie</span></button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème" aria-label="Changer le thème"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lune"/></svg></button>
+    <button class="nav-theme" id="btnLogout" title="Se déconnecter" aria-label="Se déconnecter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-sortie"/></svg></button>
   </nav>
 
   <div class="modal-overlay hidden" id="modalFlash">
     <div class="modal">
-      <button class="modal-close" id="modalClose">✕</button>
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
       <div id="modalContent"></div>
     </div>
   </div>
 
   <main class="main">
-    <h1 class="page-title">🍽️ Bonjour !</h1>
+    <h1 class="page-title">Bonjour !</h1>
     <p class="page-subtitle" id="dashSubtitle">Que voulez-vous manger cette semaine ?</p>
 
     <div id="dashCeSoir"></div>
 
     <div class="dashboard-grid" style="margin-bottom:2.5rem;">
       <a href="planning.html" class="dashboard-tile">
-        <span class="tile-icon">📅</span>
+        <span class="tile-icon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-calendrier"/></svg></span>
         <span class="tile-label">Planning</span>
         <span class="text-xs text-muted">Samedi soir → samedi midi</span>
       </a>
       <a href="preferences.html" class="dashboard-tile">
-        <span class="tile-icon">❤️</span>
+        <span class="tile-icon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-coeur"/></svg></span>
         <span class="tile-label">Préférences</span>
         <span class="text-xs text-muted">Ingrédients aimés / détestés</span>
       </a>
       <a href="recettes.html" class="dashboard-tile">
-        <span class="tile-icon">📖</span>
+        <span class="tile-icon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg></span>
         <span class="tile-label">Recettes</span>
         <span id="tileRecettesCount" class="text-xs text-muted">Bibliothèque</span>
       </a>
       <a href="courses.html" class="dashboard-tile">
-        <span class="tile-icon">🛒</span>
+        <span class="tile-icon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-panier"/></svg></span>
         <span class="tile-label">Courses</span>
         <span class="text-xs text-muted">Samedi et mercredi</span>
       </a>
@@ -69,7 +68,7 @@
 
     <div class="section-header">
       <h2 class="section-title">Ce cycle</h2>
-      <a href="planning.html" class="btn btn-ghost btn-sm">Voir le planning →</a>
+      <a href="planning.html" class="btn btn-ghost btn-sm">Voir le planning <svg class="ic" aria-hidden="true" focusable="false"><use href="#i-droite"/></svg></a>
     </div>
     <div id="dashSemaine"></div>
   </main>

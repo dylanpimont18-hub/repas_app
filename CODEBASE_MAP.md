@@ -97,6 +97,11 @@ Fonctions pures testables sous Node.
 - `validerVegetarien(recette)` — détecte viande/poisson dans une recette
 - `repartirCourses(lignes)` — répartit la liste entre samedi et mercredi
 
+### js/icones.js
+Jeu d'icônes SVG unique (tracé façon Lucide, trait 2 px) qui remplace les emojis d'interface.
+- `icone(nom, { label, classe })` — `<svg><use href="#i-nom">` (décorative par défaut, `label` → role="img")
+- `injecterSprite()` — injecte le sprite une fois par page (appelé par app.js)
+
 ### js/cycle.js
 Cycle samedi soir → samedi midi et modèle de semaine (pur, testé).
 - `MODELE_DEFAUT` / `normaliserModele(m)` — portions, profils et jour de cuisine par créneau

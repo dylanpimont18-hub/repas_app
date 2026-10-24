@@ -3,6 +3,7 @@ import { getRecettes, deleteRecette, getRecetteById, addRecette } from './recett
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { TAGS } from './filtres.js'
+import { icone } from './icones.js'
 
 let filtres = {}
 let recetteEnEdition = null
@@ -17,11 +18,11 @@ async function renderList() {
         <div class="recipe-card" style="cursor:pointer;" data-id="${esc(r.id)}">
           <div class="recipe-name">${esc(r.nom)}</div>
           <div class="recipe-meta">
-            <span>⏱ ${r.temps_prep + r.temps_cuisson} min</span>
-            <span>👤 ${r.portions} pers.</span>
-            ${r.nutrition?.calories ? `<span>🔥 ${r.nutrition.calories} kcal</span>` : ''}
+            <span>${icone('horloge')}${r.temps_prep + r.temps_cuisson} min</span>
+            <span>${icone('famille')}${r.portions} pers.</span>
+            ${r.nutrition?.calories ? `<span>${icone('flamme')}${r.nutrition.calories} kcal</span>` : ''}
           </div>
-          <div class="recipe-tags">${r.vegetarien ? '<span class="recipe-tag">🌿 Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
+          <div class="recipe-tags">${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
         </div>`).join('')
   container.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', () => ouvrirDetail(card.dataset.id))
@@ -34,16 +35,16 @@ async function ouvrirDetail(id) {
   document.getElementById('detailContent').innerHTML = `
     <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${esc(r.nom)}</h2>
     <div class="recipe-meta" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-      <span>⏱ Prép: ${r.temps_prep} min</span>
-      <span>🔥 Cuisson: ${r.temps_cuisson} min</span>
-      <span>👤 ${r.portions} pers.</span>
-      ${r.vegetarien ? '<span>🌿 Végétarien</span>' : ''}
+      <span>${icone('horloge')}Préparation ${r.temps_prep} min</span>
+      <span>${icone('flamme')}Cuisson ${r.temps_cuisson} min</span>
+      <span>${icone('famille')}${r.portions} pers.</span>
+      ${r.vegetarien ? `<span>${icone('feuille')}Végétarien</span>` : ''}
     </div>
     ${r.nutrition ? `<div class="card" style="margin-bottom:1rem;display:flex;gap:1rem;flex-wrap:wrap;">
-      <span class="text-sm">🔥 ${r.nutrition.calories} kcal</span>
-      <span class="text-sm">💪 ${r.nutrition.proteines}g prot.</span>
-      <span class="text-sm">🌾 ${r.nutrition.glucides}g gluc.</span>
-      <span class="text-sm">🫙 ${r.nutrition.lipides}g lip.</span>
+      <span class="text-sm"><b>${r.nutrition.calories}</b> kcal</span>
+      <span class="text-sm"><b>${r.nutrition.proteines} g</b> protéines</span>
+      <span class="text-sm"><b>${r.nutrition.glucides} g</b> glucides</span>
+      <span class="text-sm"><b>${r.nutrition.lipides} g</b> lipides</span>
     </div>` : ''}
     ${r.description ? `<p class="text-sm" style="margin-bottom:1rem;">${esc(r.description)}</p>` : ''}
     ${r.composants ? `<div class="recette-composants">
@@ -53,7 +54,7 @@ async function ouvrirDetail(id) {
       ${r.composants.legumes?.length ? `<b>Légumes</b><span>${esc(r.composants.legumes.join(', '))}</span>` : ''}
       ${r.conservation_jours != null ? `<b>Conservation</b><span>${esc(r.conservation_jours)} jour(s) au frigo</span>` : ''}
     </div>` : ''}
-    ${(r.legumes_caches || []).map(l => `<div class="astuce-cachee">🙈 <b>${esc(l.legume)}</b> : ${esc(l.astuce)}</div>`).join('')}
+    ${(r.legumes_caches || []).map(l => `<div class="astuce-cachee">${icone('oeil')}<span><b>${esc(l.legume)}</b> : ${esc(l.astuce)}</span></div>`).join('')}
     <h3 style="margin-bottom:0.5rem;${r.legumes_caches?.length ? 'margin-top:1rem;' : ''}">Ingrédients</h3>
     <ul style="margin-bottom:1rem;">
       ${(r.ingredients || []).map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
@@ -63,9 +64,9 @@ async function ouvrirDetail(id) {
       ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
     </ol>` : ''}
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
-      <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">🗑 Supprimer</button>
-      <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">✏️ Modifier</button>
-      <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${esc(r.id)}">⧉ Dupliquer</button>
+      <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">${icone('poubelle')}Supprimer</button>
+      <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">${icone('crayon')}Modifier</button>
+      <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${esc(r.id)}">${icone('copie')}Dupliquer</button>
     </div>`
   document.getElementById('modalDetail').classList.remove('hidden')
 
@@ -100,7 +101,8 @@ function creerLigneIngredient(valeur = '') {
   btn.type = 'button'
   btn.className = 'edit-row-delete'
   btn.title = 'Supprimer'
-  btn.textContent = '✕'
+  btn.setAttribute('aria-label', 'Supprimer la ligne')
+  btn.innerHTML = icone('croix')
   btn.addEventListener('click', () => div.remove())
   div.appendChild(input)
   div.appendChild(btn)
@@ -119,7 +121,8 @@ function creerLigneEtape(valeur = '') {
   btn.type = 'button'
   btn.className = 'edit-row-delete'
   btn.title = 'Supprimer'
-  btn.textContent = '✕'
+  btn.setAttribute('aria-label', 'Supprimer la ligne')
+  btn.innerHTML = icone('croix')
   btn.addEventListener('click', () => div.remove())
   div.appendChild(input)
   div.appendChild(btn)
@@ -150,7 +153,7 @@ function ouvrirFormEdit(recette) {
 
   // Titre de la modale
   document.getElementById('editRecetteTitle').textContent =
-    recette.id ? '✏️ Modifier la recette' : '⧉ Dupliquer la recette'
+    recette.id ? 'Modifier la recette' : 'Dupliquer la recette'
 
   // Champs simples
   document.getElementById('editNom').value        = recette.nom || ''

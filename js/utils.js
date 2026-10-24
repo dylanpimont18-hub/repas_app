@@ -24,27 +24,83 @@ export function debounce(fn, ms = 250) {
 }
 
 // ── Quantités de la liste de courses ─────────────────────────────────
-// [{ valeur: '200 g', facteur: 1.5 }, { valeur: '100g', facteur: 1 }] → '400 g'
-// Les quantités numériques de même unité sont ajustées aux portions puis additionnées ;
-// le reste ("1 pincée", "selon goût") est conservé tel quel.
-export function combinerQuantites(quantites) {
+const sansAccents = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe')
+const singulier = m => (m.length > 3 ? m.replace(/(s|x)$/, '') : m)
+
+// Mots qui ne changent pas l'article à acheter
+const QUALIFICATIFS = /\b(surgel[ée]e?s?|en boite|en conserve|boite|egoutt[ée]e?s?|frais|fraiche|fraiches|hach[ée]e?s?|rap[ée]e?s?|emiett[ée]e?s?|coup[ée]e?s?|moyens?|moyennes?|petites?|gros|grosses?|halal|bio|nature)\b/g
+
+// Clé de regroupement : « Pommes de terre », « pomme de terre (coupées en cubes) » → « pomme de terre »
+export function cleIngredient(nom) {
+  return sansAccents(nom).replace(/\([^)]*\)/g, ' ').replace(QUALIFICATIFS, ' ')
+    .replace(/[^a-z0-9' -]/g, ' ').split(/\s+/).filter(Boolean).map(singulier).join(' ').trim()
+}
+
+// Nom affiché : sans la note entre parenthèses, première lettre en majuscule
+export function nomIngredient(nom) {
+  const n = String(nom ?? '').replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim()
+  return n.charAt(0).toUpperCase() + n.slice(1)
+}
+
+// Unités équivalentes ramenées à une seule écriture
+const UNITES = [
+  [/^(c\.?\s*(a|à)\s*caf[ée]|c\.?\s*c\.?|cuill[eè]res?\s*(a|à)\s*caf[ée]|cc)$/i, 'c.c.'],
+  [/^(c\.?\s*(a|à)\s*soupe|c\.?\s*s\.?|cuill[eè]res?\s*(a|à)\s*soupe|cs)$/i, 'c.s.'],
+  [/^(g|gr|grammes?)$/i, 'g'], [/^(kg|kilos?|kilogrammes?)$/i, 'kg'],
+  [/^(ml|millilitres?)$/i, 'ml'], [/^(cl|centilitres?)$/i, 'cl'], [/^(l|litres?)$/i, 'l'],
+]
+function normaliserUnite(brute, nom) {
+  let u = String(brute ?? '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
+  u = u.replace(/^(de |d')/, '').trim()
+  for (const [re, std] of UNITES) if (re.test(u)) return std
+  if (!u) return ''
+  // « 3 carottes », « 1,5 citron » : l'unité est l'ingrédient lui-même → des pièces
+  const premier = cleIngredient(u).split(' ')[0]
+  if (premier && cleIngredient(nom).split(' ').includes(premier)) return ''
+  return u.split(' ').map((m, i) => (i === 0 ? singulier(m) : m)).join(' ')
+}
+
+// « 1/2 », « 1 1/2 », « ½ », « 1,5 » → nombre (et le reste du texte)
+const FRACTIONS = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 }
+export function lireQuantite(valeur) {
+  const v = String(valeur ?? '').trim().replace(/[½¼¾⅓⅔]/g, f => ` ${FRACTIONS[f]} `).replace(/\s+/g, ' ').trim()
+  let m = v.match(/^(\d+) (\d+)\s*\/\s*(\d+)\s*(.*)$/)
+  if (m) return { n: +m[1] + m[2] / m[3], reste: m[4] }
+  m = v.match(/^(\d+)\s*\/\s*(\d+)\s*(.*)$/)
+  if (m) return { n: m[1] / m[2], reste: m[3] }
+  m = v.match(/^(\d+(?:[.,]\d+)?)(?: (0\.\d+))?\s*(.*)$/)
+  if (m) return { n: parseFloat(m[1].replace(',', '.')) + (m[2] ? parseFloat(m[2]) : 0), reste: m[3] }
+  return null
+}
+
+// [{ valeur: '200 g', facteur: 1.5 }, …] → '300 g + 1 c.s.' (ajusté aux portions et additionné par unité)
+export function combinerQuantites(quantites, nom = '') {
   const parUnite = new Map()
-  const autres   = []
+  const autres   = new Set()
   for (const { valeur, facteur = 1 } of quantites) {
-    const m = String(valeur ?? '').trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/)
-    if (!m) { if (valeur) autres.push(String(valeur).trim()); continue }
-    const unite = m[2].trim()
-    parUnite.set(unite, (parUnite.get(unite) || 0) + parseFloat(m[1].replace(',', '.')) * facteur)
+    const q = lireQuantite(valeur)
+    if (!q) { const t = String(valeur ?? '').replace(/\([^)]*\)/g, '').trim(); if (t) autres.add(t.toLowerCase()); continue }
+    const unite = normaliserUnite(q.reste, nom)
+    parUnite.set(unite, (parUnite.get(unite) || 0) + q.n * facteur)
   }
-  // Pièces (« 3 carottes ») : arrondi au supérieur ; grammes / millilitres : à l'unité ; le reste : 1 décimale
-  const arrondir = (n, unite) => {
-    const u = unite.toLowerCase()
-    const v = !u ? Math.ceil(n - 0.05)
-      : /^(g|gr|ml|cl)(?![a-z])/.test(u) ? Math.round(n)
+  // Pièces et cuillères : arrondi au demi supérieur / à l'unité ; grammes et ml : à l'unité ; le reste : 1 décimale
+  const arrondir = (n, u) => {
+    const v = !u ? Math.max(1, Math.ceil(n - 0.05))
+      : /^(g|ml|cl)$/.test(u) ? Math.round(n)
+      : /^(c\.c\.|c\.s\.|pinc[ée]e|poign[ée]e|botte|gousse|tranche|pav[ée])/.test(u) ? Math.max(0.5, Math.ceil(n * 2 - 0.1) / 2)
       : Math.round(n * 10) / 10
     return String(v).replace('.', ',')
   }
-  const numeriques = [...parUnite].map(([unite, n]) => `${arrondir(n, unite)}${unite ? ' ' + unite : ''}`)
+  const pluriel = (u, n) => (n > 1 && /^(pinc[ée]e|poign[ée]e|botte|gousse|tranche|pav[ée]|boite|sachet|feuille|brin)$/.test(u) ? `${u}s` : u)
+  // Grandes quantités : 1900 g → 1,9 kg ; 1500 ml → 1,5 l
+  for (const [petite, grande] of [['g', 'kg'], ['ml', 'l']]) {
+    const n = parUnite.get(petite)
+    if (n >= 1000) { parUnite.delete(petite); parUnite.set(grande, (parUnite.get(grande) || 0) + n / 1000) }
+  }
+  const numeriques = [...parUnite].map(([u, n]) => {
+    const v = arrondir(n, u)
+    return `${v}${u ? ' ' + pluriel(u, parseFloat(v.replace(',', '.'))) : ''}`
+  })
   return [...numeriques, ...autres].join(' + ')
 }
 
@@ -55,9 +111,9 @@ export function combinerQuantites(quantites) {
 export function repartirCourses(lignes) {
   const agregat = new Map()
   for (const l of lignes) {
-    const k = String(l.nom || '').toLowerCase().trim()
+    const k = cleIngredient(l.nom)
     if (!k) continue
-    if (!agregat.has(k)) agregat.set(k, { nom: l.nom.trim(), quantites: [], parties: new Set() })
+    if (!agregat.has(k)) agregat.set(k, { nom: nomIngredient(l.nom), quantites: [], parties: new Set() })
     const a = agregat.get(k)
     a.quantites.push({ valeur: l.quantite, facteur: l.facteur ?? 1 })
     a.parties.add(l.partie)
@@ -93,6 +149,8 @@ const CAT_MAP = {
 
 export function categoriser(nom) {
   const n = nom.toLowerCase()
+  // Épices en poudre / moulues avant les herbes fraîches du même nom (coriandre, gingembre…)
+  if (/(^|[^a-z])(poudre|moulue?|s[ée]ch[ée]e?s?)([^a-z]|$)/.test(n) && !/tomates? s[ée]ch/.test(n)) return 'Épicerie & Condiments'
   for (const [cat, mots] of Object.entries(CAT_MAP)) {
     if (mots.some(m => n.includes(m))) return cat
   }

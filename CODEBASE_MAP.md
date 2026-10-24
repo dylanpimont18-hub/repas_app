@@ -19,10 +19,13 @@ Système de cartes Tinder pour noter les ingrédients par profil (Dylan / Ma fem
 Bibliothèque des recettes sauvegardées avec filtres et vue détail.
 
 ### planning.html
-Grille hebdomadaire 7 × 2 (midi/soir) avec sélection de recettes et génération IA.
+Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ; modale « Remplir le cycle ».
 
 ### courses.html
-Liste de courses agrégée depuis le planning, groupée par catégorie, avec cases à cocher.
+Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle.
+
+### reglages.html
+Réglages partagés : modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
 
 ---
 
@@ -42,6 +45,9 @@ Schéma SQL initial : `preferences`, `recettes`, `planning`, `courses_etat`.
 
 ### supabase/migrations/20261024_foyer_sync.sql
 Foyer (`foyer_membres` + `est_membre_foyer()`), table `ingredients_custom`, RLS réservée au foyer, publication temps réel.
+
+### supabase/migrations/20261024b_planning_famille.sql
+Colonnes recette structurée (description, cuisine, composants, legumes_caches, tags, conservation_jours), `planning.source`, tables `reglages` et `reserve`.
 
 ### supabase/functions/ai/index.ts
 Edge Function : proxy Mammouth AI (streaming) + météo OpenWeatherMap, vérifie membre du foyer. Secrets `MAMMOUTH_API_KEY`, `OPENWEATHER_API_KEY`.
@@ -71,7 +77,11 @@ Client Supabase + toutes les opérations base de données.
 - `dbUpsertRecette(r)` / `dbUpsertRecettes(list)` — enregistre recette(s), retourne les ids
 - `dbDeleteRecette(id)` — supprime une recette
 - `dbGetPlanning(semaineKey)` — planning d'une semaine
-- `dbUpsertPlanning(...)` / `dbUpsertPlanningLot(lignes)` — assigne un ou plusieurs créneaux
+- `dbGetPlanningSemaines(keys)` — lignes brutes de plusieurs semaines ISO
+- `dbUpsertPlanning(...)` / `dbUpsertPlanningLot(lignes)` — assigne un ou plusieurs créneaux (avec `source`)
+- `dbViderCreneaux(list)` — vide plusieurs créneaux
+- `dbGetReglage(cle)` / `dbSetReglage(cle, valeur)` — réglages partagés du foyer
+- `dbGetReserve()` / `dbAddReserve(recetteId, portions)` / `dbDeleteReserve(id)` — réserve congélo
 - `dbGetCoursesEtat` / `dbToggleCourse` / `dbResetCourses` — cases cochées des courses
 - `dbEcouter(tables, onChange)` — abonnement temps réel Supabase
 - `dbAppelFonctionIA(body)` — appelle l'Edge Function `ai` avec le jeton de session
@@ -84,6 +94,50 @@ Fonctions pures testables sous Node.
 - `combinerQuantites(quantites)` — ajuste aux portions et additionne
 - `categoriser(nom)` — rayon de supermarché d'un ingrédient
 - `validerVegetarien(recette)` — détecte viande/poisson dans une recette
+- `repartirCourses(lignes)` — répartit la liste entre samedi et mercredi
+
+### js/cycle.js
+Cycle samedi soir → samedi midi et modèle de semaine (pur, testé).
+- `MODELE_DEFAUT` / `normaliserModele(m)` — portions, profils et jour de cuisine par créneau
+- `debutCycle(date)` / `decalerCycle(samedi, n)` / `cleCycle(samedi)` / `labelCycle(samedi)`
+- `creneauxDuCycle(samedi, modele)` — 14 créneaux (portions, profils, session, conservation, partie de courses)
+- `groupesDuCycle(creneaux)` — groupes d'affichage sur place / session
+- `soirAssocie(creneaux, c)` — soir dont un midi de session reprend le plat
+- `creneauCourant(creneaux, maintenant)` — prochain repas (cible de l'envie)
+- `dateDeSemaine(key, jour)` / `semainesDuCycle(samedi)` / `ajouterJours` / `dateIso` / `dateCourte`
+
+### js/filtres.js
+Vocabulaire des tags, sélecteurs et détections (pur, testé).
+- `TAGS`, `FILTRES` — sélecteurs avec test bibliothèque et consigne IA
+- `passeFiltres(r, filtres)` / `consignesFiltres(filtres)`
+- `contientViande` / `contientPoisson` / `contientFeculent` / `contientInterdit` (halal)
+- `scoreStyle(r, style)` — correspondance avec le style libre
+- `normaliser(s)` / `contientMot(texte, mot)` / `texteRecette(r)`
+
+### js/selection.js
+Choix des recettes dans la bibliothèque, sans IA (pur, testé).
+- `construireIndexPrefs(ingredients, prefs)` — préférences indexées mot à mot
+- `evaluer(recette, creneau, ctx)` — exclusions (halal, filtres, goûts, légumes cachés, conservation, rotation) + score
+- `nouveauContexte(...)` / `noterChoix(ctx, r)` / `candidats(recettes, creneau, ctx)`
+- `remplirCycle({...})` — réserve d'abord, repas familiaux, puis restes pour les midis de session
+- `decalerEnCascade(creneaux, plan, cle, nouveau)` — décalage pour l'envie du soir
+- `proteinePrincipale(r)` / `ingredientsFrais(r)` / `motsDe(s)` / `motsRecette(r)`
+
+### js/propositions.js
+Relie selection.js aux données Supabase du cycle.
+- `chargerDonnees(samedi)` — cycle, recettes, réserve, historique, préférences
+- `proposerPourCreneau(d, c, options, n)` — meilleurs candidats bibliothèque
+- `remplirDepuisBibliotheque(d, cles, options)` / `completerParIA(d, creneaux, options, onProgress)`
+- `ideeIA(d, c, options)` — une recette IA enregistrée
+- `placer(d, c, recetteId, source, mode, simuler)` — remplacer / congélo / décaler
+- `lireFiltres()` / `memoriserFiltres(f)` — sélecteurs mémorisés sur l'appareil
+
+### js/envie.js
+Modale « ⚡ Envie ce soir ».
+- `renderModalEnvie(content, fermer)` — cible, sélecteurs, 3 idées bibliothèque, IA, choix du sort du plat prévu
+
+### js/reglages-ui.js
+Page réglages : éditeur du modèle de semaine, réserve congélo, conversion IA des anciennes recettes par lots de 5.
 
 ### js/storage.js
 Wrapper localStorage (thème uniquement).
@@ -132,19 +186,23 @@ CRUD bibliothèque de recettes.
 Planificateur hebdomadaire.
 - `JOURS`, `MOMENTS`, `getSemaineKey` (réexporté de utils)
 - `getPlanning(semaineKey)` / `assignerRepas(...)` / `supprimerRepas(...)`
-- `importerCreneaux(repas, semaineKeys)` — import IA en 2 requêtes (1 ou 2 semaines)
+- `getModele()` / `setModele(m)` — modèle de semaine partagé (table reglages)
+- `chargerCycle(samedi)` — créneaux + occupation `{cle: {id, portions, source}}`
+- `chargerHistorique(samedi)` — dernière date de chaque recette (8 semaines)
+- `enregistrerCreneaux(list)` / `viderCreneaux(list)` / `importerRecettesIA(lignes)`
 - `getJoursAvecRepas(semaineKey)` — créneaux remplis
 - `idsDuPlanning(planning)` — ids des recettes d'un planning
 
 ### js/courses.js
 Liste de courses.
-- `genererListeCourses(semaineKey)` — agrège les ingrédients (une requête recettes)
+- `genererListeCycle(samedi)` — liste du cycle `{samedi, mercredi}` (ignore les plats du congélo)
 - `getEtatCourses` / `toggleCourse` / `resetCourses` — cases cochées Supabase
 
 ### js/ai.js
 Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
-- `genererCreneaux({slots, pourQui, meteo, contraintes}, onProgress)` — repas des créneaux choisis, anti-gaspi
-- `genererDerniereMinute({pourQui, ingredientsDispos, contraintes})` — une recette rapide
+- `genererPourCreneaux({creneaux, filtres, style, ingredientsAReutiliser, nomsExistants, envie}, onProgress)` — une recette par créneau, format structuré, légumes cachés
+- `genererUneRecette({creneau, ...})` — une seule recette
+- `convertirRecettes(recettes)` — complète les anciennes recettes au nouveau format
 - `getMeteo()` — météo Vierzon via l'Edge Function
 - `getSaison()` — saison courante
 
@@ -154,7 +212,7 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 
 ### js/dashboard.js
 Contrôleur du tableau de bord d'accueil.
-- `render()` — nombre de recettes, repas du jour, aperçu semaine ; rafraîchi en temps réel
+- `render()` — nombre de recettes, repas du jour, aperçu semaine ISO ; rafraîchi en temps réel
 
 ### js/preferences-ui.js
 Rendu et interactions de la page préférences (cartes + vue liste).
@@ -172,13 +230,14 @@ Rendu et interactions de la bibliothèque de recettes.
 
 ### js/planning-ui.js
 Rendu et interactions du planificateur hebdomadaire.
-- `renderGrid()` — vue liste 7 jours × 2 repas ; temps réel sur `planning`/`recettes`
-- `initModalGen()` — modale de génération IA (1 ou 2 semaines, progression en direct)
-- `ouvrirSelectRecette()` — modale de sélection d'une recette pour un créneau
+- `renderGrid()` — cycle groupé par session, badges portions / origine, ❄️ réserve ; temps réel
+- `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️, 🗑, portions
+- `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier
+- `initModalGen()` — « Remplir le cycle » : bibliothèque d'abord, puis « Compléter avec l'IA »
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.
-- `render()` — liste groupée par rayon, quantités ajustées ; file de rendu sans perte d'événement temps réel
+- `render()` — deux parties samedi / mercredi groupées par rayon, quantités ajustées ; file de rendu sans perte d'événement temps réel
 
 ---
 
@@ -186,3 +245,6 @@ Rendu et interactions de la liste de courses.
 
 ### tests/utils.test.mjs
 Tests unitaires de js/utils.js — `node --test tests/*.test.mjs`.
+
+### tests/planning-famille.test.mjs
+Tests du cycle, des filtres, de la sélection bibliothèque, du décalage et de la répartition des courses.

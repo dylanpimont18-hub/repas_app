@@ -1,12 +1,18 @@
 // js/courses-ui.js
-import { genererListeCourses, getEtatCourses, toggleCourse, resetCourses } from './courses.js'
-import { getSemaineKey } from './planning.js'
+import { genererListeCycle, getEtatCourses, toggleCourse, resetCourses } from './courses.js'
+import { debutCycle, decalerCycle, cleCycle, labelCycle } from './cycle.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce, combinerQuantites } from './utils.js'
 
 let enCours         = null   // rendu en cours (Promise)
 let aRefaire        = false  // un changement est arrivé pendant le rendu
 let acheteesOuverte = false
+let samedi          = debutCycle()
+
+const PARTIES = [
+  { id: 'samedi',   titre: '🛒 Samedi — magasin', sous: 'Samedi soir → mardi (dont la session du dimanche)' },
+  { id: 'mercredi', titre: '🚗 Mercredi — drive',  sous: 'Mercredi → samedi midi (dont la session du mercredi)' },
+]
 
 // Évite les rendus concurrents sans perdre de mise à jour : si un rendu est en cours,
 // on en programme un nouveau juste après au lieu d'ignorer l'événement
@@ -32,39 +38,36 @@ const ICONE = {
 }
 
 async function renderUneFois() {
-  const semaineKey = getSemaineKey()
+  const semaineKey = cleCycle(samedi)
   const labelEl    = document.getElementById('labelSemaineCourses')
-  if (labelEl) labelEl.textContent = semaineKey
+  if (labelEl) labelEl.textContent = labelCycle(samedi)
 
-  const [groupes, etat] = await Promise.all([genererListeCourses(semaineKey), getEtatCourses(semaineKey)])
+  const [parties, etat] = await Promise.all([genererListeCycle(samedi), getEtatCourses(semaineKey)])
 
-  // Séparer les items actifs des items achetés
-  const actifs   = {}  // { cat: [item, ...] }
-  const achetees = []  // liste plate des items cochés
-
-  ORDRE.forEach(cat => {
-    if (!groupes[cat]?.length) return
-    groupes[cat].forEach(item => {
-      const k = item.nom.toLowerCase().trim()
-      if (etat[k]) {
-        achetees.push(item)
-      } else {
-        if (!actifs[cat]) actifs[cat] = []
-        actifs[cat].push(item)
-      }
-    })
-  })
-
-  // HTML des items actifs groupés par catégorie
-  const htmlActifs = ORDRE.filter(cat => actifs[cat]?.length).map(cat => `
-    <div class="courses-group">
-      <div class="courses-group-title">${ICONE[cat]} ${cat}</div>
-      ${actifs[cat].map(item => `<div class="courses-item">
-          <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
-          <span class="courses-item-label">${esc(item.nom)}</span>
-          <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
-        </div>`).join('')}
-    </div>`).join('')
+  // Séparer les items actifs (par partie puis rayon) des items achetés
+  const achetees = []
+  const htmlActifs = PARTIES.map(partie => {
+    const groupes = parties[partie.id]
+    const actifs  = {}
+    ORDRE.forEach(cat => (groupes[cat] || []).forEach(item => {
+      if (etat[item.nom.toLowerCase().trim()]) achetees.push(item)
+      else (actifs[cat] ||= []).push(item)
+    }))
+    const rayons = ORDRE.filter(cat => actifs[cat]?.length)
+    if (!rayons.length) return ''
+    return `<div class="courses-partie">
+      <div class="courses-partie-titre">${partie.titre}<div class="text-xs text-muted" style="font-family:inherit;">${partie.sous}</div></div>
+      ${rayons.map(cat => `
+      <div class="courses-group">
+        <div class="courses-group-title">${ICONE[cat]} ${cat}</div>
+        ${actifs[cat].map(item => `<div class="courses-item">
+            <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
+            <span class="courses-item-label">${esc(item.nom)}</span>
+            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites))}</span>
+          </div>`).join('')}
+      </div>`).join('')}
+    </div>`
+  }).join('')
 
   // HTML de la section Achetées (restaure l'état ouvert/fermé)
   const htmlAchetees = achetees.length ? `
@@ -86,7 +89,7 @@ async function renderUneFois() {
   const list = document.getElementById('coursesList')
   if (list) {
     if (!htmlActifs && !htmlAchetees) {
-      list.innerHTML = '<p class="text-muted">Aucun repas planifié cette semaine.</p>'
+      list.innerHTML = '<p class="text-muted">Aucun repas planifié sur ce cycle.</p>'
     } else {
       list.innerHTML = htmlActifs + htmlAchetees
     }
@@ -217,12 +220,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Bouton réinitialiser
   document.getElementById('btnResetCourses')?.addEventListener('click', async () => {
     if (confirm('Réinitialiser les cases à cocher ?')) {
-      const semaineKey = getSemaineKey()
-      await resetCourses(semaineKey)
+      await resetCourses(cleCycle(samedi))
       await render()
     }
   })
 
+  // Navigation entre cycles
+  document.getElementById('btnPrevCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, -1); render() })
+  document.getElementById('btnNextCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, 1); render() })
+
   // Temps réel : cases cochées par l'autre, ou planning / recettes modifiés
-  dbEcouter(['courses_etat', 'planning', 'recettes'], debounce(render, 300))
+  dbEcouter(['courses_etat', 'planning', 'recettes', 'reglages'], debounce(render, 300))
 })

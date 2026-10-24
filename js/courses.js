@@ -1,44 +1,30 @@
-// js/courses.js
-import { getPlanning, JOURS, MOMENTS } from './planning.js'
-import { getRecettesByIds }            from './recettes.js'
-import { categoriser }                 from './utils.js'
+// js/courses.js — Liste de courses du cycle : 🛒 samedi magasin + 🚗 mercredi drive
+import { chargerCycle }     from './planning.js'
+import { getRecettesByIds } from './recettes.js'
+import { repartirCourses }  from './utils.js'
 import { dbGetCoursesEtat, dbToggleCourse, dbResetCourses } from './db.js'
 
-export async function genererListeCourses(semaineKey) {
-  const planning = await getPlanning(semaineKey)
-  const agregat  = {}
+// → { samedi: { rayon: [{ nom, quantites }] }, mercredi: { ... } }
+export async function genererListeCycle(samedi) {
+  const { creneaux, occupation } = await chargerCycle(samedi)
+  // Les plats sortis du congélo ne demandent aucune course
+  const remplis  = creneaux.filter(c => occupation[c.cle] && occupation[c.cle].source !== 'reserve')
+  const recettes = await getRecettesByIds(remplis.map(c => occupation[c.cle].id))
 
-  // Collecter tous les slots remplis
-  const slots = []
-  JOURS.forEach(jour => MOMENTS.forEach(moment => {
-    const slot = planning[jour]?.[moment]
-    if (slot?.id) slots.push({ ...slot, jour, moment })
-  }))
-
-  // Une seule requête pour toutes les recettes de la semaine
-  const recettes = await getRecettesByIds(slots.map(s => s.id))
-
-  slots.forEach(slot => {
-    const recette = recettes[slot.id]
-    if (!recette) return
-    const facteur = (slot.portions || 2) / (recette.portions || 2)
-    ;(recette.ingredients || []).forEach(ing => {
-      const k = ing.nom.toLowerCase().trim()
-      if (!k) return
-      if (!agregat[k]) agregat[k] = { nom: ing.nom, quantites: [], categorie: categoriser(ing.nom) }
-      agregat[k].quantites.push({ valeur: ing.quantite, facteur })
-    })
-  })
-
-  const groupes = {}
-  Object.values(agregat).forEach(ing => {
-    if (!groupes[ing.categorie]) groupes[ing.categorie] = []
-    groupes[ing.categorie].push({ nom: ing.nom, quantites: ing.quantites })
-  })
-  return groupes
+  const lignes = []
+  for (const c of remplis) {
+    const occ = occupation[c.cle]
+    const recette = recettes[occ.id]
+    if (!recette) continue
+    const facteur = (occ.portions || c.portions) / (recette.portions || 4)
+    for (const ing of recette.ingredients || []) {
+      lignes.push({ partie: c.partie, nom: ing.nom, quantite: ing.quantite, facteur })
+    }
+  }
+  return repartirCourses(lignes)
 }
 
 // État des cases à cocher — synchronisé via Supabase (temps réel multi-appareils)
-export async function getEtatCourses(semaineKey) { return dbGetCoursesEtat(semaineKey) }
-export async function toggleCourse(semaineKey, nom, checked) { return dbToggleCourse(semaineKey, nom, checked) }
-export async function resetCourses(semaineKey) { return dbResetCourses(semaineKey) }
+export async function getEtatCourses(cle) { return dbGetCoursesEtat(cle) }
+export async function toggleCourse(cle, nom, checked) { return dbToggleCourse(cle, nom, checked) }
+export async function resetCourses(cle) { return dbResetCourses(cle) }

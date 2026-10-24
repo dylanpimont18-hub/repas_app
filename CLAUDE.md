@@ -1,11 +1,14 @@
 # Repas — Application de gestion des repas familiaux
 
 ## Contexte
-Application web **PWA mobile-first** pour un foyer de 2 personnes (Dylan + sa femme). Objectifs : ne plus manquer d'idées de repas, organiser la semaine, générer la liste de courses automatiquement.
+Application web **PWA mobile-first** pour un foyer de 4 personnes (Dylan, sa femme, 2 enfants qui mangent comme les adultes ; seuls les 2 adultes ont un profil de goûts). Objectifs : ne plus manquer d'idées de repas, organiser la semaine, générer la liste de courses automatiquement.
 
 ## Contraintes métier fixes (non négociables)
 - **Halal strict** : aucune recette contenant du porc ou de l'alcool — jamais suggéré par l'IA
-- **Profil femme** : préférences plus restrictives que Dylan — l'IA doit en tenir compte si le repas est "pour deux"
+- **Profil femme** : préférences plus restrictives que Dylan. Ses légumes « Je n'aime pas » sont des **candidats à cacher** (autorisés seulement avec une astuce `legumes_caches`) ; ses autres « Je n'aime pas » sont exclus
+- **Cycle samedi soir → samedi midi** : midis lun/mar/jeu/ven = 1 portion (femme seule), autres repas = 4. Cuisine en avance le dimanche (→ lun, mar) et le mercredi (→ jeu, ven) ; mer, sam, dim cuisinés sur place. Modèle éditable dans Réglages
+- **Courses** : une liste par cycle, en deux parties — 🛒 samedi magasin (sam soir → mar) et 🚗 mercredi drive (mer → sam midi)
+- **Bibliothèque d'abord** : les propositions viennent des recettes enregistrées (js/selection.js) ; l'IA n'intervient qu'en dernier recours
 - **Authentification requise** : toutes les pages redirigent vers `login.html` si pas de session Supabase
 
 ## Stack technique
@@ -40,8 +43,8 @@ Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
 - Vue liste + modale détail + modale édition complète
 - Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients, étapes
 
-### 4. Planificateur hebdomadaire (`planning.html`)
-Vue liste 7 jours × 2 repas (midi + soir).
+### 4. Planificateur (`planning.html`)
+Cycle samedi soir → samedi midi, groupé par session de cuisine (spec : docs/superpowers/specs/2026-10-24-planning-famille-batch-design.md).
 - Navigation semaine précédente / suivante
 - Génération IA de toute la semaine (créneaux vides sélectionnables)
 - Assignation manuelle depuis la bibliothèque ou via recette de dernière minute ⚡

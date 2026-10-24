@@ -3,20 +3,25 @@ import { getProfil }           from './preferences.js'
 import { getAllIngredients }   from './custom-ingredients.js'
 import { dbAppelFonctionIA }   from './db.js'
 import { validerVegetarien }   from './utils.js'
+import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
+import { labelCreneau, dateCourte } from './cycle.js'
 
 // ── Météo (clé OpenWeatherMap côté serveur) ──────────────────────────
+let meteoCache = null
 export async function getMeteo() {
+  if (meteoCache) return meteoCache
   try {
     const res  = await dbAppelFonctionIA({ action: 'meteo' })
     const data = await res.json()
     if (!res.ok || data.cod !== '200') throw new Error(data.error || data.message)
     const temps = data.list.slice(0, 40).map(i => i.main.temp)
     const avg   = Math.round(temps.reduce((a, b) => a + b, 0) / temps.length)
-    return { avgTemp: avg, description: data.list[0]?.weather[0]?.description || '', saison: getSaison() }
+    meteoCache = { avgTemp: avg, description: data.list[0]?.weather[0]?.description || '', saison: getSaison() }
   } catch (e) {
     console.warn('Météo indisponible, valeurs par défaut', e)
-    return { avgTemp: 15, description: 'inconnu', saison: getSaison() }
+    meteoCache = { avgTemp: 15, description: 'inconnu', saison: getSaison() }
   }
+  return meteoCache
 }
 
 export function getSaison() {
@@ -27,121 +32,84 @@ export function getSaison() {
   return 'hiver'
 }
 
-// ── Prompt helpers ───────────────────────────────────────────────────
-async function buildProfilTexte(qui) {
-  const [profil, ingredients] = await Promise.all([getProfil(qui), getAllIngredients()])
-  const noms = Object.fromEntries(ingredients.map(i => [i.id, i.nom]))
-  const parNiveau = niveau => Object.entries(profil)
-    .filter(([, v]) => v === niveau).map(([id]) => noms[id]).filter(Boolean)
-  const adore = parNiveau('j_adore'), aime = parNiveau('j_aime'), naime = parNiveau('j_aime_pas')
-  return [
-    `Profil ${qui === 'dylan' ? 'Dylan' : 'Sa femme'} :`,
-    adore.length ? `  - Adore : ${adore.join(', ')}` : '',
-    aime.length  ? `  - Aime bien : ${aime.join(', ')}` : '',
-    naime.length ? `  - N'aime PAS (exclure absolument) : ${naime.join(', ')}` : '',
-  ].filter(Boolean).join('\n')
-}
+// ── Préférences pour le prompt ───────────────────────────────────────
+async function preferencesTexte() {
+  const [dylan, femme, ingredients] = await Promise.all([getProfil('dylan'), getProfil('femme'), getAllIngredients()])
+  const parId = Object.fromEntries(ingredients.map(i => [i.id, i]))
+  const liste = (profil, niveau, filtre = () => true) => Object.entries(profil)
+    .filter(([id, v]) => v === niveau && parId[id] && filtre(parId[id])).map(([id]) => parId[id].nom)
+  const estLegume = i => i.categorie === 'legumes'
 
-async function buildProfils(pourQui) {
-  const [dylan, femme] = await Promise.all([
-    buildProfilTexte('dylan'),
-    pourQui === 'deux' ? buildProfilTexte('femme') : '',
-  ])
-  return `${dylan}\n${femme}`
+  const legumesACacher = liste(femme, 'j_aime_pas', estLegume)
+  const lignes = [
+    'DYLAN :',
+    `  - Adore : ${liste(dylan, 'j_adore').join(', ') || '—'}`,
+    `  - Aime bien : ${liste(dylan, 'j_aime').join(', ') || '—'}`,
+    `  - N'aime PAS (exclure absolument dès que Dylan mange) : ${liste(dylan, 'j_aime_pas').join(', ') || '—'}`,
+    'SA FEMME :',
+    `  - Adore : ${liste(femme, 'j_adore').join(', ') || '—'}`,
+    `  - Aime bien : ${liste(femme, 'j_aime').join(', ') || '—'}`,
+    `  - N'aime PAS (exclure absolument dès qu'elle mange) : ${liste(femme, 'j_aime_pas', i => !estLegume(i)).join(', ') || '—'}`,
+    `  - Légumes qu'elle n'aime pas mais qu'on veut lui faire manger CACHÉS : ${legumesACacher.join(', ') || '—'}`,
+  ]
+  return { texte: lignes.join('\n'), legumesACacher }
 }
 
 const FORMAT_RECETTE = `{
   "nom": "string",
-  "vegetarien": boolean,
+  "description": "2 à 3 phrases : le plat et comment le préparer dans les grandes lignes",
+  "cuisine": "string courte (japonaise, marocaine, française…)",
+  "composants": { "base": "féculent ou null", "principal": "string", "proteine": "string ou null", "legumes": ["string"] },
+  "ingredients": [{ "nom": "string", "quantite": "string (pour le nombre de portions indiqué)" }],
+  "legumes_caches": [{ "legume": "string", "astuce": "comment le rendre invisible au goût et à l'œil" }],
+  "tags": ["parmi : ${TAGS.join(', ')}"],
+  "conservation_jours": number,
+  "portions": number,
   "temps_prep": number,
   "temps_cuisson": number,
-  "portions": number,
-  "ingredients": [{ "nom": "string", "quantite": "string" }],
-  "etapes": ["string"],
+  "vegetarien": boolean,
   "nutrition": { "calories": number, "proteines": number, "glucides": number, "lipides": number }
 }`
 
-async function buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes }) {
-  const dispos = ingredientsDispos.length
-    ? `Ingrédients déjà achetés cette semaine (à privilégier) : ${ingredientsDispos.join(', ')}`
-    : ''
-
-  return `Génère UNE seule recette rapide (≤ 30 min) en halal strict (zéro porc, zéro alcool).
-${pourQui === 'deux' ? 'Pour 2 personnes.' : 'Pour 1 personne.'}
-${dispos}
-${contraintes.vegetarien ? 'VÉGÉTARIEN STRICT ET ABSOLU : aucune viande (poulet, bœuf, agneau, dinde, etc.), aucun poisson, aucun fruit de mer. Uniquement légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" doit être true.' : ''}
-${contraintes.consignes  ? `Instructions personnalisées (priorité absolue, respecter impérativement) : "${contraintes.consignes}"` : ''}
-${await buildProfils(pourQui)}
-
-Réponds UNIQUEMENT avec du JSON valide :
-${FORMAT_RECETTE}`
+function decrireCreneau(c, i) {
+  const qui = c.profils.length > 1 ? 'toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes' : 'sa femme seule — uniquement SES préférences'
+  const cuisson = c.enSession
+    ? `cuisiné à l'avance le ${c.cuisineLe}, mangé ${c.joursConservation} jour(s) après → conservation_jours ≥ ${c.joursConservation}`
+    : 'cuisiné le jour même'
+  return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}`
 }
 
-async function buildPromptCreneaux({ slots, pourQui, meteo, contraintes }) {
-  const n = slots.length
-  const deuxSemaines = slots.some(s => s.semaine === 2)
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }) {
+  const [meteo, prefs] = await Promise.all([getMeteo(), preferencesTexte()])
+  const consignes = consignesFiltres(filtres)
+  return `Tu es un chef cuisinier familial expert en anti-gaspi. Propose ${creneaux.length === 1 ? 'UNE recette' : `${creneaux.length} recettes différentes`} pour ces repas :
+${creneaux.map(decrireCreneau).join('\n')}
 
-  const opts = [
-    contraintes.vegetarien  ? `- VÉGÉTARIEN STRICT : AUCUNE viande (poulet, bœuf, agneau, dinde, etc.), AUCUN poisson, AUCUN fruit de mer dans aucun des ${n} repas. Uniquement : légumes, légumineuses, céréales, œufs, produits laitiers. Le champ "vegetarien" de chaque recette doit être true.` : '',
-    contraintes.rapide      ? '- Rapide : tous les plats < 30 min au total' : '',
-    contraintes.budget      ? '- Budget serré : ingrédients simples et économiques' : '',
-    contraintes.sansViande  ? '- SANS VIANDE : aucune viande dans aucun repas (poisson et fruits de mer autorisés)' : '',
-    contraintes.sansPoisson ? '- SANS POISSON : aucun poisson ni fruit de mer dans aucun repas (viande autorisée)' : '',
-    contraintes.consignes   ? `- Consignes personnalisées (priorité haute, respecter impérativement) :\n  "${contraintes.consignes}"` : '',
-  ].filter(Boolean).join('\n') || '- Aucune contrainte particulière'
-
-  // Format créneaux : 1 semaine ou 2 semaines
-  let slotsSection
-  if (deuxSemaines) {
-    const s1 = slots.filter(s => s.semaine === 1).map(s => `${s.jour} ${s.moment}`).join(', ')
-    const s2 = slots.filter(s => s.semaine === 2).map(s => `${s.jour} ${s.moment}`).join(', ')
-    slotsSection = `répartis sur 2 semaines consécutives :\nSEMAINE 1 : ${s1}\nSEMAINE 2 : ${s2}`
-  } else {
-    slotsSection = `pour les créneaux : ${slots.map(s => `${s.jour} ${s.moment}`).join(', ')}`
-  }
-
-  const panierTaille = deuxSemaines ? '14 à 22' : '6 à 14'
-
-  return `Tu es un chef cuisinier expert en planification anti-gaspi. Génère exactement ${n} repas ${slotsSection}.
-
-CONTRAINTES ABSOLUES (ne jamais violer — même niveau d'importance) :
-- Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé
-- ${pourQui === 'deux' ? 'Respecter les préférences des DEUX profils' : 'Respecter les préférences de Dylan uniquement'}
-${contraintes.vegetarien ? `- VÉGÉTARIEN ABSOLU : aucune viande ni poisson dans aucun des ${n} repas, sans exception` : ''}
-${contraintes.sansViande ? `- SANS VIANDE ABSOLU : aucune viande dans aucun des ${n} repas, sans exception` : ''}
-${contraintes.sansPoisson ? `- SANS POISSON ABSOLU : aucun poisson ni fruit de mer dans aucun des ${n} repas, sans exception` : ''}
-
-MÉTÉO — Vierzon, France :
-- Saison : ${meteo.saison} · Température moyenne : ${meteo.avgTemp}°C (${meteo.description})
-- Adapte les plats : légers et frais si > 22°C, chauds et réconfortants si < 10°C
+CONTRAINTES ABSOLUES :
+- Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…)
+- Les ingrédients "N'aime PAS" du ou des profils concernés n'apparaissent JAMAIS
+- Un légume de la liste "CACHÉS" peut être utilisé (c'est même souhaité) SEULEMENT s'il est rendu invisible ; décris alors l'astuce dans "legumes_caches"
+- Les quantités des ingrédients correspondent au nombre de portions du créneau
+${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
+${style ? `- Style demandé (prioritaire) : "${style}"` : ''}
+${envie ? '- C\'est une envie ponctuelle du moment : fais plaisir, un plat qui donne envie tout de suite' : ''}
 
 PRÉFÉRENCES :
-${await buildProfils(pourQui)}
+${prefs.texte}
 
-CONTRAINTES UTILISATEUR SÉLECTIONNÉES (toutes absolues) :
-${opts}
-${deuxSemaines ? `
-RÈGLE DE VARIÉTÉ INTER-SEMAINES (obligatoire) :
-- Aucun plat identique ou très similaire entre la semaine 1 et la semaine 2
-- Aucune protéine principale (ex : poulet, saumon, lentilles…) répétée plus de 2 fois sur les ${n} repas au total
-- Varier les cuisines et origines : française, marocaine, asiatique, méditerranéenne, etc.
-- Varier les modes de cuisson : mijoté, sauté, grillé, four, vapeur, cru
-` : ''}
-STRATÉGIE ANTI-GASPI (obligatoire) :
-Étape 1 — Choisis d'abord un PANIER de ${panierTaille} ingrédients frais/protéines adaptés au nombre de repas.
-Étape 2 — Construis les ${n} repas UNIQUEMENT à partir de ce panier :
-  - Chaque ingrédient frais apparaît dans AU MOINS 2 repas différents
-  - Zéro ingrédient acheté pour un seul plat (sauf ingrédients de base)
-  - Modes de cuisson et saveurs variés pour éviter la répétition
+MÉTÉO — Vierzon : ${meteo.saison}, ${meteo.avgTemp}°C (${meteo.description}). Plats frais si > 22°C, réconfortants si < 10°C.
+
+ANTI-GASPI :
+${ingredientsAReutiliser.length ? `- Ingrédients déjà achetés pour d'autres repas du cycle, à RÉUTILISER en priorité : ${ingredientsAReutiliser.join(', ')}` : ''}
+- Entre les recettes proposées, partage un maximum d'ingrédients frais (légumes, protéines, herbes)
+- Varie quand même les cuisines et les modes de cuisson
+
+${nomsExistants.length ? `Recettes déjà dans la bibliothèque, à NE PAS reproposer : ${nomsExistants.slice(0, 120).join(', ')}` : ''}
+
+"tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
 
 Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
-{
-  "panier": ["string", ...],
-  "repas": [
-    { ${deuxSemaines ? '"semaine": 1, ' : ''}"jour": "lundi", "moment": "midi", "recette": <recette> },
-    ...
-  ]
-}
+{ "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
 
 Chaque <recette> :
 ${FORMAT_RECETTE}`
@@ -204,28 +172,91 @@ function parseJSON(text) {
   try { return JSON.parse(match[0]) } catch { throw new Error('Réponse IA illisible — réessaie.') }
 }
 
-function verifierContraintes(recettes, contraintes) {
-  if (!contraintes.vegetarien) return
-  const violations = recettes.filter(r => !validerVegetarien(r)).map(r => r.nom)
-  if (violations.length > 0) {
-    throw new Error(`L'IA a ignoré la contrainte végétarienne dans : ${violations.join(', ')}. Réessaie.`)
+// Nettoie une recette IA : champs attendus, tags du vocabulaire, nombres valides
+function nettoyerRecette(r, portionsParDefaut) {
+  const nombre = (v, def = 0) => Number.isFinite(Number(v)) ? Number(v) : def
+  return {
+    nom:                String(r.nom || '').trim(),
+    description:        r.description ? String(r.description) : null,
+    cuisine:            r.cuisine ? String(r.cuisine).toLowerCase() : null,
+    composants: {
+      base:      r.composants?.base || null,
+      principal: r.composants?.principal || null,
+      proteine:  r.composants?.proteine || null,
+      legumes:   Array.isArray(r.composants?.legumes) ? r.composants.legumes : [],
+    },
+    ingredients:        (r.ingredients || []).filter(i => i?.nom).map(i => ({ nom: String(i.nom), quantite: String(i.quantite ?? '') })),
+    legumes_caches:     (r.legumes_caches || []).filter(l => l?.legume && l?.astuce),
+    tags:               (r.tags || []).map(t => String(t).toLowerCase()).filter(t => TAGS.includes(t)),
+    conservation_jours: nombre(r.conservation_jours, 2),
+    portions:           nombre(r.portions, portionsParDefaut) || portionsParDefaut,
+    temps_prep:         nombre(r.temps_prep),
+    temps_cuisson:      nombre(r.temps_cuisson),
+    vegetarien:         !!r.vegetarien,
+    etapes:             Array.isArray(r.etapes) ? r.etapes : [],
+    nutrition:          r.nutrition || null,
   }
 }
 
+// Vérifie halal + sélecteurs ; renvoie les recettes conformes et les noms rejetés
+function verifier(recettes, filtres) {
+  const ok = [], rejets = []
+  for (const x of recettes) {
+    const r = x.recette
+    const conforme = r.nom && !contientInterdit(r) && passeFiltres(r, filtres.filter(f => !['healthy','budget','reconfortant','bouillon','gras'].includes(f)))
+      && (!filtres.includes('vegetarien') || validerVegetarien(r))
+    ;(conforme ? ok : rejets).push(x)
+  }
+  return { ok, rejets: rejets.map(x => x.recette.nom || '?') }
+}
+
 // ── API publique ─────────────────────────────────────────────────────
-export async function genererCreneaux({ slots, pourQui, meteo, contraintes }, onProgress = null) {
-  const total  = slots.length
-  // Compte les recettes déjà reçues (et non les "nom" des ingrédients)
+
+/**
+ * Génère une recette par créneau.
+ * @returns { resultats: [{ creneau, recette }], rejets: [noms] }
+ */
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null) {
+  if (!creneaux.length) return { resultats: [], rejets: [] }
+  const total = creneaux.length
   const onChunk = onProgress
     ? text => onProgress(Math.max(0, (text.match(/"recette"\s*:/g) || []).length - 1), total)
     : null
-  const data = parseJSON(await callIA(await buildPromptCreneaux({ slots, pourQui, meteo, contraintes }), onChunk))
-  verifierContraintes((data.repas || []).map(r => r.recette).filter(Boolean), contraintes)
-  return data
+  const prompt = await buildPrompt({ creneaux, filtres, style, ingredientsAReutiliser, nomsExistants, envie })
+  const data = parseJSON(await callIA(prompt, onChunk))
+  const lignes = (data.repas || []).map(x => {
+    const i = parseInt(String(x.id || '').replace(/\D/g, ''), 10) - 1
+    const creneau = creneaux[i]
+    return creneau && x.recette ? { creneau, recette: nettoyerRecette(x.recette, creneau.portions) } : null
+  }).filter(Boolean)
+  const { ok, rejets } = verifier(lignes, filtres)
+  return { resultats: ok, rejets }
 }
 
-export async function genererDerniereMinute({ pourQui, ingredientsDispos = [], contraintes = {} }) {
-  const recette = parseJSON(await callIA(await buildPromptDernierMinute({ pourQui, ingredientsDispos, contraintes })))
-  verifierContraintes([recette], contraintes)
-  return recette
+// Une seule recette pour un créneau (↻ quand la bibliothèque est épuisée, ou envie du soir)
+export async function genererUneRecette({ creneau, ...options }) {
+  const { resultats, rejets } = await genererPourCreneaux({ creneaux: [creneau], ...options })
+  if (!resultats.length) throw new Error(rejets.length ? `Recette refusée (contraintes non respectées) : ${rejets.join(', ')}. Réessaie.` : 'Aucune recette reçue — réessaie.')
+  return resultats[0].recette
+}
+
+// Convertit d'anciennes recettes au nouveau format (description, composants, tags, conservation, légumes cachés)
+export async function convertirRecettes(recettes) {
+  const prefs = await preferencesTexte()
+  const prompt = `Voici des recettes existantes. Pour chacune, complète les champs structurés SANS changer le nom ni les ingrédients.
+Légumes à cacher pour la femme (propose une astuce si la recette en contient) : ${prefs.legumesACacher.join(', ') || '—'}
+"tags" uniquement parmi : ${TAGS.join(', ')}.
+
+Recettes :
+${recettes.map(r => JSON.stringify({ id: r.id, nom: r.nom, ingredients: r.ingredients, etapes: (r.etapes || []).slice(0, 6) })).join('\n')}
+
+Réponds UNIQUEMENT avec du JSON valide :
+{ "recettes": [ { "id": "string", "description": "2 à 3 phrases", "cuisine": "string", "composants": { "base": "string ou null", "principal": "string", "proteine": "string ou null", "legumes": ["string"] }, "legumes_caches": [{ "legume": "string", "astuce": "string" }], "tags": ["string"], "conservation_jours": number } ] }`
+  const data = parseJSON(await callIA(prompt))
+  const parId = Object.fromEntries(recettes.map(r => [r.id, r]))
+  return (data.recettes || []).filter(x => parId[x.id]).map(x => {
+    const n = nettoyerRecette({ ...parId[x.id], ...x }, parId[x.id].portions || 4)
+    return { ...parId[x.id], description: n.description, cuisine: n.cuisine, composants: n.composants,
+             legumes_caches: n.legumes_caches, tags: n.tags, conservation_jours: n.conservation_jours }
+  })
 }

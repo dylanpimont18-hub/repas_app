@@ -23,9 +23,10 @@
       <a href="recettes.html">📖 Recettes</a>
       <a href="preferences.html">❤️ Préférences</a>
       <a href="courses.html">🛒 Courses</a>
+      <a href="reglages.html">⚙️ Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
     <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
     <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
   </nav>
@@ -41,11 +42,12 @@
     <div class="section-header planning-section-header">
       <div class="planning-header-top">
         <h1 class="page-title" style="margin:0;">📅 Planning</h1>
-        <button class="btn btn-primary btn-sm" id="btnGenererSemaine">✨ Générer par IA</button>
+        <button class="btn btn-primary btn-sm" id="btnGenererSemaine">✨ Remplir</button>
       </div>
       <div class="planning-header-nav">
         <button class="btn btn-secondary btn-sm" id="btnPrevWeek">←</button>
         <span id="labelSemaine" class="text-sm text-muted planning-week-label"></span>
+        <a href="reglages.html#reserve" id="badgeReserve" class="reserve-badge hidden" title="Réserve congélo"></a>
         <button class="btn btn-secondary btn-sm" id="btnNextWeek">→</button>
       </div>
     </div>
@@ -64,53 +66,26 @@
     <div class="modal-overlay hidden" id="modalGenSemaine">
       <div class="modal gen-modal">
         <button class="modal-close" id="closeGenSemaine">✕</button>
-        <p class="modal-title">✨ Générer <span id="genCreneauxCount">…</span> repas</p>
-
-        <div id="meteoDisplay" class="gen-section"></div>
+        <p class="modal-title">✨ Remplir le cycle</p>
 
         <div class="gen-section">
-          <div class="gen-section-label">📅 Créneaux à générer</div>
+          <div class="gen-section-label">🎛️ Envies de la semaine</div>
+          <div id="genFiltres" class="gen-chips-wrap"></div>
+          <input id="genStyle" class="form-input" style="margin-top:0.5rem;" type="text"
+            placeholder="✍️ Style libre… ex : asiatique, maghrébin, plats du Sud">
+        </div>
+
+        <div class="gen-section">
+          <div class="gen-section-label">📅 Créneaux à remplir · <span id="genCreneauxCount">0</span></div>
           <div id="genSlotChips" class="gen-chips-wrap"></div>
         </div>
 
-        <div class="gen-section">
-          <div class="gen-section-label">💬 Instructions libres</div>
-          <textarea id="consignesLibres" class="gen-chat-input" rows="3"
-            placeholder="Dis à l'IA ce que tu veux… ex : un couscous cette semaine, de la cuisine marocaine, éviter les oignons"></textarea>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">👥 Pour qui ?</div>
-          <div class="flex gap-sm" style="flex-wrap:wrap;">
-            <button class="chip active" data-pour="deux">👫 Nous deux</button>
-            <button class="chip"        data-pour="dylan">🧑 Dylan seulement</button>
-          </div>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">📅 Périmètre</div>
-          <div class="gen-chips-wrap">
-            <button class="chip active" data-perimetre="1">1 semaine</button>
-            <button class="chip" data-perimetre="2">2 semaines <span style="font-size:0.72rem;opacity:0.75;">· variété garantie</span></button>
-          </div>
-        </div>
-
-        <div class="gen-section">
-          <div class="gen-section-label">⚙️ Options</div>
-          <div class="gen-chips-wrap">
-            <button class="chip" data-opt="rapide">⚡ Rapide (&lt; 30 min)</button>
-            <button class="chip" data-opt="budget">💰 Budget serré</button>
-            <button class="chip" data-opt="vegetarien">🌿 Tout végétarien</button>
-            <button class="chip" data-opt="sansViande">🥦 Sans viande</button>
-            <button class="chip" data-opt="sansPoisson">🐟 Sans poisson</button>
-          </div>
-        </div>
-
-        <button class="btn btn-primary btn-full" id="btnLancerGen">✨ Générer les repas</button>
+        <button class="btn btn-primary btn-full" id="btnLancerGen">📖 Proposer depuis mes recettes</button>
+        <button class="btn btn-secondary btn-full hidden" id="btnCompleterIA" style="margin-top:0.5rem;"></button>
         <div id="genProgressWrap" class="hidden" style="margin-top:0.75rem;">
           <div class="gen-progress-bar"><div id="genProgressFill" class="gen-progress-fill"></div></div>
-          <p class="text-xs text-muted" id="genStatus" style="margin-top:0.4rem;text-align:center;"></p>
         </div>
+        <p class="text-xs text-muted" id="genStatus" style="margin-top:0.4rem;text-align:center;"></p>
       </div>
     </div>
   </main>

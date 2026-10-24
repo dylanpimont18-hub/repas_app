@@ -1,6 +1,8 @@
 // js/planning.js
-import { dbGetPlanning, dbUpsertPlanning, dbUpsertPlanningLot, dbUpsertRecettes } from './db.js'
+import { dbGetPlanning, dbUpsertPlanning, dbUpsertPlanningLot, dbUpsertRecettes,
+         dbGetPlanningSemaines, dbViderCreneaux, dbGetReglage, dbSetReglage } from './db.js'
 import { getSemaineKey } from './utils.js'
+import { creneauxDuCycle, semainesDuCycle, normaliserModele, ajouterJours, dateDeSemaine } from './cycle.js'
 
 export { getSemaineKey }
 export const JOURS   = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
@@ -18,18 +20,66 @@ export async function supprimerRepas(semaineKey, jour, moment) {
   await dbUpsertPlanning(semaineKey, jour, moment, null, null)
 }
 
-// Import des repas générés par l'IA : 2 requêtes au total (recettes puis planning)
-// semaineKeys = { 1: 'YYYY-W01', 2: 'YYYY-W02' } — la semaine 1 sert par défaut
-export async function importerCreneaux(repas, semaineKeys) {
-  const valides = repas.filter(r => r.recette && JOURS.includes(r.jour) && MOMENTS.includes(r.moment))
-  const ids = await dbUpsertRecettes(valides.map(r => r.recette))
-  await dbUpsertPlanningLot(valides.map((r, i) => ({
-    semaine_key: semaineKeys[r.semaine] || semaineKeys[1],
-    jour:        r.jour,
-    moment:      r.moment,
-    recette_id:  ids[i],
-    portions:    r.recette.portions || 2,
+// ── Cycle samedi soir → samedi midi ──────────────────────────────────
+export async function getModele() {
+  return normaliserModele(await dbGetReglage('modele_semaine'))
+}
+
+export async function setModele(modele) {
+  await dbSetReglage('modele_semaine', normaliserModele(modele))
+}
+
+// Créneaux du cycle + occupation actuelle { cle: { id, portions, source } }
+export async function chargerCycle(samedi, modele = null) {
+  const m = modele || await getModele()
+  const creneaux = creneauxDuCycle(samedi, m)
+  const lignes = await dbGetPlanningSemaines(semainesDuCycle(samedi))
+  const parCle = Object.fromEntries(lignes.map(l => [`${l.semaine_key}|${l.jour}|${l.moment}`, l]))
+  const occupation = {}
+  for (const c of creneaux) {
+    const l = parCle[c.cle]
+    if (l?.recette_id) occupation[c.cle] = { id: l.recette_id, portions: l.portions ?? c.portions, source: l.source || 'manuel' }
+  }
+  return { modele: m, creneaux, occupation }
+}
+
+// Dernière date de consommation de chaque recette sur les 8 semaines avant le cycle : { recetteId: timestamp }
+export async function chargerHistorique(samedi) {
+  const keys = [...new Set([0, 1, 2, 3, 4, 5, 6, 7, 8].map(k => getSemaineKey(ajouterJours(samedi, -7 * k))))]
+  const lignes = await dbGetPlanningSemaines(keys)
+  const limite = samedi.getTime() + 12 * 3600000   // jusqu'au samedi midi inclus
+  const hist = {}
+  for (const l of lignes) {
+    if (!l.recette_id) continue
+    const t = dateDeSemaine(l.semaine_key, l.jour).getTime() + (l.moment === 'soir' ? 19 : 12) * 3600000
+    if (t > limite) continue
+    if (!hist[l.recette_id] || hist[l.recette_id] < t) hist[l.recette_id] = t
+  }
+  return hist
+}
+
+// Écrit plusieurs créneaux : [{ creneau, recetteId, source, portions? }]
+export async function enregistrerCreneaux(affectations) {
+  await dbUpsertPlanningLot(affectations.map(a => ({
+    semaine_key: a.creneau.semaineKey,
+    jour:        a.creneau.jour,
+    moment:      a.creneau.moment,
+    recette_id:  a.recetteId,
+    portions:    a.portions ?? a.creneau.portions,
+    source:      a.source || 'manuel',
   })))
+}
+
+export async function viderCreneaux(creneaux) {
+  await dbViderCreneaux(creneaux.map(c => ({ semaine_key: c.semaineKey, jour: c.jour, moment: c.moment })))
+}
+
+// Enregistre des recettes générées par l'IA puis les affecte : [{ creneau, recette }]
+export async function importerRecettesIA(lignes) {
+  const valides = lignes.filter(l => l.recette && l.creneau)
+  const ids = await dbUpsertRecettes(valides.map(l => l.recette))
+  await enregistrerCreneaux(valides.map((l, i) => ({ creneau: l.creneau, recetteId: ids[i], source: 'ia' })))
+  return ids
 }
 
 export async function getJoursAvecRepas(semaineKey) {

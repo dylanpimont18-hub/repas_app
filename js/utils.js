@@ -41,6 +41,29 @@ export function combinerQuantites(quantites) {
   return [...numeriques, ...autres].join(' + ')
 }
 
+// ── Répartition des courses du cycle : 🛒 samedi magasin / 🚗 mercredi drive ──
+// lignes : [{ partie: 'samedi' | 'mercredi', nom, quantite, facteur }]
+// Un ingrédient utilisé dans les deux parties va dans la première (samedi) avec la quantité totale.
+// → { samedi: { rayon: [{ nom, quantites }] }, mercredi: { ... } }
+export function repartirCourses(lignes) {
+  const agregat = new Map()
+  for (const l of lignes) {
+    const k = String(l.nom || '').toLowerCase().trim()
+    if (!k) continue
+    if (!agregat.has(k)) agregat.set(k, { nom: l.nom.trim(), quantites: [], parties: new Set() })
+    const a = agregat.get(k)
+    a.quantites.push({ valeur: l.quantite, facteur: l.facteur ?? 1 })
+    a.parties.add(l.partie)
+  }
+  const res = { samedi: {}, mercredi: {} }
+  for (const a of agregat.values()) {
+    const partie = a.parties.has('samedi') ? 'samedi' : 'mercredi'
+    const rayon  = categoriser(a.nom)
+    ;(res[partie][rayon] ||= []).push({ nom: a.nom, quantites: a.quantites })
+  }
+  return res
+}
+
 // ── Catégories de supermarché ────────────────────────────────────────
 const CAT_MAP = {
   'Fruits & Légumes': ['tomate','courgette','aubergine','poivron','oignon','ail','carotte',

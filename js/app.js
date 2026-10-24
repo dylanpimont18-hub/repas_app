@@ -1,7 +1,6 @@
 // js/app.js
 import { load, save, KEYS } from './storage.js'
 import { dbGetSession, dbSignOut } from './db.js'
-import { esc } from './utils.js'
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme)
@@ -36,94 +35,12 @@ function highlightActiveLink() {
   })
 }
 
+// « ⚡ Envie ce soir » (chargé à la demande : n'alourdit pas les autres pages)
 export async function renderModalFlash() {
   const content = document.getElementById('modalContent')
   if (!content) return
-
-  const { genererDerniereMinute }                                       = await import('./ai.js')
-  const { getJoursAvecRepas, getSemaineKey: gsk, JOURS, MOMENTS,
-          assignerRepas }                                                = await import('./planning.js')
-  const { getRecettesByIds, addRecette }                                = await import('./recettes.js')
-
-  const semaineKey = gsk()
-  const repasExist = await getJoursAvecRepas(semaineKey)
-  const recettesSemaine = await getRecettesByIds(repasExist.map(r => r.id))
-  const ingredientsDispos = [...new Set(
-    Object.values(recettesSemaine).flatMap(rec => (rec.ingredients || []).map(i => i.nom))
-  )]
-
-  let pourQui    = 'deux'
-  let vegetarien = false
-  let consignes  = ''
-  let recetteGen = null
-
-  const draw = (loading = false, recette = null, error = null) => {
-    // Sauvegarder les instructions avant de re-render
-    consignes = content.querySelector('#flashConsignes')?.value ?? consignes
-
-    content.innerHTML = `
-      <p class="modal-title">⚡ Recette de dernière minute</p>
-      <div class="flex gap-sm" style="margin-bottom:0.75rem;flex-wrap:wrap;">
-        <button class="chip ${pourQui === 'deux'  ? 'active' : ''}" data-pour="deux">Nous deux</button>
-        <button class="chip ${pourQui === 'dylan' ? 'active' : ''}" data-pour="dylan">Moi seul</button>
-        <button class="chip chip-accent ${vegetarien ? 'active' : ''}" id="flashVeg">🌿 Végé</button>
-      </div>
-      ${!recette && !loading ? `
-        <textarea id="flashConsignes" class="gen-chat-input" rows="2" style="margin-bottom:0.75rem;"
-          placeholder="Instructions libres… ex : ramen, poulet rôti, plat rapide, cuisine marocaine">${esc(consignes)}</textarea>
-      ` : ''}
-      ${loading ? '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>' : ''}
-      ${error   ? `<p class="text-sm" style="color:#c0392b;margin-bottom:0.75rem;">${esc(error)}</p>` : ''}
-      ${recette ? `
-        <div class="card" style="margin-bottom:1rem;">
-          <div class="recipe-name" style="margin-bottom:0.3rem;">${esc(recette.nom)}</div>
-          <div class="recipe-meta">⏱ ${(recette.temps_prep || 0) + (recette.temps_cuisson || 0)} min${recette.vegetarien ? ' · 🌿' : ''}</div>
-        </div>
-        <div class="flex gap-sm">
-          <button class="btn btn-primary btn-sm" id="flashAjouter">Ajouter au planning</button>
-          <button class="btn btn-ghost   btn-sm" id="flashAutre">Autre idée ↻</button>
-        </div>
-      ` : (!loading ? `<button class="btn btn-primary btn-full" id="flashGenerer">⚡ Générer une idée</button>` : '')}
-    `
-
-    content.querySelectorAll('[data-pour]').forEach(b => {
-      b.addEventListener('click', () => { pourQui = b.dataset.pour; draw(false, recetteGen) })
-    })
-    content.querySelector('#flashVeg')?.addEventListener('click', () => {
-      vegetarien = !vegetarien; draw(false, recetteGen)
-    })
-
-    const doGenerate = async () => {
-      consignes = content.querySelector('#flashConsignes')?.value?.trim() ?? consignes
-      draw(true)
-      try {
-        recetteGen = await genererDerniereMinute({ pourQui, ingredientsDispos, contraintes: { vegetarien, consignes } })
-        draw(false, recetteGen)
-      } catch (e) { draw(false, null, e.message) }
-    }
-
-    content.querySelector('#flashGenerer')?.addEventListener('click', doGenerate)
-    content.querySelector('#flashAutre')?.addEventListener('click', doGenerate)
-
-    content.querySelector('#flashAjouter')?.addEventListener('click', async (e) => {
-      if (!recetteGen) return
-      e.target.disabled = true
-      try {
-        const id       = await addRecette(recetteGen)
-        const { getPlanning } = await import('./planning.js')
-        const planning = await getPlanning(semaineKey)
-        // Premier créneau libre de la semaine
-        const slot = JOURS.flatMap(jour => MOMENTS.map(moment => ({ jour, moment })))
-          .find(({ jour, moment }) => !planning[jour]?.[moment]?.id)
-        if (slot) await assignerRepas(semaineKey, slot.jour, slot.moment, id, recetteGen.portions || 2)
-        document.getElementById('modalFlash').classList.add('hidden')
-      } catch (err) {
-        draw(false, recetteGen, err.message)
-      }
-    })
-  }
-
-  draw()
+  const { renderModalEnvie } = await import('./envie.js')
+  await renderModalEnvie(content, () => document.getElementById('modalFlash').classList.add('hidden'))
 }
 
 function initModalFlash() {

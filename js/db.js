@@ -144,7 +144,17 @@ export async function dbGetPlanning(semaineKey) {
   return planning
 }
 
-export async function dbUpsertPlanning(semaineKey, jour, moment, recetteId, portions) {
+// Lignes brutes du planning pour plusieurs semaines ISO : [{ semaine_key, jour, moment, recette_id, portions, source }]
+export async function dbGetPlanningSemaines(semaineKeys) {
+  const { data, error } = await supabase
+    .from('planning')
+    .select('semaine_key, jour, moment, recette_id, portions, source')
+    .in('semaine_key', semaineKeys)
+  if (error) throw error
+  return data
+}
+
+export async function dbUpsertPlanning(semaineKey, jour, moment, recetteId, portions, source = 'manuel') {
   if (!recetteId) {
     const { error } = await supabase.from('planning').delete()
       .eq('semaine_key', semaineKey)
@@ -153,10 +163,17 @@ export async function dbUpsertPlanning(semaineKey, jour, moment, recetteId, port
     if (error) throw error
     return
   }
-  await dbUpsertPlanningLot([{ semaine_key: semaineKey, jour, moment, recette_id: recetteId, portions }])
+  await dbUpsertPlanningLot([{ semaine_key: semaineKey, jour, moment, recette_id: recetteId, portions, source }])
 }
 
-// Assigne plusieurs créneaux en une requête : [{ semaine_key, jour, moment, recette_id, portions }]
+// Vide plusieurs créneaux : [{ semaine_key, jour, moment }]
+export async function dbViderCreneaux(creneaux) {
+  await Promise.all(creneaux.map(({ semaine_key, jour, moment }) =>
+    supabase.from('planning').delete().eq('semaine_key', semaine_key).eq('jour', jour).eq('moment', moment)
+      .then(({ error }) => { if (error) throw error })))
+}
+
+// Assigne plusieurs créneaux en une requête : [{ semaine_key, jour, moment, recette_id, portions, source }]
 export async function dbUpsertPlanningLot(lignes) {
   if (!lignes.length) return
   const { error } = await supabase.from('planning')
@@ -189,6 +206,37 @@ export async function dbResetCourses(semaineKey) {
     .from('courses_etat')
     .delete()
     .eq('semaine_key', semaineKey)
+  if (error) throw error
+}
+
+// ── Réglages partagés du foyer ───────────────────────────────────────
+export async function dbGetReglage(cle) {
+  const { data, error } = await supabase.from('reglages').select('valeur').eq('cle', cle).maybeSingle()
+  if (error) throw error
+  return data?.valeur ?? null
+}
+
+export async function dbSetReglage(cle, valeur) {
+  const { error } = await supabase.from('reglages').upsert({ cle, valeur }, { onConflict: 'cle' })
+  if (error) throw error
+}
+
+// ── Réserve congélo ──────────────────────────────────────────────────
+export async function dbGetReserve() {
+  const { data, error } = await supabase.from('reserve')
+    .select('id, recette_id, portions, ajoute_le, recette:recettes(*)')
+    .order('ajoute_le')
+  if (error) throw error
+  return data
+}
+
+export async function dbAddReserve(recetteId, portions) {
+  const { error } = await supabase.from('reserve').insert({ recette_id: recetteId, portions })
+  if (error) throw error
+}
+
+export async function dbDeleteReserve(id) {
+  const { error } = await supabase.from('reserve').delete().eq('id', id)
   if (error) throw error
 }
 

@@ -23,9 +23,10 @@
       <a href="recettes.html">📖 Recettes</a>
       <a href="preferences.html">❤️ Préférences</a>
       <a href="courses.html" class="active">🛒 Courses</a>
+      <a href="reglages.html">⚙️ Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
     <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
     <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
   </nav>
@@ -40,8 +41,10 @@
   <main class="main">
     <div class="section-header">
       <h1 class="page-title">🛒 Liste de courses</h1>
-      <div class="flex gap-sm">
-        <span id="labelSemaineCourses" class="text-sm text-muted" style="align-self:center;"></span>
+      <div class="flex gap-sm" style="flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-secondary btn-sm" id="btnPrevCycle">←</button>
+        <span id="labelSemaineCourses" class="text-sm text-muted"></span>
+        <button class="btn btn-secondary btn-sm" id="btnNextCycle">→</button>
         <button class="btn btn-secondary btn-sm" id="btnResetCourses">↺ Réinitialiser</button>
       </div>
     </div>

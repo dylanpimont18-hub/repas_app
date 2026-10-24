@@ -2,6 +2,7 @@
 import { getRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
+import { TAGS } from './filtres.js'
 
 let filtres = {}
 let recetteEnEdition = null
@@ -20,7 +21,7 @@ async function renderList() {
             <span>👤 ${r.portions} pers.</span>
             ${r.nutrition?.calories ? `<span>🔥 ${r.nutrition.calories} kcal</span>` : ''}
           </div>
-          <div class="recipe-tags">${r.vegetarien ? '<span class="recipe-tag">🌿 Végétarien</span>' : ''}</div>
+          <div class="recipe-tags">${r.vegetarien ? '<span class="recipe-tag">🌿 Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
         </div>`).join('')
   container.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', () => ouvrirDetail(card.dataset.id))
@@ -44,14 +45,23 @@ async function ouvrirDetail(id) {
       <span class="text-sm">🌾 ${r.nutrition.glucides}g gluc.</span>
       <span class="text-sm">🫙 ${r.nutrition.lipides}g lip.</span>
     </div>` : ''}
-    <h3 style="margin-bottom:0.5rem;">Ingrédients</h3>
+    ${r.description ? `<p class="text-sm" style="margin-bottom:1rem;">${esc(r.description)}</p>` : ''}
+    ${r.composants ? `<div class="recette-composants">
+      ${r.composants.base ? `<b>Base</b><span>${esc(r.composants.base)}</span>` : ''}
+      ${r.composants.principal ? `<b>Principal</b><span>${esc(r.composants.principal)}</span>` : ''}
+      ${r.composants.proteine ? `<b>Protéine</b><span>${esc(r.composants.proteine)}</span>` : ''}
+      ${r.composants.legumes?.length ? `<b>Légumes</b><span>${esc(r.composants.legumes.join(', '))}</span>` : ''}
+      ${r.conservation_jours != null ? `<b>Conservation</b><span>${esc(r.conservation_jours)} jour(s) au frigo</span>` : ''}
+    </div>` : ''}
+    ${(r.legumes_caches || []).map(l => `<div class="astuce-cachee">🙈 <b>${esc(l.legume)}</b> : ${esc(l.astuce)}</div>`).join('')}
+    <h3 style="margin-bottom:0.5rem;${r.legumes_caches?.length ? 'margin-top:1rem;' : ''}">Ingrédients</h3>
     <ul style="margin-bottom:1rem;">
       ${(r.ingredients || []).map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
     </ul>
-    <h3 style="margin-bottom:0.5rem;">Préparation</h3>
+    ${r.etapes?.length ? `<h3 style="margin-bottom:0.5rem;">Préparation</h3>
     <ol style="padding-left:1.25rem;">
-      ${(r.etapes || []).map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
-    </ol>
+      ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
+    </ol>` : ''}
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
       <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">🗑 Supprimer</button>
       <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">✏️ Modifier</button>
@@ -149,6 +159,19 @@ function ouvrirFormEdit(recette) {
   document.getElementById('editCuisson').value    = recette.temps_cuisson || ''
   document.getElementById('editVeg').checked      = !!recette.vegetarien
 
+  // Format structuré
+  const c = recette.composants || {}
+  document.getElementById('editDescription').value  = recette.description || ''
+  document.getElementById('editBase').value         = c.base || ''
+  document.getElementById('editPrincipal').value    = c.principal || ''
+  document.getElementById('editProteine').value     = c.proteine || ''
+  document.getElementById('editLegumes').value      = (c.legumes || []).join(', ')
+  document.getElementById('editCuisine').value      = recette.cuisine || ''
+  document.getElementById('editConservation').value = recette.conservation_jours ?? ''
+  document.getElementById('editCaches').value       = (recette.legumes_caches || []).map(l => `${l.legume} : ${l.astuce}`).join('\n')
+  const tagsWrap = document.getElementById('editTags')
+  tagsWrap.innerHTML = TAGS.map(t => `<button type="button" class="chip ${(recette.tags || []).includes(t) ? 'active' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')
+
   // Nutrition
   const n = recette.nutrition || {}
   document.getElementById('editKcal').value = n.calories   || ''
@@ -204,6 +227,21 @@ async function soumettreFormEdit(e) {
       lipides:   parseInt(document.getElementById('editLip').value)  || 0,
     },
     date: recetteEnEdition.id ? (recetteEnEdition.date || new Date().toISOString()) : new Date().toISOString(),
+    description: document.getElementById('editDescription').value.trim() || null,
+    cuisine:     document.getElementById('editCuisine').value.trim().toLowerCase() || null,
+    composants: {
+      base:      document.getElementById('editBase').value.trim() || null,
+      principal: document.getElementById('editPrincipal').value.trim() || null,
+      proteine:  document.getElementById('editProteine').value.trim() || null,
+      legumes:   document.getElementById('editLegumes').value.split(',').map(x => x.trim()).filter(Boolean),
+    },
+    tags: [...document.querySelectorAll('#editTags .chip.active')].map(b => b.dataset.tag),
+    legumes_caches: document.getElementById('editCaches').value.split('\n').map(l => {
+      const i = l.indexOf(':')
+      return i > 0 ? { legume: l.slice(0, i).trim(), astuce: l.slice(i + 1).trim() } : null
+    }).filter(l => l?.legume && l.astuce),
+    conservation_jours: document.getElementById('editConservation').value === '' ? null
+      : parseInt(document.getElementById('editConservation').value, 10),
   }
 
   // Pour une modification, on conserve l'id existant
@@ -287,6 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Soumission formulaire
   document.getElementById('formEditRecette')?.addEventListener('submit', soumettreFormEdit)
+  document.getElementById('editTags')?.addEventListener('click', e => e.target.closest('.chip')?.classList.toggle('active'))
 
   // Temps réel : nouvelles recettes ou modifications faites par l'autre membre du foyer
   dbEcouter(['recettes'], debounce(renderList, 300))

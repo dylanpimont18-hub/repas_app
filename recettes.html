@@ -24,9 +24,10 @@
       <a href="recettes.html" class="active">📖 Recettes</a>
       <a href="preferences.html">❤️ Préférences</a>
       <a href="courses.html">🛒 Courses</a>
+      <a href="reglages.html">⚙️ Réglages</a>
     </div>
     <span class="nav-spacer"></span>
-    <button class="nav-flash" id="btnFlash">⚡ Maintenant</button>
+    <button class="nav-flash" id="btnFlash">⚡ Envie</button>
     <button class="nav-theme" id="btnTheme" title="Changer le thème">🌙</button>
     <button class="nav-theme" id="btnLogout" title="Déconnexion">🚪</button>
   </nav>
@@ -67,6 +68,33 @@
           <div class="form-group">
             <label class="form-label">Nom</label>
             <input class="form-input" id="editNom" type="text" required>
+          </div>
+          <!-- description + format structuré -->
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea class="form-input" id="editDescription" rows="2"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+            <div class="form-group" style="margin:0"><label class="form-label">Base (féculent)</label><input class="form-input" id="editBase" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Élément principal</label><input class="form-input" id="editPrincipal" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Protéine</label><input class="form-input" id="editProteine" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Cuisine</label><input class="form-input" id="editCuisine" type="text" placeholder="japonaise, marocaine…"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Légumes (séparés par des virgules)</label>
+            <input class="form-input" id="editLegumes" type="text">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tags</label>
+            <div id="editTags" class="gen-chips-wrap"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">🙈 Légumes cachés (une ligne par légume : « légume : astuce »)</label>
+            <textarea class="form-input" id="editCaches" rows="2" placeholder="Courgette : mixer dans la sauce"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Se conserve (jours au frigo)</label>
+            <input class="form-input" id="editConservation" type="number" min="0" max="7">
           </div>
           <!-- row: portions, prep, cuisson, vegetarien -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">

@@ -1,5 +1,5 @@
 // Exécuté par Netlify au build pour créer config.js depuis les variables d'environnement
-// Seules les valeurs publiques vont ici : les clés IA et météo restent dans les secrets Supabase (Edge Function "ai")
+// Seules les valeurs publiques vont ici : la clé IA reste dans les secrets Supabase (Edge Function "ai")
 const fs = require('fs')
 
 const config = `const CONFIG = {

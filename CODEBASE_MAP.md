@@ -50,7 +50,7 @@ Foyer (`foyer_membres` + `est_membre_foyer()`), table `ingredients_custom`, RLS 
 Colonnes recette structurée (description, cuisine, composants, legumes_caches, tags, conservation_jours), `planning.source`, tables `reglages` et `reserve`.
 
 ### supabase/functions/ai/index.ts
-Edge Function : proxy Mammouth AI (streaming) + météo OpenWeatherMap, vérifie membre du foyer. Secrets `MAMMOUTH_API_KEY`, `OPENWEATHER_API_KEY`.
+Edge Function : proxy Mammouth AI (streaming), vérifie membre du foyer. Secret `MAMMOUTH_API_KEY`.
 
 ---
 
@@ -203,7 +203,6 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 - `genererPourCreneaux({creneaux, filtres, style, ingredientsAReutiliser, nomsExistants, envie}, onProgress)` — une recette par créneau, format structuré, légumes cachés
 - `genererUneRecette({creneau, ...})` — une seule recette
 - `convertirRecettes(recettes)` — complète les anciennes recettes au nouveau format
-- `getMeteo()` — météo Vierzon via l'Edge Function
 - `getSaison()` — saison courante
 
 ---

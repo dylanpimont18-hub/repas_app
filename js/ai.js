@@ -1,4 +1,4 @@
-// js/ai.js — Génération IA (Mammouth AI via l'Edge Function Supabase "ai") + météo + prompts
+// js/ai.js — Génération IA (Mammouth AI via l'Edge Function Supabase "ai") + prompts
 import { getProfil }           from './preferences.js'
 import { getAllIngredients }   from './custom-ingredients.js'
 import { dbAppelFonctionIA }   from './db.js'
@@ -6,24 +6,7 @@ import { validerVegetarien }   from './utils.js'
 import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
 import { labelCreneau, dateCourte } from './cycle.js'
 
-// ── Météo (clé OpenWeatherMap côté serveur) ──────────────────────────
-let meteoCache = null
-export async function getMeteo() {
-  if (meteoCache) return meteoCache
-  try {
-    const res  = await dbAppelFonctionIA({ action: 'meteo' })
-    const data = await res.json()
-    if (!res.ok || data.cod !== '200') throw new Error(data.error || data.message)
-    const temps = data.list.slice(0, 40).map(i => i.main.temp)
-    const avg   = Math.round(temps.reduce((a, b) => a + b, 0) / temps.length)
-    meteoCache = { avgTemp: avg, description: data.list[0]?.weather[0]?.description || '', saison: getSaison() }
-  } catch (e) {
-    console.warn('Météo indisponible, valeurs par défaut', e)
-    meteoCache = { avgTemp: 15, description: 'inconnu', saison: getSaison() }
-  }
-  return meteoCache
-}
-
+// Saison courante (produits de saison)
 export function getSaison() {
   const m = new Date().getMonth() + 1
   if (m >= 3 && m <= 5)  return 'printemps'
@@ -80,7 +63,7 @@ function decrireCreneau(c, i) {
 }
 
 async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }) {
-  const [meteo, prefs] = await Promise.all([getMeteo(), preferencesTexte()])
+  const prefs = await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   return `Tu es un chef cuisinier familial expert en anti-gaspi. Propose ${creneaux.length === 1 ? 'UNE recette' : `${creneaux.length} recettes différentes`} pour ces repas :
 ${creneaux.map(decrireCreneau).join('\n')}
@@ -97,7 +80,7 @@ ${envie ? '- C\'est une envie ponctuelle du moment : fais plaisir, un plat qui d
 PRÉFÉRENCES :
 ${prefs.texte}
 
-MÉTÉO — Vierzon : ${meteo.saison}, ${meteo.avgTemp}°C (${meteo.description}). Plats frais si > 22°C, réconfortants si < 10°C.
+SAISON : ${getSaison()} — privilégie les produits de saison.
 
 ANTI-GASPI :
 ${ingredientsAReutiliser.length ? `- Ingrédients déjà achetés pour d'autres repas du cycle, à RÉUTILISER en priorité : ${ingredientsAReutiliser.join(', ')}` : ''}

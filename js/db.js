@@ -251,7 +251,7 @@ export function dbEcouter(tables, onChange) {
   return canal
 }
 
-// ── Edge Function "ai" (proxy IA + météo, clés côté serveur) ─────────
+// ── Edge Function "ai" (proxy IA, clé côté serveur) ──────────────────
 export async function dbAppelFonctionIA(body) {
   const session = await dbGetSession()
   if (!session) throw new Error('Session expirée — reconnecte-toi.')

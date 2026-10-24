@@ -15,8 +15,7 @@ Application web **PWA mobile-first** pour un foyer de 4 personnes (Dylan, sa fem
 - **HTML5 / CSS3 / JS vanilla** — aucun framework, aucun build tool
 - **Supabase** — authentification + base de données (toutes les données métier)
 - **Mammouth AI** (API compatible OpenAI, modèle `claude-sonnet-5-5`) — génération de recettes, appelée **uniquement** via l'Edge Function Supabase `ai`
-- **OpenWeatherMap API** — météo à Vierzon, également via l'Edge Function `ai`
-- **Aucune clé secrète côté navigateur** : `MAMMOUTH_API_KEY` et `OPENWEATHER_API_KEY` sont des secrets Supabase
+- **Aucune clé secrète côté navigateur** : `MAMMOUTH_API_KEY` est un secret Supabase
 - Fichiers servis directement (Live Server VSCode ou `npx serve .`)
 - PWA : `manifest.json` + balises `apple-mobile-web-app-*` sur toutes les pages
 
@@ -71,7 +70,7 @@ Repas/
 ├── manifest.json           # PWA manifest (icônes à compléter)
 ├── config.js               # Non versionné : SUPABASE_URL, SUPABASE_ANON_KEY (publiques)
 ├── supabase/
-│   ├── functions/ai/       # Edge Function : proxy Mammouth AI + météo
+│   ├── functions/ai/       # Edge Function : proxy Mammouth AI
 │   └── migrations/         # Migrations SQL (foyer, ingrédients perso, temps réel)
 ├── css/
 │   ├── style.css           # Variables CSS, reset, nav, bottom nav, layout, dark mode
@@ -86,7 +85,7 @@ Repas/
     ├── preferences-ui.js   # Rendu UI préférences (cartes + tableau)
     ├── custom-ingredients.js # Ingrédients personnalisés (table ingredients_custom, partagés)
     ├── utils.js            # Fonctions pures testables (esc, semaine ISO, quantités, catégories…)
-    ├── ai.js               # Appels IA via Edge Function + météo + prompt engineering
+    ├── ai.js               # Appels IA via Edge Function + prompt engineering
     ├── recettes.js         # CRUD recettes (via db.js)
     ├── recettes-ui.js      # Rendu UI recettes (liste, détail, édition)
     ├── planning.js         # Logique métier planning (via db.js)
@@ -137,6 +136,6 @@ repas_theme   // "light" | "dark" — seule donnée encore en localStorage
 Chaque appel IA inclut toujours :
 - Contrainte halal (no porc, no alcool)
 - Préférences du/des profils concernés (ingrédients aimés/détestés)
-- Météo actuelle à Vierzon (OpenWeatherMap)
+- Saison courante (produits de saison) — pas de météo
 - Niveau végétarien et autres contraintes optionnelles
 - Format de sortie JSON structuré pour parsing facile

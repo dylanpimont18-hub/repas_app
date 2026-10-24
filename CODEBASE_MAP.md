@@ -60,6 +60,7 @@ Edge Function : proxy Mammouth AI (streaming), vérifie membre du foyer. Secret 
 Variables CSS (tons chauds + dark mode), reset, layout global, toggle thème.
 
 ### css/components.css
+Composants + mise en page grand écran (≥ 1024 px : menu en haut, fenêtres centrées, frise du planning, grilles).
 Composants réutilisables : cartes swipe, cartes recette, grille planning, modale, boutons.
 
 ---
@@ -212,7 +213,7 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 
 ### js/dashboard.js
 Contrôleur du tableau de bord d'accueil.
-- `render()` — nombre de recettes, repas du jour, aperçu semaine ISO ; rafraîchi en temps réel
+- `render()` — nombre de recettes, repas du jour, aperçu du cycle (samedi soir → samedi midi) ; rafraîchi en temps réel
 
 ### js/preferences-ui.js
 Rendu et interactions de la page préférences (cartes + vue liste).
@@ -230,10 +231,11 @@ Rendu et interactions de la bibliothèque de recettes.
 
 ### js/planning-ui.js
 Rendu et interactions du planificateur hebdomadaire.
-- `renderGrid()` — cycle groupé par session, badges portions / origine, ❄️ réserve ; temps réel
+- `renderGrid()` / `afficher()` — charge puis affiche le cycle : liste par session (mobile) ou frise jours × repas avec bandeaux de session (≥ 1024 px) ; temps réel
+- `htmlCreneau(c)` / `htmlListe()` / `htmlFrise()` — rendu d'un repas, de la liste, de la frise
 - `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️, 🗑, portions
 - `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier
-- `initModalGen()` — « Remplir le cycle » : bibliothèque d'abord, puis « Compléter avec l'IA »
+- `initModalGen()` — « Remplir le cycle » : « Mes recettes » (bibliothèque) ou « Générer avec l'IA » directement, + « Compléter avec l'IA » après la bibliothèque
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.

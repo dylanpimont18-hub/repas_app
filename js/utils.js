@@ -36,8 +36,15 @@ export function combinerQuantites(quantites) {
     const unite = m[2].trim()
     parUnite.set(unite, (parUnite.get(unite) || 0) + parseFloat(m[1].replace(',', '.')) * facteur)
   }
-  const arrondir = n => (Math.round(n * 10) / 10).toString().replace('.', ',')
-  const numeriques = [...parUnite].map(([unite, n]) => `${arrondir(n)}${unite ? ' ' + unite : ''}`)
+  // Pièces (« 3 carottes ») : arrondi au supérieur ; grammes / millilitres : à l'unité ; le reste : 1 décimale
+  const arrondir = (n, unite) => {
+    const u = unite.toLowerCase()
+    const v = !u ? Math.ceil(n - 0.05)
+      : /^(g|gr|ml|cl)(?![a-z])/.test(u) ? Math.round(n)
+      : Math.round(n * 10) / 10
+    return String(v).replace('.', ',')
+  }
+  const numeriques = [...parUnite].map(([unite, n]) => `${arrondir(n, unite)}${unite ? ' ' + unite : ''}`)
   return [...numeriques, ...autres].join(' + ')
 }
 

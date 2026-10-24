@@ -40,3 +40,9 @@ test('combinerQuantites ajuste aux portions et additionne', () => {
   assert.equal(combinerQuantites([{ valeur: '2', facteur: 1.5 }, { valeur: 'selon goût', facteur: 1 }]), '3 + selon goût')
   assert.equal(combinerQuantites([{ valeur: '200g', facteur: 1 }, { valeur: '1 c.s.', facteur: 1 }]), '200 g + 1 c.s.')
 })
+
+test('combinerQuantites arrondit les pièces au supérieur et les grammes à l\'unité', () => {
+  assert.equal(combinerQuantites([{ valeur: '3', facteur: 1.5 }, { valeur: '2', facteur: 2 }, { valeur: '1', facteur: 3.3 }]), '12')
+  assert.equal(combinerQuantites([{ valeur: '300 g', facteur: 1.333 }]), '400 g')
+  assert.equal(combinerQuantites([{ valeur: '1,5 kg', facteur: 1.1 }]), '1,7 kg')
+})

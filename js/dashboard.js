@@ -2,6 +2,8 @@
 import { getRecettes, getRecettesByIds }    from './recettes.js'
 import { getPlanning, getSemaineKey, JOURS, idsDuPlanning } from './planning.js'
 import { dbEcouter }                         from './db.js'
+import { chargerCycle }                      from './planning.js'
+import { debutCycle, dateIso }               from './cycle.js'
 import { esc, debounce }                     from './utils.js'
 
 const JOURS_LABEL = {
@@ -84,20 +86,27 @@ async function render() {
     }
   }
 
-  // ── Grille de la semaine ──
+  // ── Aperçu du cycle (samedi soir → samedi midi) ──
   const dashSemaine = document.getElementById('dashSemaine')
   if (dashSemaine) {
-    dashSemaine.innerHTML = JOURS.map(jour => {
-      const midi      = planning[jour]?.midi?.id ? recettesMap[planning[jour].midi.id] : null
-      const soir      = planning[jour]?.soir?.id ? recettesMap[planning[jour].soir.id] : null
-      const estAujourdhui = jour === jourAujourdhui
-      return `
-        <div class="card" style="padding:0.75rem;${estAujourdhui ? 'border-color:var(--color-primary);border-width:2px;' : ''}">
-          <div style="font-size:0.75rem;font-weight:700;margin-bottom:0.4rem;${estAujourdhui ? 'color:var(--color-primary);' : 'color:var(--color-text-muted);'}">${JOURS_LABEL[jour]}${estAujourdhui ? ' ·' : ''}</div>
-          <div class="text-xs" style="margin-bottom:0.2rem;">☀️ ${midi ? esc(midi.nom) : '<span style="opacity:0.4">—</span>'}</div>
-          <div class="text-xs">🌙 ${soir ? esc(soir.nom) : '<span style="opacity:0.4">—</span>'}</div>
-        </div>`
-    }).join('')
+    const { creneaux, occupation } = await chargerCycle(debutCycle())
+    const recettesCycle = await getRecettesByIds(Object.values(occupation).map(o => o.id))
+    const jours = []
+    for (const c of creneaux) {
+      let j = jours.find(x => x.iso === dateIso(c.date))
+      if (!j) { j = { iso: dateIso(c.date), date: c.date, jour: c.jour, repas: {} }; jours.push(j) }
+      j.repas[c.moment] = recettesCycle[occupation[c.cle]?.id] || null
+    }
+    const aujourdHui = dateIso(new Date())
+    const ligne = (icone, r, present) => present
+      ? `<div class="apercu-repas">${icone} ${r ? esc(r.nom) : '<span class="text-muted">—</span>'}</div>` : ''
+    dashSemaine.className = 'apercu-cycle'
+    dashSemaine.innerHTML = jours.map(j => `
+      <a href="planning.html" class="apercu-jour${j.iso === aujourdHui ? ' apercu-aujourdhui' : ''}">
+        <div class="apercu-jour-nom">${JOURS_LABEL[j.jour]} ${j.date.getDate()}</div>
+        ${ligne('☀️', j.repas.midi, 'midi' in j.repas)}
+        ${ligne('🌙', j.repas.soir, 'soir' in j.repas)}
+      </a>`).join('')
   }
 }
 

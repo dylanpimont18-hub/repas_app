@@ -13,12 +13,85 @@ let creneauEnCours = null
 
 const SOURCES = { biblio: ['📖', 'biblio'], ia: ['✨', 'IA'], reste: ['🍱', 'reste'], reserve: ['❄️', 'congélo'], manuel: ['', ''] }
 
+const ecranLarge = window.matchMedia('(min-width: 1024px)')
+const JOUR_COURT = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu', vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
+
 function badgePortions(c, portions) {
   return c.profils.length === 1 && c.profils[0] === 'femme' && portions === 1 ? '👩 1' : `👥 ${portions}`
 }
 
+// Contenu d'un créneau (identique sur mobile et sur la frise ordinateur ; seule la mise en page change)
+function htmlCreneau(c, { avecJour = true } = {}) {
+  const occ = donnees.occupation[c.cle]
+  const recette = occ ? donnees.recettesMap[occ.id] : null
+  const [icone, label] = SOURCES[occ?.source] || SOURCES.manuel
+  const moment = `${c.moment === 'midi' ? '☀️' : '🌙'} ${avecJour ? `${JOUR_COURT[c.jour]} ` : ''}${c.moment}`
+  return `<div class="slot${recette ? '' : ' slot-libre'}" data-cle="${esc(c.cle)}">
+    <div class="slot-ligne">
+      <span class="slot-moment">${moment}</span>
+      <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions">${badgePortions(c, occ?.portions ?? c.portions)}</button>
+      ${label ? `<span class="source-tag source-${esc(occ.source)}">${icone} ${label}</span>` : ''}
+      ${recette ? `<span class="slot-actions">
+        <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition">↻</button>
+        <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat">✏️</button>
+        <button class="slot-btn slot-btn-del" data-action="supprimer" data-cle="${esc(c.cle)}" title="Vider" aria-label="Vider">🗑</button>
+      </span>` : ''}
+    </div>
+    ${recette ? `<div class="slot-nom">${esc(recette.nom)}</div>` : '<div class="slot-vide">+ Choisir un plat</div>'}
+  </div>`
+}
+
+// Mobile : liste groupée par session de cuisine
+function htmlListe() {
+  return groupesDuCycle(donnees.creneaux).map(g => `
+    <section class="cycle-groupe${g.enSession ? ' cycle-groupe-session' : ''}">
+      <h2 class="cycle-groupe-titre">${esc(g.titre)}</h2>
+      ${g.creneaux.map(c => htmlCreneau(c)).join('')}
+    </section>`).join('')
+}
+
+// Ordinateur : frise du cycle — une colonne par jour, bandeaux des sessions de cuisine au-dessus
+function htmlFrise() {
+  const jours = []
+  for (const c of donnees.creneaux) {
+    const cle = c.date.getTime()
+    let j = jours.find(x => x.cle === cle)
+    if (!j) { j = { cle, date: c.date, jour: c.jour, creneaux: {} }; jours.push(j) }
+    j.creneaux[c.moment] = c
+  }
+  const col = i => `grid-column:${i + 2}`
+  // Bandeaux : jours consécutifs préparés par la même session
+  const bandes = []
+  jours.forEach((j, i) => {
+    const c = j.creneaux.soir || j.creneaux.midi
+    const cle = c.enSession ? `session-${c.cuisineLe}` : `place-${i}`
+    const der = bandes[bandes.length - 1]
+    if (der && der.cle === cle && c.enSession) der.fin = i
+    else bandes.push({ cle, debut: i, fin: i, enSession: c.enSession, cuisineLe: c.cuisineLe })
+  })
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return `<div class="frise" style="--nb-jours:${jours.length}">
+    <div class="frise-coin"></div>
+    ${jours.map((j, i) => `<div class="frise-jour${j.date.getTime() === today.getTime() ? ' frise-aujourdhui' : ''}" style="${col(i)}">
+      <span class="frise-jour-nom">${JOUR_COURT[j.jour]}</span> <span class="frise-jour-date">${j.date.getDate()}</span></div>`).join('')}
+    <div class="frise-label">Cuisine</div>
+    ${bandes.map(b => `<div class="frise-bande${b.enSession ? ' frise-bande-session' : ''}" style="grid-column:${b.debut + 2} / ${b.fin + 3}">
+      ${b.enSession ? `🍳 Préparé ${esc(b.cuisineLe)}` : 'Sur place'}</div>`).join('')}
+    ${['midi', 'soir'].map(m => `
+      <div class="frise-label">${m === 'midi' ? '☀️ Midi' : '🌙 Soir'}</div>
+      ${jours.map((j, i) => j.creneaux[m]
+        ? `<div class="frise-cellule" style="${col(i)}">${htmlCreneau(j.creneaux[m], { avecJour: false })}</div>`
+        : `<div class="frise-cellule frise-hors" style="${col(i)}" aria-hidden="true"></div>`).join('')}`).join('')}
+  </div>`
+}
+
 async function renderGrid() {
   donnees = await chargerDonnees(samedi)
+  afficher()
+}
+
+function afficher() {
+  if (!donnees) return
   const labelEl = document.getElementById('labelSemaine')
   if (labelEl) labelEl.textContent = labelCycle(samedi)
 
@@ -30,31 +103,8 @@ async function renderGrid() {
 
   const grid = document.getElementById('planningGrid')
   if (!grid) return
-  grid.className = 'planning-list'
-  grid.innerHTML = groupesDuCycle(donnees.creneaux).map(g => `
-    <div class="planning-list-day${g.enSession ? ' planning-session' : ''}">
-      <div class="planning-list-day-header">${esc(g.titre)}</div>
-      ${g.creneaux.map(c => {
-        const occ = donnees.occupation[c.cle]
-        const recette = occ ? donnees.recettesMap[occ.id] : null
-        const [icone, label] = SOURCES[occ?.source] || SOURCES.manuel
-        return `<div class="planning-list-slot" data-cle="${esc(c.cle)}">
-          <span class="list-slot-icon">${c.moment === 'midi' ? '☀️' : '🌙'}</span>
-          <div class="list-slot-content">
-            <span class="list-slot-label">${esc(labelCreneau(c).split(' ')[0].slice(0, 3))}</span>
-            ${recette
-              ? `<span class="list-meal-name">${esc(recette.nom)}</span>${label ? `<span class="source-tag source-${esc(occ.source)}">${icone} ${label}</span>` : ''}`
-              : `<span class="list-meal-empty">+ Ajouter</span>`}
-          </div>
-          <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Portions">${badgePortions(c, occ?.portions ?? c.portions)}</button>
-          ${recette ? `<div class="list-slot-actions">
-            <button class="list-act-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition">↻</button>
-            <button class="list-act-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir">✏️</button>
-            <button class="list-act-btn list-act-del" data-action="supprimer" data-cle="${esc(c.cle)}" title="Vider">🗑</button>
-          </div>` : ''}
-        </div>`
-      }).join('')}
-    </div>`).join('')
+  grid.className = ecranLarge.matches ? 'planning-frise' : 'planning-cycle'
+  grid.innerHTML = ecranLarge.matches ? htmlFrise() : htmlListe()
 }
 
 // ── Actions sur un créneau ───────────────────────────────────────────
@@ -178,15 +228,19 @@ function initModalGen() {
     }
   })
 
-  btnIA.addEventListener('click', async () => {
-    if (!videsRestants.length) return
-    btnIA.disabled = true
+  // Génération IA : directement pour les créneaux choisis, ou pour ceux restés vides après la bibliothèque
+  async function genererIA(creneaux, bouton) {
+    if (!creneaux.length) { status.textContent = 'Sélectionne au moins un repas.'; return }
+    bouton.disabled = true
+    btnBiblio.disabled = true
     progress.classList.remove('hidden')
     fill.style.width = '0%'
-    const total = videsRestants.length
+    const total = creneaux.length
     status.textContent = `0 / ${total} recettes…`
     try {
-      const { nbCrees, rejets } = await completerParIA(donnees, videsRestants, lireSelection(), (n) => {
+      const sel = lireSelection()
+      memoriserFiltres(sel)
+      const { nbCrees, rejets } = await completerParIA(donnees, creneaux, sel, (n) => {
         const k = Math.min(n, total)
         status.textContent = `${k} / ${total} recettes…`
         fill.style.width = `${k / total * 95}%`
@@ -200,8 +254,17 @@ function initModalGen() {
       fill.style.width = '0%'
       status.textContent = `❌ ${e.message}`
     } finally {
-      btnIA.disabled = false
+      bouton.disabled = false
+      btnBiblio.disabled = false
     }
+  }
+
+  btnIA.addEventListener('click', () => genererIA(videsRestants, btnIA))
+  document.getElementById('btnGenererIA').addEventListener('click', (e) => {
+    const cles = [...chipsWrap.querySelectorAll('.chip.active')].map(c => c.dataset.cle)
+    const deja = cles.filter(cle => donnees.occupation[cle]).length
+    if (deja && !confirm(`${deja} repas déjà prévu(s) seront remplacés par de nouvelles recettes. Continuer ?`)) return
+    genererIA(cles.map(cle => donnees.parCle[cle]), e.currentTarget)
   })
 }
 
@@ -212,7 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('planningGrid')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]')
     if (btn) { e.stopPropagation(); return actionCreneau(btn.dataset.action, btn.dataset.cle, btn) }
-    const slot = e.target.closest('.planning-list-slot')
+    const slot = e.target.closest('.slot')
     if (!slot) return
     const occ = donnees.occupation[slot.dataset.cle]
     if (occ) window.location.href = `recettes.html?id=${encodeURIComponent(occ.id)}&from=planning`
@@ -227,6 +290,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   })
   document.getElementById('closeRecetteSelect')?.addEventListener('click', () =>
     document.getElementById('modalRecetteSelect')?.classList.add('hidden'))
+
+  ecranLarge.addEventListener('change', afficher)
 
   // Temps réel : refléter les changements faits depuis l'autre téléphone
   dbEcouter(['planning', 'recettes', 'reserve', 'reglages'], debounce(renderGrid, 300))

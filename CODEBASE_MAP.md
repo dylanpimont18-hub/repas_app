@@ -151,6 +151,7 @@ Wrapper localStorage (thème uniquement).
 Initialisation, navigation, gestion du thème dark/light, vérification auth.
 - `init()` — charge le thème, initialise les listeners, vérifie session
 - `setTheme(theme)` — applique et persiste dark/light
+- `injectBoutonReglages()` — bouton ⚙️ vers reglages.html dans la barre du haut
 
 ### js/auth-login.js
 Logique de la page de connexion.

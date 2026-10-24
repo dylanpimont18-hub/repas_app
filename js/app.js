@@ -57,6 +57,20 @@ function initModalFlash() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.add('hidden') })
 }
 
+// Bouton ⚙️ Réglages dans la barre du haut (le menu texte est masqué sur mobile)
+function injectBoutonReglages() {
+  const theme = document.getElementById('btnTheme')
+  if (!theme || document.getElementById('btnReglages')) return
+  const a = document.createElement('a')
+  a.id = 'btnReglages'
+  a.href = 'reglages.html'
+  a.className = 'nav-theme'
+  a.title = 'Réglages'
+  a.textContent = '⚙️'
+  a.style.textDecoration = 'none'
+  theme.before(a)
+}
+
 function initLogout() {
   document.getElementById('btnLogout')?.addEventListener('click', async () => {
     await dbSignOut()
@@ -113,6 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   highlightActiveLink()
   initModalFlash()
   initLogout()
+  injectBoutonReglages()
   injectBottomNav()
   initPrefsBadge()
 })

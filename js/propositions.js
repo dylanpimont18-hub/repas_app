@@ -4,15 +4,15 @@ import { getRecettes, addRecette } from './recettes.js'
 import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
 import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
-import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade } from './selection.js'
+import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
 import { genererPourCreneaux, genererUneRecette } from './ai.js'
 
 const CLE_FILTRES = 'repas_filtres_cycle'
 
 // Sélecteurs mémorisés sur l'appareil (remplissage et ↻)
 export function lireFiltres() {
-  try { return { filtres: [], style: '', ...JSON.parse(localStorage.getItem(CLE_FILTRES) || '{}') } }
-  catch { return { filtres: [], style: '' } }
+  try { return { filtres: [], style: '', envies: [], ...JSON.parse(localStorage.getItem(CLE_FILTRES) || '{}') } }
+  catch { return { filtres: [], style: '', envies: [] } }
 }
 export function memoriserFiltres(f) {
   try { localStorage.setItem(CLE_FILTRES, JSON.stringify(f)) } catch { /* navigation privée */ }
@@ -62,19 +62,25 @@ export function proposerPourCreneau(d, creneau, options = {}, n = 3) {
 }
 
 // Remplit les créneaux demandés depuis la bibliothèque et enregistre ; renvoie les créneaux restés vides
-export async function remplirDepuisBibliotheque(d, cles, { filtres = [], style = '' } = {}) {
+// (avec l'envie qui leur était destinée, pour que l'IA la respecte)
+export async function remplirDepuisBibliotheque(d, cles, { filtres = [], style = '', envies = [] } = {}) {
   const plan = Object.fromEntries(Object.entries(d.occupation).map(([cle, o]) => [cle, d.recettesMap[o.id]]).filter(([, r]) => r))
-  const { propositions, vides } = remplirCycle({
-    creneaux: d.creneaux, aRemplir: cles, plan, recettes: d.recettes, reserve: d.reserve,
+  const { propositions, vides, envieDe } = remplirCycle({
+    creneaux: d.creneaux, aRemplir: cles, plan, recettes: d.recettes, reserve: d.reserve, envies,
     indexPrefs: d.indexPrefs, filtres, style, historique: d.historique, debut: d.samedi.getTime(),
   })
   await enregistrerCreneaux(propositions.map(p => ({ creneau: d.parCle[p.cle], recetteId: p.recette.id, source: p.source })))
   await Promise.all(propositions.filter(p => p.reserveId).map(p => dbDeleteReserve(p.reserveId)))
-  return { nbProposes: propositions.length, vides: vides.map(cle => d.parCle[cle]) }
+  return { nbProposes: propositions.length, vides: vides.map(cle => ({ ...d.parCle[cle], envies: envieDe[cle] || [] })) }
 }
 
-// Complète des créneaux par l'IA (un seul appel), enregistre recettes + planning
-export async function completerParIA(d, creneaux, { filtres = [], style = '' } = {}, onProgress = null) {
+// Complète des créneaux par l'IA (un seul appel), enregistre recettes + planning.
+// Si les créneaux ne portent pas encore leurs envies (génération directe), on les répartit ici.
+export async function completerParIA(d, creneaux, { filtres = [], style = '', envies = [] } = {}, onProgress = null) {
+  if (creneaux.some(c => !Array.isArray(c.envies))) {
+    const envieDe = repartirEnvies(creneaux, envies)
+    creneaux = creneaux.map(c => ({ ...c, envies: envieDe[c.cle] || [] }))
+  }
   const cles = creneaux.map(c => c.cle)
   const { resultats, rejets } = await genererPourCreneaux({ creneaux, filtres, style, ...contexteIA(d, cles) }, onProgress)
   await importerRecettesIA(resultats)

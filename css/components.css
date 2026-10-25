@@ -782,3 +782,23 @@
   .slot .source-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .slot .source-tag { padding: 0.15rem 0.3rem; }
 }
+
+/* ══ Remplir : envies réglables (nombre de repas, espacés / à la suite) ══ */
+.gen-section-aide { font-weight: 400; color: var(--color-text-muted); margin-left: 0.25rem; }
+.envies-liste { display: flex; flex-direction: column; gap: 0.45rem; }
+.envie-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  background: var(--color-primary-soft); border-radius: var(--radius-md); padding: 0.45rem 0.6rem; }
+.envie-nom { font-size: 0.85rem; font-weight: 600; }
+.envie-reglages { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
+.pas-a-pas, .segmente {
+  display: inline-flex; align-items: center; border: 1px solid var(--color-border);
+  border-radius: 999px; background: var(--color-surface); overflow: hidden;
+}
+.pas-a-pas button, .segmente button {
+  border: none; background: none; color: var(--color-text); min-height: 40px; font-size: 0.85rem;
+}
+.pas-a-pas button { width: 40px; font-size: 1.15rem; font-weight: 600; color: var(--color-primary); }
+.pas-a-pas button:disabled { color: var(--color-text-muted); opacity: 0.45; }
+.pas-a-pas span { min-width: 4.2rem; text-align: center; font-size: 0.85rem; font-weight: 600; }
+.segmente button { padding: 0 0.8rem; }
+.segmente button.active { background: var(--color-primary); color: var(--color-on-primary); font-weight: 600; }

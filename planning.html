@@ -68,9 +68,14 @@
         <p class="modal-title">Remplir le cycle</p>
 
         <div class="gen-section">
-          <div class="gen-section-label">Envies</div>
+          <div class="gen-section-label">Contraintes <span class="gen-section-aide">sur tous les repas</span></div>
           <div id="genFiltres" class="gen-chips-wrap"></div>
-          <input id="genStyle" class="form-input" style="margin-top:0.5rem;" type="text"
+        </div>
+
+        <div class="gen-section">
+          <div class="gen-section-label">Envies <span class="gen-section-aide">de temps en temps</span></div>
+          <div id="genEnvies" class="envies-liste"></div>
+          <input id="genStyle" class="form-input" style="margin-top:0.6rem;" type="text"
             placeholder="Style libre : asiatique, maghrébin…" aria-label="Style libre">
         </div>
 
@@ -87,9 +92,9 @@
           <button class="btn btn-secondary btn-full hidden" id="btnCompleterIA" style="margin-bottom:0.5rem;"></button>
           <div class="gen-actions">
             <button class="btn btn-primary" id="btnLancerGen"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Mes recettes</button>
-            <button class="btn btn-accent" id="btnGenererIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Générer avec l'IA</button>
+            <button class="btn btn-accent" id="btnGenererIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Avec l'IA</button>
           </div>
-          <p class="text-xs text-muted gen-aide">« Mes recettes » pioche dans ta bibliothèque, sans IA. « Générer » crée de nouvelles recettes pour tous les créneaux choisis.</p>
+          <p class="text-xs text-muted gen-aide">« Mes recettes » pioche dans ta bibliothèque. « Avec l'IA » crée de nouvelles recettes.</p>
         </div>
       </div>
     </div>

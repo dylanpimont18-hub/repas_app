@@ -76,6 +76,10 @@ export const FILTRES = [
     consigne: 'Plat plutôt gras et gourmand, assumé' },
 ]
 
+// Deux familles : les contraintes s'appliquent à tous les repas, les envies à quelques repas seulement
+export const ENVIES = ['bouillon', 'reconfortant', 'gras', 'healthy']
+export const estEnvie = id => ENVIES.includes(id)
+
 export function passeFiltres(recette, filtresActifs = []) {
   return filtresActifs.every(id => FILTRES.find(f => f.id === id)?.test(recette) ?? true)
 }

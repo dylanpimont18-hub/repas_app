@@ -1,12 +1,13 @@
 // js/selection.js — Choix des recettes dans la bibliothèque, sans IA (fonctions pures, testées sous Node)
 import { normaliser, passeFiltres, contientInterdit, scoreStyle } from './filtres.js'
 import { categoriser } from './utils.js'
-import { soirAssocie } from './cycle.js'
+import { soirAssocie, dateIso } from './cycle.js'
 
 const JOUR_MS        = 86400000
 const ROTATION_JOURS = 21    // une recette ne revient pas avant 3 semaines
 const POIDS = { adore: 3, aime: 1, reutilisation: 1.5, anciennete: 0.5, ancienneteMax: 8,
-                jamaisMangee: 3, proteineRepetee: -3, cuisineRepetee: -2, style: 4, conservationInconnue: -1 }
+                jamaisMangee: 3, proteineRepetee: -3, cuisineRepetee: -2, style: 4, conservationInconnue: -1,
+                envieHorsCible: -6 }
 const CATS_FRAICHES = ['Fruits & Légumes', 'Viandes & Poissons', 'Laitiers & Œufs']
 
 // ── Correspondance ingrédient noté ↔ recette, mot à mot ───────────────
@@ -118,6 +119,8 @@ export function evaluer(recette, creneau, ctx) {
   if (cuis && (ctx.cuisines?.get(cuis) || 0) >= 2) score += POIDS.cuisineRepetee
 
   score += scoreStyle(recette, ctx.style) * POIDS.style
+  // Une envie (bouillon…) est réservée à ses repas : ailleurs on l'évite sans l'interdire
+  if (ctx.eviter?.length && ctx.eviter.some(id => passeFiltres(recette, [id]))) score += POIDS.envieHorsCible
   return score
 }
 
@@ -149,20 +152,63 @@ export function candidats(recettes, creneau, ctx, { exclure = [] } = {}) {
 }
 
 /**
+ * Choisit les repas qui recevront chaque envie : [{ id, nb, suite }] → { cle: [ids] }
+ * - espacés : un repas par jour, le soir de préférence, répartis régulièrement sur le cycle
+ * - à la suite : repas familiaux consécutifs, à partir du premier soir disponible
+ * Les petits midis (une personne) ne sont utilisés que s'il n'y a pas de repas familial.
+ */
+export function repartirEnvies(creneaux, envies = []) {
+  const res = {}
+  const pris = new Set()
+  const familiaux = creneaux.filter(c => c.portions > 1)
+  const base = familiaux.length ? familiaux : creneaux
+  for (const e of envies) {
+    const libres = base.filter(c => !pris.has(c.cle))
+    const nb = Math.max(1, Math.min(e.nb || 1, libres.length))
+    if (!libres.length) break
+    let choix
+    if (e.suite) {
+      const debut = Math.max(0, libres.findIndex(c => c.moment === 'soir'))
+      choix = libres.slice(debut, debut + nb)
+      if (choix.length < nb) choix = libres.slice(-nb)
+    } else {
+      const vus = new Set(), parJour = []
+      for (const c of [...libres.filter(c => c.moment === 'soir'), ...libres.filter(c => c.moment !== 'soir')]) {
+        const j = dateIso(c.date)
+        if (!vus.has(j)) { vus.add(j); parJour.push(c) }
+      }
+      parJour.sort((a, b) => a.date - b.date)
+      const n = Math.min(nb, parJour.length)
+      choix = Array.from({ length: n }, (_, i) => parJour[Math.floor((i + 0.5) * parJour.length / n)])
+    }
+    choix.forEach(c => { pris.add(c.cle); (res[c.cle] ||= []).push(e.id) })
+  }
+  return res
+}
+
+/**
  * Remplit les créneaux demandés du cycle.
  * @param creneaux      tous les créneaux du cycle (cycle.js)
  * @param aRemplir      clés des créneaux à remplir
  * @param plan          { cle: recette } pour les créneaux déjà occupés (non remplacés)
  * @param reserve       [{ id, recette, portions }] plats du congélo, prioritaires
- * @returns { propositions: [{ cle, recette, source, reserveId? }], vides: [cle] }
+ * @param envies        [{ id, nb, suite }] envies ponctuelles (bouillon 2 fois…)
+ * @returns { propositions: [{ cle, recette, source, reserveId? }], vides: [cle], envieDe: { cle: [ids] } }
  */
-export function remplirCycle({ creneaux, aRemplir, plan = {}, recettes, reserve = [], ...options }) {
+export function remplirCycle({ creneaux, aRemplir, plan = {}, recettes, reserve = [], envies = [], ...options }) {
   const cibles = new Set(aRemplir)
   const ctx = nouveauContexte({ ...options, dejaChoisies: Object.entries(plan).filter(([k]) => !cibles.has(k)).map(([, r]) => r) })
   const choisi = { ...Object.fromEntries(Object.entries(plan).filter(([k]) => !cibles.has(k))) }
   const propositions = []
   const parCle = Object.fromEntries(creneaux.map(c => [c.cle, c]))
   const ordre  = creneaux.filter(c => cibles.has(c.cle))
+  // Envies : réparties sur les repas « principaux » (les midis de session reprendront un reste)
+  const principaux = ordre.filter(c => !(c.moment === 'midi' && c.enSession && soirAssocie(creneaux, c)))
+  const envieDe = repartirEnvies(principaux, envies)
+  const tousIds = envies.map(e => e.id)
+  const ctxDe = c => envieDe[c.cle]
+    ? { ...ctx, filtres: [...ctx.filtres, ...envieDe[c.cle]], eviter: [] }
+    : { ...ctx, eviter: tousIds }
 
   const affecter = (c, recette, source, extra = {}) => {
     choisi[c.cle] = recette
@@ -174,14 +220,14 @@ export function remplirCycle({ creneaux, aRemplir, plan = {}, recettes, reserve 
   const reserveDispo = [...reserve]
   for (const c of ordre) {
     if (choisi[c.cle] || c.enSession) continue
-    const i = reserveDispo.findIndex(x => x.portions >= c.portions && evaluer(x.recette, c, { ...ctx, historique: {} }) !== null)
+    const i = reserveDispo.findIndex(x => x.portions >= c.portions && evaluer(x.recette, c, { ...ctxDe(c), historique: {} }) !== null)
     if (i >= 0) { const [x] = reserveDispo.splice(i, 1); affecter(c, x.recette, 'reserve', { reserveId: x.id }) }
   }
 
   // 2. Repas familiaux (grandes portions) d'abord, puis les petits midis
   const grands = ordre.filter(c => !choisi[c.cle] && !(c.moment === 'midi' && c.enSession && soirAssocie(creneaux, c)))
   for (const c of grands) {
-    const [meilleur] = candidats(recettes, c, ctx)
+    const [meilleur] = candidats(recettes, c, ctxDe(c))
     if (meilleur) affecter(c, meilleur.recette, 'biblio')
   }
 
@@ -196,12 +242,12 @@ export function remplirCycle({ creneaux, aRemplir, plan = {}, recettes, reserve 
       propositions.push({ cle: c.cle, recette: plat, source: 'reste' })
       continue
     }
-    const [meilleur] = candidats(recettes, c, ctx)
+    const [meilleur] = candidats(recettes, c, ctxDe(c))
     if (meilleur) affecter(c, meilleur.recette, 'biblio')
   }
 
   const vides = ordre.filter(c => !choisi[c.cle]).map(c => c.cle)
-  return { propositions, vides, parCle }
+  return { propositions, vides, parCle, envieDe }
 }
 
 /**

@@ -115,6 +115,7 @@ Cycle samedi soir → samedi midi et modèle de semaine (pur, testé).
 ### js/filtres.js
 Vocabulaire des tags, sélecteurs et détections (pur, testé).
 - `TAGS`, `FILTRES` — sélecteurs avec test bibliothèque et consigne IA
+- `ENVIES` / `estEnvie(id)` — envies ponctuelles (bouillon, réconfortant, gras, healthy) vs contraintes
 - `passeFiltres(r, filtres)` / `consignesFiltres(filtres)`
 - `contientViande` / `contientPoisson` / `contientFeculent` / `contientInterdit` (halal)
 - `scoreStyle(r, style)` — correspondance avec le style libre
@@ -125,7 +126,8 @@ Choix des recettes dans la bibliothèque, sans IA (pur, testé).
 - `construireIndexPrefs(ingredients, prefs)` — préférences indexées mot à mot
 - `evaluer(recette, creneau, ctx)` — exclusions (halal, filtres, goûts, légumes cachés, conservation, rotation) + score
 - `nouveauContexte(...)` / `noterChoix(ctx, r)` / `candidats(recettes, creneau, ctx)`
-- `remplirCycle({...})` — réserve d'abord, repas familiaux, puis restes pour les midis de session
+- `repartirEnvies(creneaux, envies)` — place chaque envie (nb repas, espacés ou à la suite)
+- `remplirCycle({...})` — réserve d'abord, repas familiaux, puis restes ; envies sur leurs repas, évitées ailleurs
 - `decalerEnCascade(creneaux, plan, cle, nouveau)` — décalage pour l'envie du soir
 - `proteinePrincipale(r)` / `ingredientsFrais(r)` / `motsDe(s)` / `motsRecette(r)`
 
@@ -240,7 +242,7 @@ Rendu et interactions du planificateur hebdomadaire.
 - `htmlCreneau(c)` / `htmlListe()` / `htmlFrise()` — rendu d'un repas, de la liste, de la frise
 - `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️, 🗑, portions
 - `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier
-- `initModalGen()` — « Remplir le cycle » : « Mes recettes » (bibliothèque) ou « Générer avec l'IA » directement, + « Compléter avec l'IA » après la bibliothèque
+- `initModalGen()` — « Remplir le cycle » : contraintes (tous les repas) + envies réglables (1-3 repas, espacés / à la suite) ; « Mes recettes » ou « Avec l'IA »
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.

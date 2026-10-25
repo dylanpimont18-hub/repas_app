@@ -59,7 +59,8 @@ function decrireCreneau(c, i) {
   const cuisson = c.enSession
     ? `cuisiné à l'avance le ${c.cuisineLe}, mangé ${c.joursConservation} jour(s) après → conservation_jours ≥ ${c.joursConservation}`
     : 'cuisiné le jour même'
-  return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}`
+  const envie = c.envies?.length ? ` · ENVIE pour ce repas uniquement : ${consignesFiltres(c.envies).join(' ; ')}` : ''
+  return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
 async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }) {
@@ -73,6 +74,7 @@ CONTRAINTES ABSOLUES :
 - Les ingrédients "N'aime PAS" du ou des profils concernés n'apparaissent JAMAIS
 - Un légume de la liste "CACHÉS" peut être utilisé (c'est même souhaité) SEULEMENT s'il est rendu invisible ; décris alors l'astuce dans "legumes_caches"
 - Les quantités des ingrédients correspondent au nombre de portions du créneau
+- Une ENVIE indiquée sur un repas ne concerne QUE ce repas : les autres repas ne doivent pas en être
 ${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
 ${style ? `- Style demandé (prioritaire) : "${style}"` : ''}
 ${envie ? '- C\'est une envie ponctuelle du moment : fais plaisir, un plat qui donne envie tout de suite' : ''}

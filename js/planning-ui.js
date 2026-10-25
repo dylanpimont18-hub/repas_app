@@ -1,7 +1,7 @@
 // js/planning-ui.js — Planning par cycle (samedi soir → samedi midi), groupé par session de cuisine
 import { enregistrerCreneaux, viderCreneaux } from './planning.js'
 import { debutCycle, decalerCycle, labelCycle, groupesDuCycle, labelCreneau } from './cycle.js'
-import { FILTRES } from './filtres.js'
+import { FILTRES, estEnvie } from './filtres.js'
 import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
          remplirDepuisBibliotheque, completerParIA, ideeIA } from './propositions.js'
 import { dbEcouter } from './db.js'
@@ -178,11 +178,51 @@ function initModalGen() {
   const btnIA       = document.getElementById('btnCompleterIA')
   const progress    = document.getElementById('genProgressWrap')
   const fill        = document.getElementById('genProgressFill')
+  const enviesWrap  = document.getElementById('genEnvies')
   let videsRestants = []
+  let envies = {}   // { id: { actif, nb, suite } }
+
+  // Envies : activer, nombre de repas (1 à 3), espacés ou à la suite
+  function renderEnvies() {
+    const liste = FILTRES.filter(f => estEnvie(f.id))
+    const etat = id => envies[id] || { actif: false, nb: 2, suite: false }
+    // Une rangée de pastilles, puis une ligne de réglages par envie cochée
+    enviesWrap.innerHTML = `<div class="gen-chips-wrap">${liste.map(f => `<span data-envie="${f.id}">
+        <button class="chip ${etat(f.id).actif ? 'active' : ''}" data-act="basculer" aria-pressed="${etat(f.id).actif}">${f.label}</button></span>`).join('')}</div>`
+      + liste.filter(f => etat(f.id).actif).map(f => {
+      const e = etat(f.id)
+      return `<div class="envie-ligne" data-envie="${f.id}">
+        <span class="envie-nom">${f.label}</span>
+        ${e.actif ? `<div class="envie-reglages">
+          <div class="pas-a-pas" role="group" aria-label="Nombre de repas ${esc(f.label)}">
+            <button data-act="moins" aria-label="Un repas de moins" ${e.nb <= 1 ? 'disabled' : ''}>−</button>
+            <span>${e.nb} repas</span>
+            <button data-act="plus" aria-label="Un repas de plus" ${e.nb >= 3 ? 'disabled' : ''}>+</button>
+          </div>
+          <div class="segmente" role="group" aria-label="Répartition">
+            <button data-act="espaces" class="${e.suite ? '' : 'active'}" aria-pressed="${!e.suite}">Espacés</button>
+            <button data-act="suite" class="${e.suite ? 'active' : ''}" aria-pressed="${e.suite}">À la suite</button>
+          </div>
+        </div>` : ''}
+      </div>`
+    }).join('')
+  }
+  enviesWrap.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-act]'); if (!b) return
+    const id = b.closest('[data-envie]').dataset.envie
+    const e = envies[id] ||= { actif: false, nb: 2, suite: false }
+    if (b.dataset.act === 'basculer') e.actif = !e.actif
+    if (b.dataset.act === 'moins') e.nb = Math.max(1, e.nb - 1)
+    if (b.dataset.act === 'plus')  e.nb = Math.min(3, e.nb + 1)
+    if (b.dataset.act === 'espaces') e.suite = false
+    if (b.dataset.act === 'suite')   e.suite = true
+    renderEnvies()
+  })
 
   const lireSelection = () => ({
     filtres: [...filtresWrap.querySelectorAll('.chip.active')].map(c => c.dataset.filtre),
     style:   styleInput.value.trim(),
+    envies:  Object.entries(envies).filter(([, e]) => e.actif).map(([id, e]) => ({ id, nb: e.nb, suite: e.suite })),
   })
   const majCompteur = () => {
     document.getElementById('genCreneauxCount').textContent = chipsWrap.querySelectorAll('.chip.active').length
@@ -190,8 +230,10 @@ function initModalGen() {
 
   document.getElementById('btnGenererSemaine')?.addEventListener('click', () => {
     const memo = lireFiltres()
-    filtresWrap.innerHTML = FILTRES.map(f =>
+    filtresWrap.innerHTML = FILTRES.filter(f => !estEnvie(f.id)).map(f =>
       `<button class="chip ${memo.filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}">${f.label}</button>`).join('')
+    envies = Object.fromEntries((memo.envies || []).map(e => [e.id, { actif: true, nb: e.nb, suite: e.suite }]))
+    renderEnvies()
     styleInput.value = memo.style || ''
     const vides = donnees.creneaux.filter(c => !donnees.occupation[c.cle])
     chipsWrap.innerHTML = (vides.length ? '' : '<p class="text-xs text-muted" style="width:100%;">Tout est rempli : sélectionne les créneaux à remplacer.</p>')

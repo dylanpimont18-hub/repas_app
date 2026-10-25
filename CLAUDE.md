@@ -9,6 +9,7 @@ Application web **PWA mobile-first** pour un foyer de 4 personnes (Dylan, sa fem
 - **Cycle samedi soir → samedi midi** : midis lun/mar/jeu/ven = 1 portion (femme seule), autres repas = 4. Cuisine en avance le dimanche (→ lun, mar) et le mercredi (→ jeu, ven) ; mer, sam, dim cuisinés sur place. Modèle éditable dans Réglages
 - **Courses** : une liste par cycle, en deux parties — 🛒 samedi magasin (sam soir → mar) et 🚗 mercredi drive (mer → sam midi)
 - **Bibliothèque d'abord** : les propositions viennent des recettes enregistrées (js/selection.js) ; l'IA n'intervient qu'en dernier recours
+- **Contraintes vs envies** : sans viande, végétarien, sans féculents, rapide, budget s'appliquent à tous les repas ; bouillon, réconfortant, gras, healthy sont des envies ponctuelles (1 à 3 repas par cycle, espacés ou à la suite)
 - **Authentification requise** : toutes les pages redirigent vers `login.html` si pas de session Supabase
 
 ## Stack technique

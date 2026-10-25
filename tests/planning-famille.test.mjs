@@ -194,3 +194,33 @@ test('préférence la plus précise : « Poulet (cuisse) » détesté n\'exclut 
   assert.notEqual(evaluer(r('Couscous', 'Escalope de dinde'), c, ctx), null)
   assert.equal(evaluer(r('Rôti', 'Rôti de dinde'), c, ctx), null)
 })
+
+test('envies espacées : 2 bouillons sur des jours différents, le soir', async () => {
+  const { repartirEnvies } = await import('../js/selection.js')
+  const r = repartirEnvies(C, [{ id: 'bouillon', nb: 2, suite: false }])
+  const cles = Object.keys(r)
+  assert.equal(cles.length, 2)
+  const choisis = C.filter(c => cles.includes(c.cle))
+  assert.ok(choisis.every(c => c.moment === 'soir'))
+  assert.ok(Math.abs(choisis[1].date - choisis[0].date) >= 2 * 86400000) // pas deux jours de suite
+})
+
+test('envies à la suite : 3 repas familiaux consécutifs', async () => {
+  const { repartirEnvies } = await import('../js/selection.js')
+  const r = repartirEnvies(C, [{ id: 'bouillon', nb: 3, suite: true }])
+  const idx = C.filter(c => r[c.cle]).map(c => C.filter(x => x.portions > 1).indexOf(c))
+  assert.deepEqual(idx, [idx[0], idx[0] + 1, idx[0] + 2])
+})
+
+test('remplirCycle avec envie : le bouillon seulement sur ses repas, pas tous les soirs', () => {
+  const autres = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6'].map(id => ({ id, nom: `Plat ${id}`, conservation_jours: 3, tags: [],
+    ingredients: [{ nom: `Ingrédient ${id}`, quantite: '1' }] }))
+  const bouillons = ['b1', 'b2', 'b3'].map(id => ({ id, nom: `Soupe ${id}`, conservation_jours: 3, tags: ['bouillon'],
+    ingredients: [{ nom: `Légume ${id}`, quantite: '1' }] }))
+  const soirs = C.filter(c => c.moment === 'soir' && !c.enSession).map(c => c.cle)
+  const r = remplirCycle({ creneaux: C, aRemplir: soirs, recettes: [...bouillons, ...autres], indexPrefs: [], debut,
+    envies: [{ id: 'bouillon', nb: 1, suite: false }] })
+  const nbBouillon = r.propositions.filter(p => p.recette.tags.includes('bouillon')).length
+  assert.equal(soirs.length, 3)
+  assert.equal(nbBouillon, 1)
+})

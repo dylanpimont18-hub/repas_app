@@ -176,6 +176,13 @@ Chargement et rendu du crédit IA.
 - `htmlJauge(resume, {compacte})` / `htmlEstimation(nb, credit)` / `htmlErreurIA(info)`
 - `majBandeau(el, {etat, texte, detail, pct})` — bandeau de suivi d'une génération en arrière-plan
 
+### js/filtres-recettes.js
+Filtres de la bibliothèque déduits des recettes affichées (pur, testé) : un filtre n'existe que si une recette le porte.
+- `GROUPES` — régime, temps total (choix unique), protéine, cuisine, style (tags), pratique
+- `filtresDisponibles(recettes)` — groupes non vides avec compteurs
+- `appliquerFiltres(recettes, selection)` — ET entre groupes, OU dans un groupe
+- `nettoyerSelection(sel, dispo)` / `basculer(sel, groupe, valeur, unique)` / `nbActifs(sel)` / `proteineAffichee(r)`
+
 ### js/livres-ui.js
 Livres de recettes sur la page recettes.
 - `chargerLivres()` / `getLivres()` / `getLivreActif()` / `nomLivre(id)`
@@ -224,7 +231,7 @@ Préférences par profil, cache mémoire (une requête par page).
 ### js/recettes.js
 CRUD bibliothèque de recettes.
 - `getRecettes(filtres)` / `getRecetteById(id)` / `getRecettesByIds(ids)` — lecture
-- `filtrerRecettes(r, filtres)` — végé, rapide, recherche, livre
+- `filtrerRecettes(r, filtres)` — périmètre : recherche, livre
 - `addRecette(recette)` / `deleteRecette(id)` — écriture
 
 ### js/planning.js
@@ -272,7 +279,8 @@ Rendu et interactions de la page préférences (cartes + vue liste).
 
 ### js/recettes-ui.js
 Rendu et interactions de la bibliothèque de recettes.
-- `renderList()` — livres + cartes recettes filtrées (livre actif, étiquette du livre)
+- `renderList()` — livres + filtres déduits + cartes recettes filtrées (livre actif, étiquette du livre)
+- `renderFiltres(nb, nbScope)` — panneau « Filtres » (groupes, compteurs) + rappel des filtres actifs
 - `ouvrirDetail(id)` — affiche la modale de détail d'une recette (boutons Modifier, Dupliquer, Supprimer)
 - `ouvrirFormEdit(recette)` — ouvre la modale d'édition/duplication pré-remplie (choix du livre)
 - Temps réel sur `recettes`
@@ -298,6 +306,9 @@ Rendu et interactions de la liste de courses.
 
 ### tests/utils.test.mjs
 Tests unitaires de js/utils.js — `node --test tests/*.test.mjs`.
+
+### tests/filtres-recettes.test.mjs
+Tests de js/filtres-recettes.js : existence des filtres, compteurs, ET/OU, sélection.
 
 ### tests/credit-ia.test.mjs
 Tests de js/credit-ia.js : coûts, période, estimation, recalage, codes d'erreur, réponse tronquée.

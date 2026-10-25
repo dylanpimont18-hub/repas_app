@@ -39,7 +39,7 @@ Système de cartes pour noter chaque ingrédient par profil.
 
 ### 3. Bibliothèque de recettes (`recettes.html`)
 Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
-- Filtres : Végétarien, Rapide
+- Filtres déduits des recettes affichées (régime, temps, protéine, cuisine, style, pratique) : un filtre n'apparaît que si au moins une recette le porte
 - Livres de recettes (ex. « Air fryer ») : une règle par livre guide la génération IA ; leurs recettes restent proposées dans le planning
 - Vue liste + modale détail + modale édition complète
 - Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients, étapes

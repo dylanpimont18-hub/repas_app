@@ -932,3 +932,24 @@
 .livre-nombres { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .livre-portions { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-text-muted); }
 .livre-portions .form-input { width: 4.5rem; }
+
+/* ── Filtres de la bibliothèque (déduits des recettes) ── */
+#btnFiltres .ic { width: 15px; height: 15px; }
+.filtres-nb {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--color-on-primary); color: var(--color-primary); font-size: 0.72rem; font-weight: 700;
+}
+.filtres-panel {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  padding: 0.75rem; margin-bottom: 0.9rem;
+}
+.filtres-groupe + .filtres-groupe { margin-top: 0.7rem; }
+.filtres-groupe-titre { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; }
+.filtres-groupe-titre .text-muted { font-weight: 400; }
+.filtre-compte { font-size: 0.72rem; opacity: 0.7; }
+.filtres-panel .chip { min-height: 36px; }
+.filtres-pied { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--color-border-light); }
+.filtres-actifs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.9rem; }
+.filtres-actifs:empty { display: none; }
+.filtres-panel:not(.hidden) + .filtres-actifs { display: none; }
+.filtre-actif .ic { width: 12px; height: 12px; }

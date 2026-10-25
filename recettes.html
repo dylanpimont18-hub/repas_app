@@ -41,10 +41,7 @@
   <main class="main">
     <div class="section-header">
       <h1 class="page-title">Recettes</h1>
-      <div class="flex gap-sm">
-        <button class="chip" id="filtreVeg"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-feuille"/></svg>Végé</button>
-        <button class="chip" id="filtreRapide"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-horloge"/></svg>Rapide</button>
-      </div>
+      <button class="chip" id="btnFiltres" aria-expanded="false" aria-controls="filtresPanel"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-reglages"/></svg>Filtres<span id="filtresNb" class="filtres-nb hidden"></span></button>
     </div>
     <div style="margin-bottom:1rem;position:relative;">
       <input type="search" id="rechercheRecette" class="form-input"
@@ -53,6 +50,8 @@
     </div>
     <div id="livresBar" class="livres-bar" role="group" aria-label="Livres de recettes"></div>
     <div id="livreEntete"></div>
+    <div id="filtresPanel" class="filtres-panel hidden"></div>
+    <div id="filtresActifs" class="filtres-actifs"></div>
     <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
     <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>
 

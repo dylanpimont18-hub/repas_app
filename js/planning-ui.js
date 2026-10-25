@@ -8,6 +8,7 @@ import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
 import { expliquerErreur } from './credit-ia.js'
+import { photosEnAttente } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 
 let samedi  = debutCycle()
@@ -274,7 +275,7 @@ async function lancerGenerationIA(creneaux, sel) {
 }
 
 window.addEventListener('beforeunload', (e) => {
-  if (iaEnCours) { e.preventDefault(); e.returnValue = '' }
+  if (iaEnCours || photosEnAttente()) { e.preventDefault(); e.returnValue = '' }
 })
 
 // ── Remplir le cycle ─────────────────────────────────────────────────

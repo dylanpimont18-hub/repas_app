@@ -6,6 +6,7 @@ import { getAllIngredients } from './custom-ingredients.js'
 import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
 import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
 import { genererPourCreneaux, genererUneRecette } from './ai.js'
+import { apresCreation } from './photos-auto.js'
 
 const CLE_FILTRES = 'repas_filtres_cycle'
 
@@ -83,7 +84,11 @@ export async function completerParIA(d, creneaux, { filtres = [], style = '', en
   }
   const cles = creneaux.map(c => c.cle)
   const { resultats, rejets, erreurs } = await genererPourCreneaux({ creneaux, filtres, style, ...contexteIA(d, cles) }, onProgress,
-    async (lot) => { await importerRecettesIA(lot); await onLot?.(lot) })
+    async (lot) => {
+      const ids = await importerRecettesIA(lot)
+      apresCreation(lot.map((x, i) => ({ ...x.recette, id: ids[i] }))) // photos auto si le réglage est activé
+      await onLot?.(lot)
+    })
   return { nbCrees: resultats.length, nbDemandes: creneaux.length, rejets, erreurs }
 }
 
@@ -91,6 +96,7 @@ export async function completerParIA(d, creneaux, { filtres = [], style = '', en
 export async function ideeIA(d, creneau, options = {}) {
   const recette = await genererUneRecette({ creneau, ...options, ...contexteIA(d, [creneau.cle]) })
   const id = await addRecette(recette)
+  apresCreation([{ ...recette, id }])
   return { ...recette, id }
 }
 

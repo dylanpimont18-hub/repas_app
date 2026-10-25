@@ -25,7 +25,7 @@ Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ;
 Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle, bouton 🖨 Imprimer (mise en page @media print dans components.css).
 
 ### reglages.html
-Réglages partagés : crédit IA (jauge, budget, recalage, derniers appels), modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
+Réglages partagés : photos (automatiques, manquantes), crédit IA (jauge, budget, recalage, derniers appels), modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
 
 ---
 
@@ -161,6 +161,7 @@ Modale « ⚡ Envie ce soir ».
 
 ### js/reglages-ui.js
 Page réglages : crédit IA, éditeur du modèle de semaine, réserve congélo, conversion IA des anciennes recettes par lots de 5.
+- `renderPhotos()` / `photosManquantes()` — interrupteur « Photos automatiques », photos manquantes de toute la bibliothèque
 - `renderCredit()` — jauge, crédit mensuel, jour de recharge, recalage, 15 derniers appels (erreurs expliquées au toucher)
 
 ### js/credit-ia.js
@@ -188,6 +189,12 @@ Filtres de la bibliothèque déduits des recettes affichées (pur, testé) : un 
 - `filtresDisponibles(recettes)` — groupes non vides avec compteurs
 - `appliquerFiltres(recettes, selection)` — ET entre groupes, OU dans un groupe
 - `nettoyerSelection(sel, dispo)` / `basculer(sel, groupe, valeur, unique)` / `nbActifs(sel)` / `proteineAffichee(r)`
+
+### js/photos-auto.js
+Photos automatiques des nouvelles recettes IA (réglage partagé `photos_auto`).
+- `photosAutoActives()` / `setPhotosAuto(v)` / `invaliderPhotosAuto()`
+- `apresCreation(recettes)` — met en file les photos si activé (appelé par completerParIA et ideeIA)
+- `photosEnAttente()` / `ERREURS_BLOQUANTES`
 
 ### js/planifier-recette.js
 Depuis une recette : la placer sur un repas précis.

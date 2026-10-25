@@ -2,12 +2,13 @@
 import { getModele, setModele } from './planning.js'
 import { MODELE_DEFAUT, normaliserModele } from './cycle.js'
 import { getRecettes } from './recettes.js'
-import { convertirRecettes } from './ai.js'
-import { dbGetReserve, dbDeleteReserve, dbUpsertRecettes, dbEcouter } from './db.js'
+import { convertirRecettes, genererImageRecette } from './ai.js'
+import { dbGetReserve, dbDeleteReserve, dbUpsertRecettes, dbEcouter, dbSetImageRecette } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
-import { expliquerErreur, formatDollars } from './credit-ia.js'
+import { expliquerErreur, formatDollars, coutImage } from './credit-ia.js'
 import { chargerCredit, setBudget, htmlJauge, htmlErreurIA } from './credit-ia-ui.js'
+import { photosAutoActives, setPhotosAuto, invaliderPhotosAuto, ERREURS_BLOQUANTES } from './photos-auto.js'
 
 const JOURS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
 const LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu', vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -115,6 +116,51 @@ async function enregistrerBudget(changement, message) {
   } catch (e) { status.textContent = e.message }
 }
 
+// ── Photos : réglage automatique + photos manquantes de toute la bibliothèque ──
+let photosEnCours = false
+
+async function renderPhotos() {
+  document.getElementById('photoCout').textContent = formatDollars(coutImage().cout)
+  document.getElementById('photosAuto').checked = await photosAutoActives()
+  const sans = (await getRecettes()).filter(r => !r.image_url)
+  const btn = document.getElementById('btnPhotosManquantes')
+  if (!photosEnCours) {
+    btn.innerHTML = sans.length
+      ? `${icone('etincelle')}Photos manquantes (${sans.length}) · ≈ ${formatDollars(coutImage().cout * sans.length)}`
+      : `${icone('check')}Toutes les recettes ont une photo`
+    btn.disabled = sans.length === 0
+  }
+  return sans
+}
+
+async function photosManquantes() {
+  const sans = await renderPhotos()
+  if (!sans.length || photosEnCours) return
+  if (!confirm(`Créer ${sans.length} photo(s) pour ≈ ${formatDollars(coutImage().cout * sans.length)} ? Reste sur cette page pendant la création.`)) return
+  const btn = document.getElementById('btnPhotosManquantes')
+  const status = document.getElementById('photosStatus')
+  const zoneErreur = document.getElementById('photosErreur')
+  photosEnCours = true
+  btn.disabled = true
+  zoneErreur.innerHTML = ''
+  let faites = 0, echecs = 0
+  for (const r of sans) {
+    btn.innerHTML = `<span class="loader loader-mini"></span>Photo ${faites + echecs + 1} / ${sans.length}…`
+    try {
+      await dbSetImageRecette(r.id, await genererImageRecette(r))
+      faites++
+    } catch (e) {
+      echecs++
+      const info = e.info || expliquerErreur('INCONNUE', e.message)
+      zoneErreur.innerHTML = htmlErreurIA(info)
+      if (ERREURS_BLOQUANTES.includes(info.code)) break
+    }
+  }
+  status.textContent = `${faites} photo(s) créée(s)` + (echecs ? ` · ${echecs} en échec` : '') + (faites + echecs < sans.length ? ' · arrêté' : '')
+  photosEnCours = false
+  await renderPhotos()
+}
+
 async function majBoutonConversion() {
   const anciennes = (await getRecettes()).filter(r => !r.composants)
   const btn = document.getElementById('btnConvertir')
@@ -127,7 +173,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderModele(await getModele())
   document.getElementById('creditJour').innerHTML = Array.from({ length: 28 }, (_, i) =>
     `<option value="${i + 1}">le ${i + 1}${i === 0 ? 'er' : ''} du mois</option>`).join('')
-  await Promise.all([renderReserve(), majBoutonConversion(), renderCredit()])
+  await Promise.all([renderReserve(), majBoutonConversion(), renderCredit(), renderPhotos()])
+
+  document.getElementById('photosAuto').addEventListener('change', async (e) => {
+    const status = document.getElementById('photosStatus')
+    try {
+      await setPhotosAuto(e.target.checked)
+      status.textContent = e.target.checked ? 'Photos automatiques activées.' : 'Photos automatiques désactivées.'
+    } catch (err) {
+      e.target.checked = !e.target.checked
+      status.textContent = err.message
+    }
+  })
+  document.getElementById('btnPhotosManquantes').addEventListener('click', photosManquantes)
+  window.addEventListener('beforeunload', (e) => { if (photosEnCours) { e.preventDefault(); e.returnValue = '' } })
 
   document.getElementById('creditMontant').addEventListener('change', (e) =>
     enregistrerBudget({ montant: Number(e.target.value) }, 'Crédit mensuel enregistré.'))
@@ -173,5 +232,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   dbEcouter(['reserve'], debounce(renderReserve, 300))
   dbEcouter(['ia_usage'], debounce(renderCredit, 500))
-  dbEcouter(['reglages'], debounce(async () => renderModele(await getModele()), 300))
+  dbEcouter(['reglages'], debounce(async () => { renderModele(await getModele()); invaliderPhotosAuto(); await renderPhotos() }, 300))
+  dbEcouter(['recettes'], debounce(renderPhotos, 500))
 })

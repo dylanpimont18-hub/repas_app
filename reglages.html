@@ -79,6 +79,18 @@
       <div id="creditHistorique"></div>
     </section>
 
+    <section class="card" id="photos" style="margin-bottom:1.25rem;">
+      <h2 class="section-title" style="margin-bottom:0.3rem;">Photos des recettes</h2>
+      <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Photos créées par l'IA (≈ <span id="photoCout"></span> la photo, comptées dans le crédit IA). Réglage partagé entre vos deux téléphones.</p>
+      <label class="reglage-interrupteur">
+        <input type="checkbox" id="photosAuto" role="switch">
+        <span><b>Photos automatiques</b><br><span class="text-xs text-muted">Chaque nouvelle recette créée par l'IA (planning, Envie, livres) reçoit sa photo. Reste sur la page le temps qu'elles se terminent.</span></span>
+      </label>
+      <button class="btn btn-secondary btn-sm" id="btnPhotosManquantes" style="margin-top:0.75rem;"></button>
+      <p class="text-xs text-muted" id="photosStatus" style="margin-top:0.4rem;"></p>
+      <div id="photosErreur"></div>
+    </section>
+
     <section class="card" id="reserve" style="margin-bottom:1.25rem;">
       <h2 class="section-title" style="margin-bottom:0.3rem;">Réserve congélo</h2>
       <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Plats mis de côté. Ils sont proposés en priorité quand tu remplis le planning.</p>

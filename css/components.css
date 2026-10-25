@@ -1022,3 +1022,17 @@
 .planif-ok { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.8rem; margin-bottom: 0.9rem; border-radius: var(--radius-md); background: var(--color-accent-soft); font-size: 0.9rem; }
 .planif-ok .ic { width: 20px; height: 20px; color: var(--color-accent); flex-shrink: 0; }
 .select-recherche { margin-bottom: 0.6rem; }
+
+/* ── Réglages : interrupteur ── */
+.reglage-interrupteur { display: flex; align-items: flex-start; gap: 0.7rem; cursor: pointer; font-size: 0.9rem; line-height: 1.35; }
+.reglage-interrupteur input {
+  -webkit-appearance: none; appearance: none; flex-shrink: 0; position: relative; cursor: pointer;
+  width: 46px; height: 28px; border-radius: 999px; background: var(--color-border); transition: background 0.2s; margin: 0;
+}
+.reglage-interrupteur input::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--color-surface); box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s;
+}
+.reglage-interrupteur input:checked { background: var(--color-accent); }
+.reglage-interrupteur input:checked::after { transform: translateX(18px); }
+.reglage-interrupteur input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

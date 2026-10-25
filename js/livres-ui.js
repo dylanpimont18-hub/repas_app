@@ -3,6 +3,7 @@ import { dbGetLivres, dbUpsertLivre, dbDeleteLivre, dbUpsertRecettes, dbSetImage
 import { genererPourLivre, genererImageRecette } from './ai.js'
 import { FILTRES } from './filtres.js'
 import { expliquerErreur, coutImage, formatDollars } from './credit-ia.js'
+import { photosAutoActives, ERREURS_BLOQUANTES } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { esc } from './utils.js'
 import { icone } from './icones.js'
@@ -109,6 +110,7 @@ function ouvrirGenLivre() {
     `<button type="button" class="chip" data-filtre="${f.id}">${f.label}</button>`).join('')
   document.getElementById('genLivreIdee').value = ''
   document.getElementById('genLivreStatus').textContent = ''
+  photosAutoActives().then(a => { document.getElementById('genLivrePhotos').checked = a }) // réglage « photos automatiques »
   majEstimation()
   chargerCredit().then(c => { credit = c; majEstimation() })
   document.getElementById('modalGenLivre').classList.remove('hidden')
@@ -127,7 +129,7 @@ async function genererPhotos(recettes, bandeau, prefixe) {
     } catch (e) {
       erreurs.push(e.info || expliquerErreur('INCONNUE', e.message))
       // Crédit épuisé, clé refusée… : inutile d'insister pour les suivantes
-      if (['CREDIT_EPUISE', 'CLE_INVALIDE', 'CLE_MANQUANTE', 'SESSION', 'FOYER'].includes(erreurs.at(-1).code)) break
+      if (ERREURS_BLOQUANTES.includes(erreurs.at(-1).code)) break
     }
   }
   return { faites, erreurs }

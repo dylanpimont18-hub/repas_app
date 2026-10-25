@@ -2,6 +2,9 @@
 import { debutCycle, creneauCourant, labelCreneau, dateIso, ajouterJours } from './cycle.js'
 import { FILTRES } from './filtres.js'
 import { chargerDonnees, proposerPourCreneau, ideeIA, placer } from './propositions.js'
+import { recettesAvecIngredients } from './selection.js'
+import { expliquerErreur } from './credit-ia.js'
+import { htmlErreurIA } from './credit-ia-ui.js'
 import { esc } from './utils.js'
 import { icone } from './icones.js'
 
@@ -14,8 +17,9 @@ export async function renderModalEnvie(content, fermer) {
   let cible   = creneauCourant(d.creneaux, maintenant)
   let filtres = []
   let style   = ''
+  let ingredients = ''   // « Avec ce que j'ai » : restes, fond de frigo
   let ideeGeneree = null
-  let erreur  = null
+  let erreur  = null     // info d'erreur expliquée (ou texte)
   let attente = false
 
   // Créneaux du jour et du lendemain (cibles possibles)
@@ -26,8 +30,10 @@ export async function renderModalEnvie(content, fermer) {
 
   function draw() {
     style = content.querySelector('#envieStyle')?.value ?? style
+    ingredients = content.querySelector('#envieIngredients')?.value ?? ingredients
     const occ = d.occupation[cible.cle]
     const propositions = proposerPourCreneau(d, cible, { filtres, style }, 3)
+    const avecMesIngredients = ingredients.trim() ? recettesAvecIngredients(d.recettes, ingredients, 3) : []
     content.innerHTML = `
       <p class="modal-title">Envie pour ${esc(labelCreneau(cible).toLowerCase())}</p>
       <div class="gen-chips-wrap" style="margin-bottom:0.6rem;">
@@ -40,13 +46,23 @@ export async function renderModalEnvie(content, fermer) {
       </div>
       <input id="envieStyle" class="form-input" style="margin-bottom:0.75rem;" type="text" value="${esc(style)}"
         placeholder="Style libre : asiatique, ramen…" aria-label="Style libre">
-      ${erreur ? `<p class="text-sm" style="color:#c0392b;margin-bottom:0.5rem;">${esc(erreur)}</p>` : ''}
+      ${erreur ? (erreur.titre ? htmlErreurIA(erreur) : `<p class="text-sm" style="color:var(--color-danger);margin-bottom:0.5rem;">${esc(erreur)}</p>`) : ''}
       <div class="text-xs text-muted" style="margin-bottom:0.4rem;">Dans tes recettes :</div>
       ${propositions.length ? propositions.map(r => carte(r, 'biblio')).join('')
         : '<p class="text-sm text-muted" style="margin-bottom:0.5rem;">Aucune de tes recettes ne correspond. Essaie une idée de l’IA.</p>'}
       ${ideeGeneree ? `<div class="text-xs text-muted" style="margin:0.6rem 0 0.4rem;">Idée de l'IA :</div>${carte(ideeGeneree, 'ia')}` : ''}
       ${attente ? '<div class="flex-center" style="padding:1rem;"><span class="loader"></span></div>'
         : `<button class="btn btn-ghost btn-full" id="envieIA" style="margin-top:0.4rem;">${icone('etincelle')}Autre idée par l'IA</button>`}
+
+      <section class="envie-restes">
+        <label class="envie-restes-titre" for="envieIngredients">${icone('boite')}Avec ce que j'ai</label>
+        <textarea id="envieIngredients" class="form-input" rows="2"
+          placeholder="Restes de bœuf bourguignon, 2 carottes, riz…">${esc(ingredients)}</textarea>
+        ${avecMesIngredients.length ? `<div class="text-xs text-muted" style="margin:0.5rem 0 0.4rem;">Tes recettes avec ces ingrédients :</div>
+          ${avecMesIngredients.map(r => carte(r, 'biblio')).join('')}` : ''}
+        ${attente ? '' : `<button class="btn btn-secondary btn-full" id="envieRestes" style="margin-top:0.5rem;" ${ingredients.trim() ? '' : 'disabled'}>
+          ${icone('etincelle')}Une recette avec ces ingrédients</button>`}
+      </section>
     `
     content.querySelectorAll('[data-cible]').forEach(b => b.addEventListener('click', () => {
       cible = d.parCle[b.dataset.cible]; ideeGeneree = null; draw()
@@ -59,15 +75,25 @@ export async function renderModalEnvie(content, fermer) {
     content.querySelector('#envieStyle')?.addEventListener('change', draw)
     content.querySelectorAll('[data-recette]').forEach(b => b.addEventListener('click', () =>
       choisir(b.dataset.recette, b.dataset.source)))
-    content.querySelector('#envieIA')?.addEventListener('click', async () => {
+    // Recettes de la bibliothèque correspondantes au fil de la saisie ; le bouton s'active dès qu'il y a du texte
+    content.querySelector('#envieIngredients')?.addEventListener('change', draw)
+    content.querySelector('#envieIngredients')?.addEventListener('input', e => {
+      const b = content.querySelector('#envieRestes')
+      if (b) b.disabled = !e.target.value.trim()
+    })
+    const demanderIA = async (options) => {
       style = content.querySelector('#envieStyle')?.value.trim() ?? style
+      ingredients = content.querySelector('#envieIngredients')?.value.trim() ?? ingredients
       attente = true; erreur = null; draw()
       try {
-        ideeGeneree = await ideeIA(d, cible, { filtres, style, envie: true })
+        ideeGeneree = await ideeIA(d, cible, { filtres, style, envie: true, ...options() })
         d.recettesMap[ideeGeneree.id] = ideeGeneree
-      } catch (e) { erreur = e.message }
+      } catch (e) { erreur = e.info || expliquerErreur('INCONNUE', e.message) }
       attente = false; draw()
-    })
+      content.querySelector('.envie-card[data-source="ia"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    content.querySelector('#envieIA')?.addEventListener('click', () => demanderIA(() => ({})))
+    content.querySelector('#envieRestes')?.addEventListener('click', () => demanderIA(() => ({ avecIngredients: ingredients })))
   }
 
   function carte(r, source) {

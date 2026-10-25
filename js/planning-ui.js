@@ -1,7 +1,7 @@
 // js/planning-ui.js — Planning par cycle (samedi soir → samedi midi), groupé par session de cuisine
 import { enregistrerCreneaux, viderCreneaux, supprimerCreneaux } from './planning.js'
 import { debutCycle, decalerCycle, labelCycle, groupesDuCycle, labelCreneau } from './cycle.js'
-import { FILTRES, estEnvie } from './filtres.js'
+import { FILTRES, estEnvie, normaliser } from './filtres.js'
 import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
          remplirDepuisBibliotheque, completerParIA, ideeIA, echanger } from './propositions.js'
 import { dbEcouter } from './db.js'
@@ -181,8 +181,10 @@ async function ouvrirSelectRecette() {
   const compatibles = proposerPourCreneau(donnees, creneauEnCours, { filtres, style }, 50)
   const idsCompat = new Set(compatibles.map(r => r.id))
   const autres = donnees.recettes.filter(r => !idsCompat.has(r.id)).sort((a, b) => a.nom.localeCompare(b.nom))
+  // Texte cherché : nom + cuisine + ingrédients (sans accents)
+  const texte = x => normaliser([x.nom, x.cuisine, ...(x.ingredients || []).map(i => i.nom)].filter(Boolean).join(' '))
   const carte = (x, compat) => `
-    <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;${compat ? '' : 'opacity:0.6;'}" data-id="${esc(x.id)}">
+    <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;${compat ? '' : 'opacity:0.6;'}" data-id="${esc(x.id)}" data-texte="${esc(texte(x))}">
       <div class="recipe-name">${esc(x.nom)}</div>
       <div class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
     </div>`
@@ -200,10 +202,13 @@ async function ouvrirSelectRecette() {
         : `<button class="btn btn-secondary btn-sm select-vider" data-gerer="supprimer-jour">${icone('calendrier')}Supprimer la journée</button>`) : ''}
     </div>
     <p class="text-xs text-muted select-gestion-aide">« Pas de repas » : le repas reste vide, n'est plus proposé au remplissage et sort des courses.</p>`
+    + (donnees.recettes.length ? `<input type="search" class="form-input select-recherche" id="selectRecherche" autocomplete="off"
+        placeholder="Chercher une recette précise (nom, ingrédient)…" aria-label="Chercher une recette">` : '')
     + `<p class="text-xs text-muted" style="margin-bottom:0.5rem;">${esc(labelCreneau(creneauEnCours))} · les mieux adaptées d'abord</p>`
     + (donnees.recettes.length === 0 ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette pour l\'instant.</p>' : '')
-    + compatibles.map(x => carte(x, true)).join('')
-    + (autres.length ? `<p class="text-xs text-muted" style="margin:0.75rem 0 0.5rem;">Autres recettes (hors critères)</p>` + autres.map(x => carte(x, false)).join('') : '')
+    + `<div data-section>${compatibles.map(x => carte(x, true)).join('')}</div>`
+    + (autres.length ? `<div data-section><p class="text-xs text-muted" style="margin:0.75rem 0 0.5rem;">Autres recettes (hors critères)</p>${autres.map(x => carte(x, false)).join('')}</div>` : '')
+    + '<p class="text-sm text-muted hidden" data-aucune>Aucune recette ne correspond.</p>'
 
   list.querySelectorAll('[data-gerer]').forEach(b => b.addEventListener('click', async () => {
     const action = b.dataset.gerer
@@ -224,6 +229,18 @@ async function ouvrirSelectRecette() {
       modal.classList.add('hidden')
       await renderGrid()
     })
+  })
+  // Recherche : chaque mot tapé doit apparaître (nom, cuisine ou ingrédient)
+  list.querySelector('#selectRecherche')?.addEventListener('input', e => {
+    const mots = normaliser(e.target.value).split(' ').filter(Boolean)
+    let visibles = 0
+    list.querySelectorAll('[data-id]').forEach(card => {
+      const ok = mots.every(m => card.dataset.texte.includes(m))
+      card.classList.toggle('hidden', !ok)
+      visibles += ok
+    })
+    list.querySelectorAll('[data-section]').forEach(s => s.classList.toggle('hidden', !s.querySelector('[data-id]:not(.hidden)')))
+    list.querySelector('[data-aucune]').classList.toggle('hidden', visibles > 0)
   })
   modal.classList.remove('hidden')
 }

@@ -1,8 +1,8 @@
 // js/livres-ui.js — Livres de recettes : barre de livres, création / édition, génération IA d'un livre
-import { dbGetLivres, dbUpsertLivre, dbDeleteLivre, dbUpsertRecettes } from './db.js'
-import { genererPourLivre } from './ai.js'
+import { dbGetLivres, dbUpsertLivre, dbDeleteLivre, dbUpsertRecettes, dbSetImageRecette } from './db.js'
+import { genererPourLivre, genererImageRecette } from './ai.js'
 import { FILTRES } from './filtres.js'
-import { expliquerErreur } from './credit-ia.js'
+import { expliquerErreur, coutImage, formatDollars } from './credit-ia.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { esc } from './utils.js'
 import { icone } from './icones.js'
@@ -14,6 +14,7 @@ let livreActif = null      // id du livre affiché, null = toutes les recettes
 let iaEnCours = false
 let onChange = () => {}    // rappel de la page (re-rendu de la liste)
 let getNoms = () => []     // noms des recettes existantes (à ne pas reproposer)
+let sansPhoto = []         // recettes du livre affiché sans photo
 
 export const getLivres = () => livres
 export const getLivreActif = () => livreActif
@@ -34,11 +35,14 @@ export function renderLivres(recettes) {
     + `<button class="chip chip-nouveau" data-nouveau-livre>${icone('plus')}Livre</button>`
 
   const livre = livres.find(l => l.id === livreActif)
+  sansPhoto = livre ? recettes.filter(r => r.livre_id === livre.id && !r.image_url) : []
   document.getElementById('livreEntete').innerHTML = livre ? `<section class="card livre-entete">
       <div class="livre-entete-titre">${icone('livre')}<h2>${esc(livre.nom)}</h2></div>
       ${livre.consigne ? `<p class="text-sm text-muted">${esc(livre.consigne)}</p>` : ''}
       <div class="livre-entete-actions">
         <button class="btn btn-accent btn-sm" data-gen-livre ${iaEnCours ? 'disabled' : ''}>${icone('etincelle')}${iaEnCours ? 'Génération en cours…' : 'Générer des recettes'}</button>
+        ${sansPhoto.length ? `<button class="btn btn-ghost btn-sm" data-photos-livre ${iaEnCours ? 'disabled' : ''}
+          title="≈ ${formatDollars(coutImage().cout * sansPhoto.length)}">${icone('etincelle')}Photos manquantes (${sansPhoto.length})</button>` : ''}
         <button class="btn btn-ghost btn-sm" data-edit-livre>${icone('crayon')}Modifier</button>
         <button class="btn btn-ghost btn-sm livre-supprimer" data-suppr-livre>${icone('poubelle')}Supprimer</button>
       </div>
@@ -85,6 +89,7 @@ let credit = null
 
 function majEstimation() {
   document.getElementById('genLivreNb').textContent = nbGen
+  document.getElementById('genLivrePhotosCout').textContent = `(≈ ${formatDollars(coutImage().cout * nbGen)} en plus)`
   document.querySelector('[data-nb="-1"]').disabled = nbGen <= 1
   document.querySelector('[data-nb="1"]').disabled = nbGen >= NB_MAX
   document.querySelectorAll('[data-nb-fixe]').forEach(b => {
@@ -109,9 +114,53 @@ function ouvrirGenLivre() {
   document.getElementById('modalGenLivre').classList.remove('hidden')
 }
 
+// Photos une par une (le bandeau suit) ; renvoie les erreurs expliquées
+async function genererPhotos(recettes, bandeau, prefixe) {
+  const erreurs = []
+  let faites = 0
+  for (const r of recettes) {
+    bandeau({ etat: 'encours', texte: `${prefixe} : photo ${faites + 1} / ${recettes.length}`, pct: Math.max(3, faites / recettes.length * 95) })
+    try {
+      await dbSetImageRecette(r.id, await genererImageRecette(r))
+      faites++
+      await onChange()
+    } catch (e) {
+      erreurs.push(e.info || expliquerErreur('INCONNUE', e.message))
+      // Crédit épuisé, clé refusée… : inutile d'insister pour les suivantes
+      if (['CREDIT_EPUISE', 'CLE_INVALIDE', 'CLE_MANQUANTE', 'SESSION', 'FOYER'].includes(erreurs.at(-1).code)) break
+    }
+  }
+  return { faites, erreurs }
+}
+
+const htmlErreursUniques = (erreurs) => {
+  const codes = new Set()
+  return erreurs.filter(e => !codes.has(e.code) && codes.add(e.code)).map(e => htmlErreurIA(e)).join('')
+}
+
+async function photosManquantes() {
+  const livre = livres.find(l => l.id === livreActif)
+  if (!livre || iaEnCours || !sansPhoto.length) return
+  const cibles = [...sansPhoto]
+  const bandeau = etat => majBandeau(document.getElementById('bandeauIA'), etat)
+  iaEnCours = true
+  await onChange()
+  try {
+    const { faites, erreurs } = await genererPhotos(cibles, bandeau, `« ${livre.nom} »`)
+    bandeau({ etat: faites === cibles.length ? 'fini' : faites ? 'partiel' : 'erreur',
+      texte: `${faites} photo(s) ajoutée(s)` + (faites < cibles.length ? ` · ${cibles.length - faites} manquante(s)` : ''),
+      detail: htmlErreursUniques(erreurs) })
+    if (faites === cibles.length) setTimeout(() => document.getElementById('bandeauIA').classList.add('hidden'), 6000)
+  } finally {
+    iaEnCours = false
+    await onChange()
+  }
+}
+
 async function lancerGeneration() {
   const livre = livres.find(l => l.id === livreActif)
   if (!livre || iaEnCours) return
+  const avecPhotos = document.getElementById('genLivrePhotos').checked
   const filtres  = [...document.querySelectorAll('#genLivreFiltres .chip.active')].map(c => c.dataset.filtre)
   const style    = document.getElementById('genLivreIdee').value.trim()
   const portions = Math.min(12, Math.max(1, parseInt(document.getElementById('genLivrePortions').value, 10) || 4))
@@ -123,16 +172,24 @@ async function lancerGeneration() {
   await onChange()
   bandeau({ etat: 'encours', texte: `L'IA écrit ${total} recette(s) pour « ${livre.nom} »…`, pct: 3 })
   try {
+    const creees = [] // { id, ...recette } pour les photos
     const { resultats, rejets, erreurs } = await genererPourLivre(
       { livre, nb: total, portions, filtres, style, nomsExistants: getNoms() },
       n => bandeau({ etat: 'encours', texte: `« ${livre.nom} » : ${n} / ${total} recette(s)`, pct: Math.max(3, n / total * 95) }),
-      async lot => { await dbUpsertRecettes(lot.map(x => ({ ...x.recette, livre_id: livre.id }))); await onChange() })
+      async lot => {
+        const recettes = lot.map(x => ({ ...x.recette, livre_id: livre.id }))
+        const ids = await dbUpsertRecettes(recettes)
+        creees.push(...recettes.map((r, i) => ({ ...r, id: ids[i] })))
+        await onChange()
+      })
+    // Photos après les recettes (elles sont déjà enregistrées : une photo ratée ne fait rien perdre)
+    const photos = avecPhotos && creees.length ? await genererPhotos(creees, bandeau, `« ${livre.nom} »`) : null
     const manquantes = total - resultats.length
-    const codes = new Set()
     const detail = (rejets.length ? `<p class="text-xs">Écartées (contraintes ou en double) : ${esc(rejets.join(', '))}</p>` : '')
-      + erreurs.filter(e => !codes.has(e.code) && codes.add(e.code)).map(e => htmlErreurIA(e)).join('')
-    bandeau({ etat: manquantes ? 'partiel' : 'fini',
-      texte: `${resultats.length} recette(s) ajoutée(s) à « ${livre.nom} »` + (manquantes ? ` · ${manquantes} manquante(s)` : ''), detail })
+      + htmlErreursUniques([...erreurs, ...(photos?.erreurs || [])])
+    bandeau({ etat: manquantes || (photos && photos.faites < creees.length) ? 'partiel' : 'fini',
+      texte: `${resultats.length} recette(s) ajoutée(s) à « ${livre.nom} »` + (manquantes ? ` · ${manquantes} manquante(s)` : '')
+        + (photos ? ` · ${photos.faites} photo(s)` : ''), detail })
     if (!manquantes && !detail) setTimeout(() => document.getElementById('bandeauIA').classList.add('hidden'), 6000)
   } catch (e) {
     bandeau({ etat: 'erreur', texte: 'Aucune recette créée', detail: htmlErreurIA(e.info || expliquerErreur('INCONNUE', e.message)) })
@@ -158,6 +215,7 @@ export function initLivres({ rafraichir, nomsRecettes }) {
   })
   document.getElementById('livreEntete').addEventListener('click', e => {
     if (e.target.closest('[data-gen-livre]')) return ouvrirGenLivre()
+    if (e.target.closest('[data-photos-livre]')) return photosManquantes()
     if (e.target.closest('[data-edit-livre]')) return ouvrirFormLivre(livres.find(l => l.id === livreActif))
     if (e.target.closest('[data-suppr-livre]')) return supprimerLivre()
   })

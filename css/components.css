@@ -953,3 +953,72 @@
 .filtres-actifs:empty { display: none; }
 .filtres-panel:not(.hidden) + .filtres-actifs { display: none; }
 .filtre-actif .ic { width: 12px; height: 12px; }
+
+/* ── Photos des recettes ── */
+.recipe-card-photo { padding-top: 0; overflow: hidden; }
+.recipe-photo {
+  display: block; width: calc(100% + 2 * var(--carte-pad, 1rem)); max-width: none; aspect-ratio: 16 / 10; object-fit: cover;
+  margin: 0 calc(-1 * var(--carte-pad, 1rem)) 0.6rem; background: var(--color-border-light);
+}
+.detail-photo:empty { display: none; }
+.detail-photo { margin: -0.25rem 0 1rem; border-radius: var(--radius-md); overflow: hidden; background: var(--color-border-light); }
+.detail-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.detail-photo-attente { display: block; min-height: 180px; animation: photo-attente 1.2s ease-in-out infinite alternate; }
+.detail-photo-attente img { opacity: 0.5; }
+@keyframes photo-attente { from { opacity: 0.55; } to { opacity: 1; } }
+.livre-photos { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.85rem; cursor: pointer; min-height: 44px; }
+.livre-photos input { width: 18px; height: 18px; margin-top: 0.1rem; flex-shrink: 0; }
+
+/* ── Impression d'une recette seule ── */
+#impressionRecette { display: none; }
+@media print {
+  body.impression-recette > *:not(#impressionRecette) { display: none !important; }
+  body.impression-recette #impressionRecette { display: block; }
+  .fiche { font-family: Georgia, serif; color: #000; font-size: 11pt; line-height: 1.45; }
+  .fiche-tete { display: block; margin-bottom: 6mm; padding-bottom: 4mm; border-bottom: 1.5pt solid #000; }
+  .fiche-tete-photo { display: grid; grid-template-columns: 70mm 1fr; gap: 7mm; align-items: start; }
+  .fiche-photo { width: 70mm; height: 52mm; object-fit: cover; border-radius: 2mm; }
+  .fiche-titre { font-size: 22pt; line-height: 1.15; margin: 0 0 2mm; }
+  .fiche-cuisine { font-style: italic; color: #444; margin: 0 0 2mm; }
+  .fiche-infos { font-family: system-ui, sans-serif; font-size: 10pt; font-weight: 600; margin: 0 0 2mm; }
+  .fiche-description { margin: 0 0 2mm; }
+  .fiche-nutrition { font-family: system-ui, sans-serif; font-size: 9pt; color: #444; margin: 0; }
+  .fiche-corps { display: grid; grid-template-columns: 62mm 1fr; gap: 8mm; align-items: start; }
+  .fiche h2 { font-size: 13pt; margin: 0 0 2.5mm; padding-bottom: 1mm; border-bottom: 0.75pt solid #666; }
+  .fiche-ingredients ul, .fiche-astuces ul { list-style: none; padding: 0; margin: 0; }
+  .fiche-ingredients li { display: flex; gap: 2mm; align-items: baseline; font-family: system-ui, sans-serif; font-size: 10pt; padding: 1mm 0; border-bottom: 0.25pt solid #ccc; break-inside: avoid; }
+  .fiche-case { flex-shrink: 0; width: 3mm; height: 3mm; border: 0.75pt solid #000; border-radius: 0.5mm; }
+  .fiche-etapes ol { margin: 0; padding-left: 6mm; }
+  .fiche-etapes li { margin-bottom: 2.5mm; break-inside: avoid; }
+  .fiche-astuces { margin-top: 6mm; break-inside: avoid; }
+  .fiche-astuces li { margin-bottom: 1.5mm; }
+  .fiche-conservation { margin-top: 5mm; font-size: 9.5pt; font-style: italic; color: #444; }
+}
+
+/* ── Envie : avec ce que j'ai (restes) ── */
+.envie-restes { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--color-border); }
+.envie-restes-titre { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
+.envie-restes-titre .ic { width: 16px; height: 16px; color: var(--color-primary); }
+.envie-restes textarea { resize: vertical; min-height: 3.2rem; }
+
+/* ── Planifier une recette précise (depuis le détail) ── */
+.planif-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
+.planif-jours { display: flex; flex-direction: column; gap: 0.6rem; }
+.planif-jour-nom { font-size: 0.8rem; font-weight: 700; text-transform: capitalize; margin-bottom: 0.3rem; }
+.planif-repas {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.5rem 0.7rem; margin-bottom: 0.3rem;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  color: var(--color-text); font: inherit; font-size: 0.88rem; text-align: left; cursor: pointer;
+}
+.planif-repas:hover, .planif-repas:focus-visible { border-color: var(--color-primary); }
+.planif-repas > .ic { width: 16px; height: 16px; color: var(--color-text-muted); flex-shrink: 0; }
+.planif-moment { font-weight: 600; min-width: 2.6rem; }
+.planif-portions { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.78rem; color: var(--color-text-muted); }
+.planif-portions .ic { width: 13px; height: 13px; }
+.planif-etat { margin-left: auto; font-size: 0.8rem; color: var(--color-text-muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+.planif-libre { color: var(--color-accent); font-weight: 600; }
+.planif-deja { color: var(--color-primary); font-weight: 600; }
+.planif-passe { opacity: 0.55; }
+.planif-ok { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.8rem; margin-bottom: 0.9rem; border-radius: var(--radius-md); background: var(--color-accent-soft); font-size: 0.9rem; }
+.planif-ok .ic { width: 20px; height: 20px; color: var(--color-accent); flex-shrink: 0; }
+.select-recherche { margin-bottom: 0.6rem; }

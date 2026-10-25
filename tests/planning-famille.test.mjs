@@ -235,3 +235,21 @@ test('moins d\'ingrédients différents : on préfère la recette qui réutilise
   const [premier] = candidats([loin, proche], trouver('dimanche', 'soir'), ctx)
   assert.equal(premier.recette.id, 'proche')
 })
+
+// ── Envie : recette à partir de ce que j'ai ──────────────────────────
+import { ingredientsSaisis, recettesAvecIngredients } from '../js/selection.js'
+
+test('ingrédients saisis : un groupe de mots par ingrédient, sans « restes », quantités ni unités', () => {
+  assert.deepEqual(ingredientsSaisis('Restes de bœuf bourguignon, 2 carottes et du riz'), [['boeuf', 'bourguignon'], ['carotte'], ['riz']])
+  assert.deepEqual(ingredientsSaisis('  '), [])
+})
+
+test('recettes avec mes ingrédients : celles qui en utilisent le plus d\'abord', () => {
+  const recettes = [
+    { id: 'hachis', nom: 'Hachis parmentier', ingredients: [{ nom: 'bœuf haché' }, { nom: 'pommes de terre' }, { nom: 'carottes' }] },
+    { id: 'riz', nom: 'Riz cantonais', ingredients: [{ nom: 'riz' }, { nom: 'œufs' }] },
+    { id: 'tarte', nom: 'Tarte aux pommes', ingredients: [{ nom: 'pommes' }] },
+  ]
+  assert.deepEqual(recettesAvecIngredients(recettes, 'restes de boeuf, carottes, riz').map(r => r.id), ['hachis', 'riz'])
+  assert.deepEqual(recettesAvecIngredients(recettes, ''), [])
+})

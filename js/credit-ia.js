@@ -13,6 +13,14 @@ export function coutTokens(entree, sortie) {
   return (entree * TARIF.entree + sortie * TARIF.sortie) / 1e6
 }
 
+// Photos : gemini-3.1-flash-image-preview chez Mammouth (0,5 $ / 3 $ par M tokens, ≈ 1 300 tokens par image)
+export const TARIF_IMAGE = { entree: 0.5, sortie: 3, tokensParImage: 1300 }
+export function coutImage(usage = null) {
+  const entree = usage?.prompt_tokens ?? usage?.input_tokens ?? 200
+  const sortie = usage?.completion_tokens ?? usage?.output_tokens ?? TARIF_IMAGE.tokensParImage
+  return { entree, sortie, cout: (entree * TARIF_IMAGE.entree + sortie * TARIF_IMAGE.sortie) / 1e6, estime: !usage }
+}
+
 // Estimation grossière (≈ 3,5 caractères par token en français)
 export function estimerTokens(texte) {
   return Math.ceil(String(texte || '').length / 3.5)
@@ -40,7 +48,7 @@ export function finPeriode(maintenant, jour = 1) {
 
 // Moyennes observées dans le journal (appels réussis), sinon valeurs de départ
 export function moyennes(lignes) {
-  const ok = lignes.filter(l => l.statut === 'ok' && l.nb_recettes > 0 && l.tokens_sortie > 0 && !l.estime)
+  const ok = lignes.filter(l => l.action === 'generation' && l.statut === 'ok' && l.nb_recettes > 0 && l.tokens_sortie > 0 && !l.estime)
   if (ok.length < 3) return { entreeParAppel: ENTREE_PAR_APPEL, sortieParRecette: SORTIE_PAR_RECETTE, observe: false }
   const somme = (f) => ok.reduce((s, l) => s + f(l), 0)
   return {
@@ -165,6 +173,21 @@ const ERREURS = {
     explication: 'L\'IA a répondu dans un format inattendu.',
     conseil: 'Relance : ça arrive rarement deux fois de suite.',
   },
+  REFUSEE: {
+    titre: 'Recette écartée',
+    explication: 'L\'IA a proposé une recette qui ne respectait pas les contraintes (halal ou sélecteurs choisis) : elle n\'a pas été gardée.',
+    conseil: 'Relance : la prochaine proposition sera différente.',
+  },
+  IMAGE_VIDE: {
+    titre: 'Pas d\'image reçue',
+    explication: 'Le modèle a répondu sans image (refus du sujet ou format inattendu).',
+    conseil: 'Relance « Générer une photo » ; si ça persiste, le modèle d\'image a peut-être changé chez Mammouth.',
+  },
+  STOCKAGE: {
+    titre: 'Photo non enregistrée',
+    explication: 'L\'image a été créée mais n\'a pas pu être enregistrée dans Supabase.',
+    conseil: 'Vérifie que l\'espace de stockage « recettes-images » existe, puis relance.',
+  },
   INCONNUE: {
     titre: 'Erreur inattendue',
     explication: 'Le serveur IA a renvoyé une erreur non prévue.',
@@ -179,6 +202,8 @@ export function codeErreurHttp(status, corps = {}) {
   const detail = String(corps.detail || '')
   if (corps.error === 'CLE_MANQUANTE') return 'CLE_MANQUANTE'
   if (corps.error === 'MAMMOUTH_INJOIGNABLE') return 'MAMMOUTH_INJOIGNABLE'
+  if (corps.error === 'IMAGE_VIDE') return 'IMAGE_VIDE'
+  if (corps.error === 'STOCKAGE') return 'STOCKAGE'
   if (corps.error === 'ERREUR_IA') {
     if (status === 402 || MOTS_CREDIT.test(detail)) return 'CREDIT_EPUISE'
     if (status === 401 || status === 403) return 'CLE_INVALIDE'

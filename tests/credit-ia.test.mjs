@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { coutTokens, decouperLots, debutPeriode, finPeriode, estimerGeneration, resumeCredit,
-         codeErreurHttp, expliquerErreur, extraireRepasComplets, formatDollars } from '../js/credit-ia.js'
+         codeErreurHttp, expliquerErreur, extraireRepasComplets, formatDollars, coutImage, moyennes } from '../js/credit-ia.js'
 
 test('coût : 2 $ / M en entrée, 10 $ / M en sortie', () => {
   assert.equal(coutTokens(1_000_000, 0), 2)
@@ -29,7 +29,7 @@ test('estimation : un prompt par lot + sortie par recette', () => {
 })
 
 test('estimation calibrée sur le journal dès 3 appels réussis', () => {
-  const l = { statut: 'ok', nb_recettes: 3, tokens_entree: 4000, tokens_sortie: 1500, estime: false }
+  const l = { action: 'generation', statut: 'ok', nb_recettes: 3, tokens_entree: 4000, tokens_sortie: 1500, estime: false }
   const { cout } = estimerGeneration(3, [l, l, l])
   assert.ok(Math.abs(cout - coutTokens(4000, 1500)) < 1e-9)
 })
@@ -76,6 +76,21 @@ test('réponse tronquée : seuls les repas complets sont gardés', () => {
   assert.deepEqual(repas.map(r => r.id), ['c1', 'c2'])
   assert.equal(repas[0].recette.nom, 'Tajine {doux}')
   assert.deepEqual(extraireRepasComplets('rien'), [])
+})
+
+test('photo : coût réel si Mammouth renvoie le décompte, sinon estimé', () => {
+  const reel = coutImage({ prompt_tokens: 100, completion_tokens: 1290 })
+  assert.ok(Math.abs(reel.cout - (100 * 0.5 + 1290 * 3) / 1e6) < 1e-12)
+  assert.equal(reel.estime, false)
+  const estime = coutImage()
+  assert.equal(estime.estime, true)
+  assert.ok(estime.cout > 0.003 && estime.cout < 0.005)
+  assert.equal(codeErreurHttp(502, { error: 'IMAGE_VIDE' }), 'IMAGE_VIDE')
+})
+
+test('les photos ne faussent pas l\'estimation des recettes', () => {
+  const img = { action: 'image', statut: 'ok', nb_recettes: 1, tokens_entree: 100, tokens_sortie: 1300, estime: false }
+  assert.equal(moyennes([img, img, img]).observe, false)
 })
 
 test('format en dollars', () => {

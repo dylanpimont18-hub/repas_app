@@ -1,11 +1,16 @@
 // js/recettes-ui.js
 import { getRecettes, filtrerRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
-import { dbEcouter } from './db.js'
+import { dbEcouter, dbSetImageRecette } from './db.js'
 import { esc, debounce } from './utils.js'
 import { TAGS } from './filtres.js'
 import { icone } from './icones.js'
 import { initLivres, chargerLivres, renderLivres, getLivres, getLivreActif, nomLivre } from './livres-ui.js'
 import { filtresDisponibles, appliquerFiltres, nettoyerSelection, basculer, nbActifs } from './filtres-recettes.js'
+import { genererImageRecette } from './ai.js'
+import { coutImage, formatDollars, expliquerErreur } from './credit-ia.js'
+import { htmlErreurIA } from './credit-ia-ui.js'
+import { imprimerRecette } from './impression-recette.js'
+import { ouvrirPlanifier } from './planifier-recette.js'
 
 let filtres = {}        // recherche par nom
 let selection = {}      // filtres déduits des recettes : { groupe: [valeurs] }
@@ -56,7 +61,8 @@ async function renderList() {
     ? `<p class="text-muted">${scope.length ? 'Aucune recette ne correspond à ces filtres.'
       : livre ? 'Ce livre est vide : « Générer des recettes » pour le remplir, ou range une recette dedans depuis « Modifier ».' : 'Aucune recette. Générez-en depuis le planning !'}</p>`
     : recettes.map(r => `
-        <div class="recipe-card" style="cursor:pointer;" data-id="${esc(r.id)}">
+        <div class="recipe-card${r.image_url ? ' recipe-card-photo' : ''}" style="cursor:pointer;" data-id="${esc(r.id)}">
+          ${r.image_url ? `<img class="recipe-photo" src="${esc(r.image_url)}" alt="" loading="lazy">` : ''}
           <div class="recipe-name">${esc(r.nom)}</div>
           <div class="recipe-meta">
             <span>${icone('horloge')}${r.temps_prep + r.temps_cuisson} min</span>
@@ -74,6 +80,7 @@ async function ouvrirDetail(id) {
   const r = await getRecetteById(id)
   if (!r) return
   document.getElementById('detailContent').innerHTML = `
+    <div class="detail-photo" id="detailPhoto">${r.image_url ? `<img src="${esc(r.image_url)}" alt="Photo : ${esc(r.nom)}">` : ''}</div>
     <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${esc(r.nom)}</h2>
     <div class="recipe-meta" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <span>${icone('horloge')}Préparation ${r.temps_prep} min</span>
@@ -105,12 +112,43 @@ async function ouvrirDetail(id) {
     <ol style="padding-left:1.25rem;">
       ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
     </ol>` : ''}
+    <div id="detailPhotoErreur"></div>
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" id="btnPlanifierRecette">${icone('calendrier')}Planifier</button>
+      <button class="btn btn-secondary btn-sm" id="btnImprimerRecette">${icone('imprimer')}Imprimer</button>
+      <button class="btn btn-secondary btn-sm" id="btnPhotoRecette" title="≈ ${formatDollars(coutImage().cout)} la photo">${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}</button>
       <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">${icone('poubelle')}Supprimer</button>
       <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">${icone('crayon')}Modifier</button>
       <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${esc(r.id)}">${icone('copie')}Dupliquer</button>
     </div>`
   document.getElementById('modalDetail').classList.remove('hidden')
+
+  document.getElementById('btnImprimerRecette').addEventListener('click', () => imprimerRecette(r))
+  document.getElementById('btnPlanifierRecette').addEventListener('click', () =>
+    ouvrirPlanifier(r, document.getElementById('detailContent'), () => ouvrirDetail(id)))
+
+  // Photo IA : la page reste utilisable ; la carte se met à jour par le temps réel
+  document.getElementById('btnPhotoRecette').addEventListener('click', async (e) => {
+    const btn = e.currentTarget
+    const zone = document.getElementById('detailPhoto')
+    btn.disabled = true
+    btn.innerHTML = `<span class="loader loader-mini"></span>Photo en cours…`
+    zone.classList.add('detail-photo-attente')
+    document.getElementById('detailPhotoErreur').innerHTML = ''
+    try {
+      const url = await genererImageRecette(r)
+      await dbSetImageRecette(r.id, url)
+      r.image_url = url
+      zone.innerHTML = `<img src="${esc(url)}" alt="Photo : ${esc(r.nom)}">`
+      btn.innerHTML = `${icone('etincelle')}Nouvelle photo`
+    } catch (err) {
+      document.getElementById('detailPhotoErreur').innerHTML = htmlErreurIA(err.info || expliquerErreur('INCONNUE', err.message))
+      btn.innerHTML = `${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}`
+    } finally {
+      zone.classList.remove('detail-photo-attente')
+      btn.disabled = false
+    }
+  })
 
   document.getElementById('btnDeleteRecette').addEventListener('click', async () => {
     if (confirm(`Supprimer "${r.nom}" ?`)) {

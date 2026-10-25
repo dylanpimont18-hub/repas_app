@@ -75,7 +75,7 @@ async function renderReserve() {
 }
 
 // ── Crédit IA : jauge, réglages du budget, historique avec erreurs expliquées ──
-const ACTIONS_IA = { generation: 'Génération', conversion: 'Mise à jour' }
+const ACTIONS_IA = { generation: 'Génération', conversion: 'Mise à jour', image: 'Photo' }
 let budgetActuel = null
 
 async function renderCredit() {
@@ -96,7 +96,7 @@ async function renderCredit() {
       const echec = l.statut !== 'ok'
       return `<div class="credit-appel${echec ? ' credit-appel-echec' : ''}">
         <span class="credit-appel-date">${esc(date)}</span>
-        <span class="credit-appel-quoi">${ACTIONS_IA[l.action] || esc(l.action)} · ${l.nb_recettes} recette(s)</span>
+        <span class="credit-appel-quoi">${ACTIONS_IA[l.action] || esc(l.action)}${l.action === 'image' ? '' : ` · ${l.nb_recettes} recette(s)`}</span>
         <span class="credit-appel-cout">${formatDollars(Number(l.cout))}${l.estime ? '*' : ''}</span>
         ${echec ? `<button class="btn btn-ghost btn-sm credit-appel-pourquoi" data-erreur="${i}">${icone('loupe')}${esc(expliquerErreur(l.erreur).titre)}</button>
           <div class="credit-appel-explication hidden" data-explication="${i}">${htmlErreurIA(expliquerErreur(l.erreur))}</div>` : ''}

@@ -5,7 +5,7 @@ import { dbAppelFonctionIA, dbAjouterUsageIA } from './db.js'
 import { validerVegetarien }   from './utils.js'
 import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
 import { labelCreneau, dateCourte } from './cycle.js'
-import { TAILLE_LOT, coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
+import { TAILLE_LOT, coutImage, coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
 
 // Saison courante (produits de saison)
 export function getSaison() {
@@ -64,7 +64,7 @@ function decrireCreneau(c, i) {
   return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
-async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }) {
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '' }) {
   const prefs = await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   return `Tu es un chef cuisinier familial expert en anti-gaspi. Propose ${creneaux.length === 1 ? 'UNE recette' : `${creneaux.length} recettes différentes`} pour ces repas :
@@ -79,7 +79,13 @@ CONTRAINTES ABSOLUES :
 ${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
 ${style ? `- Style demandé (prioritaire) : "${style}"` : ''}
 ${envie ? '- C\'est une envie ponctuelle du moment : fais plaisir, un plat qui donne envie tout de suite' : ''}
-
+${avecIngredients ? `
+CE QU'IL Y A À LA MAISON (prioritaire) : « ${avecIngredients} »
+- La recette est construite AUTOUR de ces ingrédients et les utilise tous si c'est cohérent
+- S'il s'agit de restes déjà cuisinés (ex. bœuf bourguignon, poulet rôti, riz cuit), transforme-les en un plat nouveau (effiloché, hachis, wrap, gratin, croquettes, sauté…) sans les recuire inutilement, et rappelle-le dans les étapes
+- Complète avec le moins possible d'ingrédients à acheter, de préférence du placard
+- Ces ingrédients restent soumis aux contraintes halal et aux goûts (ignore ceux qui seraient interdits)
+` : ''}
 PRÉFÉRENCES :
 ${prefs.texte}
 
@@ -103,7 +109,7 @@ Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans expl
 { "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
 
 Chaque <recette> :
-${FORMAT_RECETTE}`
+${avecIngredients ? FORMAT_RECETTE_LIVRE : FORMAT_RECETTE}`
 }
 
 // Livre : on veut une vraie recette à suivre, donc des étapes détaillées
@@ -338,8 +344,8 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 }
 
 // Une recette par créneau du planning, lots en parallèle
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null, onLot = null) {
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie }
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '' }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients }
   return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
 }
 
@@ -369,10 +375,37 @@ export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], 
   return r
 }
 
+// ── Photo d'une recette ──────────────────────────────────────────────
+function promptImage(r) {
+  const ingredients = (r.ingredients || []).slice(0, 8).map(i => i.nom).filter(Boolean).join(', ')
+  return `Photographie culinaire réaliste et appétissante du plat « ${r.nom} »${r.cuisine ? ` (cuisine ${r.cuisine})` : ''}.
+${r.description ? `${r.description}\n` : ''}${ingredients ? `Ingrédients visibles : ${ingredients}.\n` : ''}Plat servi dans une assiette familiale, vue légèrement en plongée, lumière naturelle douce, table en bois clair, faible profondeur de champ.
+Aucun texte, aucune écriture, aucun logo, aucune personne, aucune boisson alcoolisée.`
+}
+
+/** Génère la photo d'une recette (stockée par l'Edge Function) ; renvoie son URL publique. Journalisée dans ia_usage. */
+export async function genererImageRecette(recette) {
+  let res
+  try {
+    res = await dbAppelFonctionIA({ action: 'image', prompt: promptImage(recette), recetteId: recette.id })
+  } catch (e) {
+    throw new ErreurIA(e.message?.includes('Session') ? 'SESSION' : 'RESEAU')
+  }
+  const corps = await res.json().catch(() => ({}))
+  if (!res.ok || !corps.url) {
+    const code = res.ok ? 'IMAGE_VIDE' : codeErreurHttp(res.status, corps)
+    await journaliser({ action: 'image', nb_recettes: 1, statut: 'erreur', erreur: code })
+    throw new ErreurIA(code, corps.detail)
+  }
+  const { entree, sortie, cout, estime } = coutImage(corps.usage)
+  await journaliser({ action: 'image', nb_recettes: 1, tokens_entree: entree, tokens_sortie: sortie, cout, estime, statut: 'ok' })
+  return corps.url
+}
+
 // Une seule recette pour un créneau (↻ quand la bibliothèque est épuisée, ou envie du soir)
 export async function genererUneRecette({ creneau, ...options }) {
   const { resultats, rejets } = await genererPourCreneaux({ creneaux: [creneau], ...options })
-  if (!resultats.length) throw new Error(rejets.length ? `Recette refusée (contraintes non respectées) : ${rejets.join(', ')}. Réessaie.` : 'Aucune recette reçue — réessaie.')
+  if (!resultats.length) throw rejets.length ? new ErreurIA('REFUSEE', rejets.join(', ')) : new ErreurIA('ILLISIBLE')
   return resultats[0].recette
 }
 

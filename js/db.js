@@ -122,6 +122,12 @@ export async function dbUpsertRecettes(recettes) {
   return entries.map(e => e.id)
 }
 
+// Photo d'une recette (mise à jour partielle : le reste de la recette n'est pas touché)
+export async function dbSetImageRecette(id, imageUrl) {
+  const { error } = await supabase.from('recettes').update({ image_url: imageUrl }).eq('id', id)
+  if (error) throw error
+}
+
 export async function dbDeleteRecette(id) {
   const { error } = await supabase.from('recettes').delete().eq('id', id)
   if (error) throw error

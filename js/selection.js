@@ -29,6 +29,25 @@ export function motsRecette(r) {
 
 const correspond = (mots, motsTexte) => mots.length > 0 && mots.every(m => motsTexte.has(m))
 
+// « restes de bœuf bourguignon, 2 carottes, riz » → [['boeuf', 'bourguignon'], ['carotte'], ['riz']]
+const MOTS_RESTES = new Set(['reste', 'cuit', 'cuite', 'frigo', 'quelque', 'petit', 'peu', 'gros', 'demi', 'moitie', 'avec', 'g', 'kg', 'cl', 'ml', 'pot', 'boite', 'sachet'])
+export function ingredientsSaisis(texte) {
+  return String(texte ?? '').split(/[,;\n+]|\bet\b/)
+    .map(item => motsDe(item).filter(m => m.length > 1 && !/^\d+$/.test(m) && !MOTS_RESTES.has(m)))
+    .filter(mots => mots.length)
+}
+
+// Recettes de la bibliothèque qui utilisent le plus d'ingrédients saisis (un ingrédient compte s'il en partage un mot)
+export function recettesAvecIngredients(recettes, texte, n = 3) {
+  const items = ingredientsSaisis(texte)
+  if (!items.length) return []
+  return recettes
+    .map(r => { const mots = motsRecette(r); return { r, score: items.filter(item => item.some(m => mots.has(m))).length } })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n).map(x => x.r)
+}
+
 // Index des préférences : [{ motif, mots, categorie, niveaux: { dylan, femme } }] à partir des ingrédients notés
 export function construireIndexPrefs(ingredients, prefs) {
   return ingredients

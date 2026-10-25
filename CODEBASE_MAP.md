@@ -55,8 +55,11 @@ Table `ia_usage` : journal des appels IA (tokens, coût, statut, code d'erreur) 
 ### supabase/migrations/20261025b_livres.sql
 Table `livres` (nom, consigne IA) + `recettes.livre_id` (un livre au plus, ON DELETE SET NULL).
 
+### supabase/migrations/20261025c_images_recettes.sql
+Colonne `recettes.image_url` + espace de stockage public `recettes-images` (écriture par l'Edge Function).
+
 ### supabase/functions/ai/index.ts
-Edge Function : proxy Mammouth AI (streaming + décompte des tokens `include_usage`, relance sans si refusé), vérifie membre du foyer, relaie le statut et le message d'erreur de Mammouth. Secret `MAMMOUTH_API_KEY`.
+Edge Function : proxy Mammouth AI (streaming + décompte des tokens `include_usage`, relance sans si refusé), vérifie membre du foyer, relaie le statut et le message d'erreur de Mammouth. Action `image` : photo via `gemini-3.1-flash-image-preview` (endpoint images, sinon chat), enregistrée dans `recettes-images/{id}`. Secret `MAMMOUTH_API_KEY`.
 
 ---
 
@@ -82,6 +85,7 @@ Client Supabase + toutes les opérations base de données.
 - `dbGetRecettes()` / `dbGetRecetteById(id)` — lecture recettes
 - `dbGetRecettesByIds(ids)` — plusieurs recettes en une requête → `{id: recette}`
 - `dbUpsertRecette(r)` / `dbUpsertRecettes(list)` — enregistre recette(s), retourne les ids
+- `dbSetImageRecette(id, url)` — photo d'une recette (mise à jour partielle)
 - `dbDeleteRecette(id)` — supprime une recette
 - `dbGetPlanning(semaineKey)` — planning d'une semaine
 - `dbGetPlanningSemaines(keys)` — lignes brutes de plusieurs semaines ISO
@@ -136,6 +140,7 @@ Choix des recettes dans la bibliothèque, sans IA (pur, testé).
 - `nouveauContexte(...)` / `noterChoix(ctx, r)` / `candidats(recettes, creneau, ctx)`
 - `repartirEnvies(creneaux, envies)` — place chaque envie (nb repas, espacés ou à la suite)
 - `remplirCycle({...})` — réserve d'abord, repas familiaux, puis restes ; envies sur leurs repas, évitées ailleurs
+- `ingredientsSaisis(texte)` / `recettesAvecIngredients(recettes, texte, n)` — « restes de bœuf, carottes » → recettes qui les utilisent
 - `decalerEnCascade(creneaux, plan, cle, nouveau)` — décalage pour l'envie du soir
 - `proteinePrincipale(r)` / `ingredientsRecette(r)` / `motsDe(s)` / `motsRecette(r)`
 - Score : bonus ingrédient déjà prévu, malus ingrédient nouveau et recette > 8 ingrédients (moins d'ingrédients différents)
@@ -152,7 +157,7 @@ Relie selection.js aux données Supabase du cycle.
 
 ### js/envie.js
 Modale « ⚡ Envie ce soir ».
-- `renderModalEnvie(content, fermer)` — cible, sélecteurs, 3 idées bibliothèque, IA, choix du sort du plat prévu
+- `renderModalEnvie(content, fermer)` — cible, sélecteurs, 3 idées bibliothèque, IA, choix du sort du plat prévu ; « Avec ce que j'ai » : recettes de la bibliothèque avec ces ingrédients + recette IA construite autour (restes)
 
 ### js/reglages-ui.js
 Page réglages : crédit IA, éditeur du modèle de semaine, réserve congélo, conversion IA des anciennes recettes par lots de 5.
@@ -167,6 +172,7 @@ Crédit IA, pur et testé.
 - `resumeCredit(lignes, budget, maintenant)` — dépensé, restant (recalage), nb appels / erreurs
 - `codeErreurHttp(status, corps)` / `expliquerErreur(code, detail)` — titre, explication, que faire
 - `extraireRepasComplets(texte)` — récupère les repas complets d'une réponse tronquée
+- `TARIF_IMAGE` / `coutImage(usage)` — coût d'une photo (≈ 0,004 $)
 - `formatDollars(v)`
 
 ### js/credit-ia-ui.js
@@ -183,10 +189,19 @@ Filtres de la bibliothèque déduits des recettes affichées (pur, testé) : un 
 - `appliquerFiltres(recettes, selection)` — ET entre groupes, OU dans un groupe
 - `nettoyerSelection(sel, dispo)` / `basculer(sel, groupe, valeur, unique)` / `nbActifs(sel)` / `proteineAffichee(r)`
 
+### js/planifier-recette.js
+Depuis une recette : la placer sur un repas précis.
+- `ouvrirPlanifier(recette, zone, retour)` — repas du cycle (navigation ← →), état de chaque repas, remplacement confirmé
+
+### js/impression-recette.js
+Fiche A4 d'une recette seule (photo, infos, ingrédients à cocher, étapes, astuces).
+- `imprimerRecette(r)` — construit `#impressionRecette`, attend la photo, `window.print()`
+
 ### js/livres-ui.js
 Livres de recettes sur la page recettes.
 - `chargerLivres()` / `getLivres()` / `getLivreActif()` / `nomLivre(id)`
 - `renderLivres(recettes)` — pastilles Toutes / livres (nombre) / + Livre, en-tête du livre choisi
+- `genererPhotos(recettes, bandeau)` / `photosManquantes()` — photos une par une, arrêt si crédit épuisé
 - `initLivres({rafraichir, nomsRecettes})` — création / édition / suppression, modale « Générer » (3/6/10/15 ou 1 à 20, portions, contraintes, idée, coût estimé), génération en arrière-plan
 
 ### js/storage.js
@@ -256,6 +271,8 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 - `genererPourCreneaux({...}, onProgress, onLot)` — lots de 3 en parallèle (3 à la fois), doublons écartés, renvoie `{resultats, rejets, erreurs}`
 - `genererPourLivre({livre, nb, portions, filtres, style, nomsExistants}, onProgress, onLot)` — recettes d'un livre (règle prioritaire, étapes détaillées), 3 lots à la fois avec une piste de cuisine chacun, les suivants connaissent les plats déjà créés
 - `genererEnLots(items, {construirePrompt, filtres, parallele}, …)` / `buildPromptLivre()` — moteur commun des lots
+- `buildPrompt({..., avecIngredients})` — recette construite autour des restes / ingrédients donnés (étapes détaillées)
+- `genererImageRecette(recette)` — photo IA d'une recette (prompt culinaire), journalisée ; renvoie l'URL
 - `ErreurIA` — erreur avec `info` (titre, explication, conseil) ; chaque appel est journalisé dans `ia_usage`
 - `callIA(prompt, {action, nbRecettes, onChunk})` — flux SSE → `{texte, fin}` (ok / TRONQUEE / COUPEE)
 - `genererUneRecette({creneau, ...})` — une seule recette
@@ -281,7 +298,7 @@ Rendu et interactions de la page préférences (cartes + vue liste).
 Rendu et interactions de la bibliothèque de recettes.
 - `renderList()` — livres + filtres déduits + cartes recettes filtrées (livre actif, étiquette du livre)
 - `renderFiltres(nb, nbScope)` — panneau « Filtres » (groupes, compteurs) + rappel des filtres actifs
-- `ouvrirDetail(id)` — affiche la modale de détail d'une recette (boutons Modifier, Dupliquer, Supprimer)
+- `ouvrirDetail(id)` — modale de détail (photo ; Planifier, Imprimer, Générer une photo, Supprimer, Modifier, Dupliquer)
 - `ouvrirFormEdit(recette)` — ouvre la modale d'édition/duplication pré-remplie (choix du livre)
 - Temps réel sur `recettes`
 
@@ -291,7 +308,7 @@ Rendu et interactions du planificateur hebdomadaire.
 - `htmlCreneau(c)` / `htmlListe()` / `htmlFrise()` — rendu d'un repas (ou « Pas de repas » + Rétablir), de la liste, de la frise (bouton ✕ / ↺ par journée)
 - `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️ (choisir / vider), ⇅ déplacer, portions
 - Mode déplacement (toucher ⇅ puis la destination) et glisser-déposer sur ordinateur → `echanger()`
-- `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier ; vider, pas de repas, supprimer / rétablir la journée
+- `ouvrirSelectRecette()` — choix manuel avec recherche (nom, ingrédient), recettes compatibles en premier ; vider, pas de repas, supprimer / rétablir la journée
 - `creneauxDuJour(c)` — midi et soir d'une même date
 - `initModalGen()` — « Remplir le cycle » : contraintes (tous les repas) + envies réglables (1-3 repas, espacés / à la suite) ; « Mes recettes » ou « Avec l'IA » (coût estimé + crédit restant)
 - `lancerGenerationIA(creneaux, sel)` / `majBandeauIA()` — génération en arrière-plan, bandeau de progression, erreurs expliquées

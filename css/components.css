@@ -888,3 +888,47 @@
 .bandeau-ia-fermer .ic { width: 18px; height: 18px; }
 @media (min-width: 1024px) { .bandeau-ia { top: 0.75rem; } }
 @media print { .bandeau-ia { display: none; } }
+
+/* ── Repas supprimés (« pas de repas ») ── */
+.slot-absent { background: transparent; border-style: dashed; opacity: 0.85; }
+.slot-sans-repas { font-size: 0.88rem; color: var(--color-text-muted); font-style: italic; margin-top: 0.15rem; }
+.slot-retablir { margin-left: auto; min-height: 44px; padding: 0 0.6rem; }
+.frise-cellule .slot-absent { justify-content: center; }
+.select-gestion { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.35rem; }
+.select-gestion .btn { min-height: 44px; }
+.select-gestion .select-vider { margin-bottom: 0; }
+.select-gestion-aide { margin-bottom: 0.75rem; line-height: 1.35; }
+.chip-absent:not(.active) { border-style: dashed; color: var(--color-text-muted); }
+.chip-absent .ic { width: 12px; height: 12px; }
+.frise-jour { position: relative; }
+.frise-jour-btn {
+  margin-left: auto; align-self: center; position: relative; background: none; border: none; cursor: pointer;
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-muted); border-radius: var(--radius-sm); opacity: 0.55;
+}
+.frise-jour-btn::after { content: ''; position: absolute; inset: -8px; }
+.frise-jour-btn:hover, .frise-jour-btn:focus-visible { opacity: 1; color: var(--color-danger); background: var(--color-primary-soft); }
+.frise-jour-absent .frise-jour-btn { opacity: 1; color: var(--color-accent); }
+.frise-jour-absent .frise-jour-nom, .frise-jour-absent .frise-jour-date { text-decoration: line-through; color: var(--color-text-muted); }
+.frise-jour-btn .ic { width: 16px; height: 16px; }
+@media print { .frise-jour-btn, .slot-retablir { display: none; } }
+
+/* ── Livres de recettes ── */
+.livres-bar { display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.25rem; margin-bottom: 0.9rem; scrollbar-width: none; }
+.livres-bar::-webkit-scrollbar { display: none; }
+.livres-bar .chip { flex-shrink: 0; white-space: nowrap; }
+.livres-bar .chip .ic { width: 14px; height: 14px; }
+.livre-compte { font-size: 0.75rem; opacity: 0.75; }
+.chip-nouveau { border-style: dashed; }
+.livre-entete { margin-bottom: 1rem; }
+.livre-entete-titre { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+.livre-entete-titre .ic { width: 20px; height: 20px; color: var(--color-primary); }
+.livre-entete-titre h2 { font-family: var(--font-serif); font-size: 1.2rem; margin: 0; }
+.livre-entete-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
+.livre-entete-actions .btn { min-height: 44px; }
+.livre-supprimer { color: var(--color-danger); }
+.recipe-tag-livre { display: inline-flex; align-items: center; gap: 0.25rem; }
+.recipe-tag-livre .ic { width: 12px; height: 12px; }
+.livre-nombres { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.livre-portions { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-text-muted); }
+.livre-portions .form-input { width: 4.5rem; }

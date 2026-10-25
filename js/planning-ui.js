@@ -1,5 +1,5 @@
 // js/planning-ui.js — Planning par cycle (samedi soir → samedi midi), groupé par session de cuisine
-import { enregistrerCreneaux, viderCreneaux } from './planning.js'
+import { enregistrerCreneaux, viderCreneaux, supprimerCreneaux } from './planning.js'
 import { debutCycle, decalerCycle, labelCycle, groupesDuCycle, labelCreneau } from './cycle.js'
 import { FILTRES, estEnvie } from './filtres.js'
 import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
@@ -8,7 +8,7 @@ import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
 import { expliquerErreur } from './credit-ia.js'
-import { chargerCredit, htmlEstimation, htmlErreurIA } from './credit-ia-ui.js'
+import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 
 let samedi  = debutCycle()
 let donnees = null
@@ -30,6 +30,15 @@ function htmlCreneau(c, { avecJour = true } = {}) {
   const recette = occ ? donnees.recettesMap[occ.id] : null
   const [ico, label] = SOURCES[occ?.source] || SOURCES.manuel
   const moment = `${icone(c.moment === 'midi' ? 'soleil' : 'lune')}${avecJour ? `${JOUR_COURT[c.jour]} ` : ''}${c.moment}`
+  if (donnees.absents[c.cle]) {
+    return `<div class="slot slot-absent${c.cle === aDeplacer ? ' slot-source' : ''}" data-cle="${esc(c.cle)}">
+      <div class="slot-ligne">
+        <span class="slot-moment">${moment}</span>
+        <button class="btn btn-ghost btn-sm slot-retablir" data-action="retablir" data-cle="${esc(c.cle)}" aria-label="Rétablir ce repas">${icone('annuler')}Rétablir</button>
+      </div>
+      <div class="slot-sans-repas">Pas de repas</div>
+    </div>`
+  }
   const glissable = recette && ecranLarge.matches ? ' draggable="true"' : ''
   return `<div class="slot${recette ? '' : ' slot-libre'}${c.cle === aDeplacer ? ' slot-source' : ''}" data-cle="${esc(c.cle)}"${glissable}>
     <div class="slot-ligne">
@@ -77,8 +86,14 @@ function htmlFrise() {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   return `<div class="frise" style="--nb-jours:${jours.length}">
     <div class="frise-coin"></div>
-    ${jours.map((j, i) => `<div class="frise-jour${j.date.getTime() === today.getTime() ? ' frise-aujourdhui' : ''}" style="${col(i)}">
-      <span class="frise-jour-nom">${JOUR_COURT[j.jour]}</span> <span class="frise-jour-date">${j.date.getDate()}</span></div>`).join('')}
+    ${jours.map((j, i) => {
+      const cles = Object.values(j.creneaux).map(c => c.cle)
+      const absent = cles.every(cle => donnees.absents[cle])
+      return `<div class="frise-jour${j.date.getTime() === today.getTime() ? ' frise-aujourdhui' : ''}${absent ? ' frise-jour-absent' : ''}" style="${col(i)}">
+      <span class="frise-jour-nom">${JOUR_COURT[j.jour]}</span> <span class="frise-jour-date">${j.date.getDate()}</span>
+      <button class="frise-jour-btn" data-jour-action="${absent ? 'retablir' : 'supprimer'}" data-cles="${esc(cles.join(','))}"
+        title="${absent ? 'Rétablir la journée' : 'Supprimer la journée (pas de repas)'}" aria-label="${absent ? 'Rétablir' : 'Supprimer'} le ${JOUR_COURT[j.jour]} ${j.date.getDate()}">${icone(absent ? 'annuler' : 'croix')}</button></div>`
+    }).join('')}
     <div class="frise-label">Cuisine</div>
     ${bandes.map(b => `<div class="frise-bande${b.enSession ? ' frise-bande-session' : ''}" style="grid-column:${b.debut + 2} / ${b.fin + 3}">
       ${b.enSession ? `${icone('marmite')}Préparé ${esc(b.cuisineLe)}` : 'Sur place'}</div>`).join('')}
@@ -129,6 +144,7 @@ async function actionCreneau(action, cle, bouton) {
   if (action === 'changer') return ouvrirSelectRecette()
   if (action === 'deplacer') { aDeplacer = aDeplacer === cle ? null : cle; return afficher() }
   if (action === 'supprimer') { await viderCreneaux([c]); return renderGrid() }
+  if (action === 'retablir') { await viderCreneaux([c]); return renderGrid() }
   if (action === 'portions') {
     const occ = donnees.occupation[cle]
     const v = parseInt(prompt(`Portions pour ${labelCreneau(c)} :`, occ?.portions ?? c.portions), 10)
@@ -152,6 +168,11 @@ async function actionCreneau(action, cle, bouton) {
   }
 }
 
+// Midi et soir de la même date (dans le cycle)
+function creneauxDuJour(c) {
+  return donnees.creneaux.filter(x => x.date.getTime() === c.date.getTime())
+}
+
 async function ouvrirSelectRecette() {
   const modal = document.getElementById('modalRecetteSelect')
   const list  = document.getElementById('recetteSelectList')
@@ -166,17 +187,37 @@ async function ouvrirSelectRecette() {
       <div class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
     </div>`
   const occupe = donnees.occupation[creneauEnCours.cle]
-  list.innerHTML = (occupe ? `<button class="btn btn-secondary btn-sm btn-full select-vider" data-vider>${icone('poubelle')}Vider ce repas</button>` : '')
+  const absent = donnees.absents[creneauEnCours.cle]
+  const jourDuCreneau = creneauxDuJour(creneauEnCours)
+  const jourAbsent = jourDuCreneau.every(c => donnees.absents[c.cle])
+  list.innerHTML = `<div class="select-gestion">
+      ${occupe ? `<button class="btn btn-secondary btn-sm" data-gerer="vider">${icone('poubelle')}Vider (à remplir)</button>` : ''}
+      ${absent
+        ? `<button class="btn btn-secondary btn-sm" data-gerer="retablir">${icone('annuler')}Rétablir ce repas</button>`
+        : `<button class="btn btn-secondary btn-sm select-vider" data-gerer="supprimer">${icone('croix')}Pas de repas</button>`}
+      ${jourDuCreneau.length > 1 ? (jourAbsent
+        ? `<button class="btn btn-secondary btn-sm" data-gerer="retablir-jour">${icone('annuler')}Rétablir la journée</button>`
+        : `<button class="btn btn-secondary btn-sm select-vider" data-gerer="supprimer-jour">${icone('calendrier')}Supprimer la journée</button>`) : ''}
+    </div>
+    <p class="text-xs text-muted select-gestion-aide">« Pas de repas » : le repas reste vide, n'est plus proposé au remplissage et sort des courses.</p>`
     + `<p class="text-xs text-muted" style="margin-bottom:0.5rem;">${esc(labelCreneau(creneauEnCours))} · les mieux adaptées d'abord</p>`
     + (donnees.recettes.length === 0 ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette pour l\'instant.</p>' : '')
     + compatibles.map(x => carte(x, true)).join('')
     + (autres.length ? `<p class="text-xs text-muted" style="margin:0.75rem 0 0.5rem;">Autres recettes (hors critères)</p>` + autres.map(x => carte(x, false)).join('') : '')
 
-  list.querySelector('[data-vider]')?.addEventListener('click', async () => {
-    await viderCreneaux([creneauEnCours])
+  list.querySelectorAll('[data-gerer]').forEach(b => b.addEventListener('click', async () => {
+    const action = b.dataset.gerer
+    const cibles = action.endsWith('-jour') ? jourDuCreneau : [creneauEnCours]
+    if (action.startsWith('supprimer')) {
+      const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
+      if (pleins && !confirm(`${pleins} plat(s) prévu(s) seront retirés. Continuer ?`)) return
+      await supprimerCreneaux(cibles)
+    } else {
+      await viderCreneaux(cibles) // vider, ou rétablir un repas supprimé
+    }
     modal.classList.add('hidden')
     await renderGrid()
-  })
+  }))
   list.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', async () => {
       await enregistrerCreneaux([{ creneau: creneauEnCours, recetteId: card.dataset.id, source: 'manuel' }])
@@ -190,28 +231,7 @@ async function ouvrirSelectRecette() {
 // ── Génération IA en arrière-plan ────────────────────────────────────
 // Les recettes s'affichent lot par lot ; la page reste utilisable (quitter la page interrompt la génération)
 let iaEnCours = false
-
-function majBandeauIA({ etat, texte, detail = '', pct = 0 }) {
-  const b = document.getElementById('bandeauIA')
-  const fill = b.querySelector('.gen-progress-fill')
-  // Pendant la génération : on ne met à jour que le texte et la barre (pas de clignotement)
-  if (etat === 'encours' && b.dataset.etat === 'encours' && fill) {
-    b.querySelector('.bandeau-ia-texte').textContent = texte
-    fill.style.width = `${pct}%`
-    return
-  }
-  b.dataset.etat = etat
-  b.className = `bandeau-ia bandeau-ia-${etat}`
-  b.innerHTML = `<div class="bandeau-ia-tete">
-      ${etat === 'encours' ? '<span class="loader loader-mini"></span>' : icone(etat === 'fini' ? 'check' : 'flamme')}
-      <span class="bandeau-ia-texte">${esc(texte)}</span>
-      ${etat === 'encours' ? '' : `<button class="bandeau-ia-fermer" aria-label="Fermer">${icone('croix')}</button>`}
-    </div>
-    ${etat === 'encours' ? `<div class="gen-progress-bar"><div class="gen-progress-fill" style="width:${pct}%"></div></div>
-      <p class="text-xs text-muted">Tu peux continuer à utiliser l'appli, mais reste sur cette page jusqu'à la fin.</p>` : ''}
-    ${detail}`
-  b.querySelector('.bandeau-ia-fermer')?.addEventListener('click', () => b.classList.add('hidden'))
-}
+const majBandeauIA = (etat) => majBandeau(document.getElementById('bandeauIA'), etat)
 
 async function lancerGenerationIA(creneaux, sel) {
   iaEnCours = true
@@ -313,10 +333,14 @@ function initModalGen() {
     envies = Object.fromEntries((memo.envies || []).map(e => [e.id, { actif: true, nb: e.nb, suite: e.suite }]))
     renderEnvies()
     styleInput.value = memo.style || ''
-    const vides = donnees.creneaux.filter(c => !donnees.occupation[c.cle])
+    // Repas supprimés : non cochés (on peut quand même les cocher pour les remplir)
+    const vides = donnees.creneaux.filter(c => !donnees.occupation[c.cle] && !donnees.absents[c.cle])
     chipsWrap.innerHTML = (vides.length ? '' : '<p class="text-xs text-muted" style="width:100%;">Tout est rempli : sélectionne les créneaux à remplacer.</p>')
-      + donnees.creneaux.map(c => `<button class="chip ${donnees.occupation[c.cle] ? '' : 'active'}" data-cle="${esc(c.cle)}">
-          ${esc(labelCreneau(c))}${c.portions === 1 ? icone('personne') : ''}</button>`).join('')
+      + donnees.creneaux.map(c => {
+        const absent = donnees.absents[c.cle]
+        return `<button class="chip ${vides.includes(c) ? 'active' : ''}${absent ? ' chip-absent' : ''}" data-cle="${esc(c.cle)}"${absent ? ' title="Pas de repas"' : ''}>
+          ${esc(labelCreneau(c))}${c.portions === 1 ? icone('personne') : ''}${absent ? icone('croix', { label: 'pas de repas' }) : ''}</button>`
+      }).join('')
     status.textContent = iaEnCours ? 'Une génération IA est déjà en cours (voir le bandeau de suivi).' : ''
     videsRestants = []
     btnIA.classList.add('hidden')
@@ -423,6 +447,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const btn = e.target.closest('[data-action]')
     if (btn) { e.stopPropagation(); return actionCreneau(btn.dataset.action, btn.dataset.cle, btn) }
+    // Frise : supprimer / rétablir une journée entière
+    const btnJour = e.target.closest('[data-jour-action]')
+    if (btnJour) {
+      const cibles = btnJour.dataset.cles.split(',').map(cle => donnees.parCle[cle])
+      if (btnJour.dataset.jourAction === 'retablir') await viderCreneaux(cibles)
+      else {
+        const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
+        if (pleins && !confirm(`${pleins} plat(s) prévu(s) seront retirés. Continuer ?`)) return
+        await supprimerCreneaux(cibles)
+      }
+      return renderGrid()
+    }
     const slot = e.target.closest('.slot')
     if (!slot) return
     const occ = donnees.occupation[slot.dataset.cle]

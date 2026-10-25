@@ -1,19 +1,25 @@
 // js/recettes-ui.js
-import { getRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
+import { getRecettes, filtrerRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { TAGS } from './filtres.js'
 import { icone } from './icones.js'
+import { initLivres, chargerLivres, renderLivres, getLivres, getLivreActif, nomLivre } from './livres-ui.js'
 
 let filtres = {}
 let recetteEnEdition = null
+let nomsRecettes = []
 
 async function renderList() {
-  const recettes  = await getRecettes(filtres)
+  const toutes    = await getRecettes()
+  nomsRecettes    = toutes.map(r => r.nom)
+  renderLivres(toutes)
+  const livre     = getLivreActif()
+  const recettes  = filtrerRecettes(toutes, { ...filtres, livre })
   const container = document.getElementById('recettesList')
   if (!container) return
   container.innerHTML = recettes.length === 0
-    ? '<p class="text-muted">Aucune recette. Générez-en depuis le planning !</p>'
+    ? `<p class="text-muted">${livre ? 'Ce livre est vide : « Générer des recettes » pour le remplir, ou range une recette dedans depuis « Modifier ».' : 'Aucune recette. Générez-en depuis le planning !'}</p>`
     : recettes.map(r => `
         <div class="recipe-card" style="cursor:pointer;" data-id="${esc(r.id)}">
           <div class="recipe-name">${esc(r.nom)}</div>
@@ -22,7 +28,7 @@ async function renderList() {
             <span>${icone('famille')}${r.portions} pers.</span>
             ${r.nutrition?.calories ? `<span>${icone('flamme')}${r.nutrition.calories} kcal</span>` : ''}
           </div>
-          <div class="recipe-tags">${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
+          <div class="recipe-tags">${!livre && r.livre_id && nomLivre(r.livre_id) ? `<span class="recipe-tag recipe-tag-livre">${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
         </div>`).join('')
   container.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', () => ouvrirDetail(card.dataset.id))
@@ -39,6 +45,7 @@ async function ouvrirDetail(id) {
       <span>${icone('flamme')}Cuisson ${r.temps_cuisson} min</span>
       <span>${icone('famille')}${r.portions} pers.</span>
       ${r.vegetarien ? `<span>${icone('feuille')}Végétarien</span>` : ''}
+      ${r.livre_id && nomLivre(r.livre_id) ? `<span>${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}
     </div>
     ${r.nutrition ? `<div class="card" style="margin-bottom:1rem;display:flex;gap:1rem;flex-wrap:wrap;">
       <span class="text-sm"><b>${r.nutrition.calories}</b> kcal</span>
@@ -162,6 +169,12 @@ function ouvrirFormEdit(recette) {
   document.getElementById('editCuisson').value    = recette.temps_cuisson || ''
   document.getElementById('editVeg').checked      = !!recette.vegetarien
 
+  // Livre (une recette au plus dans un livre) ; nouvelle recette depuis un livre ouvert → ce livre
+  const livreId = recette.id ? recette.livre_id : (recette.livre_id ?? getLivreActif())
+  document.getElementById('editLivre').innerHTML = '<option value="">Aucun livre</option>'
+    + getLivres().map(l => `<option value="${esc(l.id)}">${esc(l.nom)}</option>`).join('')
+  document.getElementById('editLivre').value = livreId || ''
+
   // Format structuré
   const c = recette.composants || {}
   document.getElementById('editDescription').value  = recette.description || ''
@@ -245,6 +258,7 @@ async function soumettreFormEdit(e) {
     }).filter(l => l?.legume && l.astuce),
     conservation_jours: document.getElementById('editConservation').value === '' ? null
       : parseInt(document.getElementById('editConservation').value, 10),
+    livre_id: document.getElementById('editLivre').value || null,
   }
 
   // Pour une modification, on conserve l'id existant
@@ -269,6 +283,8 @@ async function soumettreFormEdit(e) {
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await chargerLivres()
+  initLivres({ rafraichir: renderList, nomsRecettes: () => nomsRecettes })
   await renderList()
 
   // Gestion navigation depuis le planning
@@ -332,4 +348,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Temps réel : nouvelles recettes ou modifications faites par l'autre membre du foyer
   dbEcouter(['recettes'], debounce(renderList, 300))
+  dbEcouter(['livres'], debounce(async () => { await chargerLivres(); await renderList() }, 300))
 })

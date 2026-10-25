@@ -5,7 +5,7 @@ import { dbAppelFonctionIA, dbAjouterUsageIA } from './db.js'
 import { validerVegetarien }   from './utils.js'
 import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
 import { labelCreneau, dateCourte } from './cycle.js'
-import { coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
+import { TAILLE_LOT, coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
 
 // Saison courante (produits de saison)
 export function getSaison() {
@@ -104,6 +104,47 @@ Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans expl
 
 Chaque <recette> :
 ${FORMAT_RECETTE}`
+}
+
+// Livre : on veut une vraie recette à suivre, donc des étapes détaillées
+const FORMAT_RECETTE_LIVRE = FORMAT_RECETTE.replace('  "tags"',
+  '  "etapes": ["étape précise et complète (températures, temps, réglages de l\'appareil)"],\n  "tags"')
+
+async function buildPromptLivre({ livre, nb, portions, filtres = [], style = '', piste = '', nomsExistants = [] }) {
+  const prefs = await preferencesTexte()
+  const consignes = consignesFiltres(filtres)
+  return `Tu es un chef cuisinier familial. Crée ${nb === 1 ? 'UNE recette' : `${nb} recettes différentes`} pour le livre de recettes « ${livre.nom} ».
+${livre.consigne ? `\nRÈGLE DU LIVRE (prioritaire, à respecter strictement dans chaque recette) : ${livre.consigne}\n` : ''}
+Pour toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes. ${portions} portion(s) par recette.
+
+CONTRAINTES ABSOLUES :
+- Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…)
+- Les ingrédients "N'aime PAS" de Dylan ou de sa femme n'apparaissent JAMAIS
+- Un légume de la liste "CACHÉS" peut être utilisé SEULEMENT s'il est rendu invisible ; décris alors l'astuce dans "legumes_caches"
+- Les quantités des ingrédients correspondent à ${portions} portion(s)
+${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
+${style ? `- Idée ou précision demandée (prioritaire) : "${style}"` : ''}
+
+PRÉFÉRENCES :
+${prefs.texte}
+
+SAISON : ${getSaison()} — privilégie les produits de saison quand c'est possible.
+
+QUALITÉ DU LIVRE :
+- Des recettes variées entre elles (protéines, cuisines, textures), qui donnent envie
+${piste ? `- D'autres recettes du livre sont écrites en même temps : pour éviter les doublons, privilégie ici la ${piste} (si c'est compatible avec la règle du livre et l'idée demandée)` : ''}
+- Au plus 10 ingrédients par recette (sel, poivre, huile et eau ne comptent pas), faciles à trouver en supermarché
+- Étapes numérotables, précises et complètes : un débutant doit réussir la recette sans autre aide
+
+${nomsExistants.length ? `Recettes qui existent déjà, à NE PAS reproposer (ni variante trop proche) : ${nomsExistants.slice(0, 150).join(', ')}` : ''}
+
+"tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
+{ "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
+
+Chaque <recette> :
+${FORMAT_RECETTE_LIVRE}`
 }
 
 // ── Appel IA (streaming SSE au format OpenAI, relayé par l'Edge Function) ──
@@ -244,38 +285,37 @@ function verifier(recettes, filtres) {
 
 // ── API publique ─────────────────────────────────────────────────────
 
-// Un lot de créneaux = un appel IA
-async function genererLot(creneaux, options, onRecues) {
-  const prompt = await buildPrompt({ creneaux, ...options })
+// Un lot = un appel IA ; `items[i]` (créneau ou place dans le livre, avec `portions`) ↔ id "c{i+1}"
+async function genererLot(items, construirePrompt, filtres, onRecues, k = 0) {
+  const prompt = await construirePrompt(items, k)
   const onChunk = text => onRecues(Math.max(0, (text.match(/"recette"\s*:/g) || []).length - 1))
-  const reponse = await callIA(prompt, { nbRecettes: creneaux.length, onChunk })
+  const reponse = await callIA(prompt, { nbRecettes: items.length, onChunk })
   const lignes = lireRepas(reponse).map(x => {
     const i = parseInt(String(x.id || '').replace(/\D/g, ''), 10) - 1
-    const creneau = creneaux[i]
+    const creneau = items[i]
     return creneau && x.recette ? { creneau, recette: nettoyerRecette(x.recette, creneau.portions) } : null
   }).filter(Boolean)
-  return { ...verifier(lignes, options.filtres), alerte: reponse.fin === 'ok' ? null : expliquerErreur(reponse.fin) }
+  return { ...verifier(lignes, filtres), alerte: reponse.fin === 'ok' ? null : expliquerErreur(reponse.fin) }
 }
 
 /**
- * Génère une recette par créneau, par lots de TAILLE_LOT envoyés en parallèle.
+ * Génère une recette par item, par lots de TAILLE_LOT (`parallele` lots à la fois).
  * `onLot(resultats)` est appelé dès qu'un lot arrive (enregistrement au fil de l'eau).
  * Lève une ErreurIA seulement si aucun lot n'a abouti.
  * @returns { resultats: [{ creneau, recette }], rejets: [noms], erreurs: [info] }
  */
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null, onLot = null) {
-  if (!creneaux.length) return { resultats: [], rejets: [], erreurs: [] }
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie }
-  const lots = decouperLots(creneaux)
+async function genererEnLots(items, { construirePrompt, filtres = [], parallele = PARALLELE }, onProgress, onLot) {
+  if (!items.length) return { resultats: [], rejets: [], erreurs: [] }
+  const lots = decouperLots(items)
   const recues = lots.map(() => 0)
-  const signaler = () => onProgress?.(recues.reduce((a, b) => a + b, 0), creneaux.length)
+  const signaler = () => onProgress?.(recues.reduce((a, b) => a + b, 0), items.length)
   const vus = new Set()
   const resultats = [], rejets = [], erreurs = []
 
-  await enParallele(lots, PARALLELE, async (lot, k) => {
+  await enParallele(lots, parallele, async (lot, k) => {
     try {
-      const { ok, rejets: refusees, alerte } = await genererLot(lot, options, n => { recues[k] = Math.min(n, lot.length); signaler() })
-      // Les lots ne se voient pas : on écarte un plat déjà proposé par un autre lot
+      const { ok, rejets: refusees, alerte } = await genererLot(lot, construirePrompt, filtres, n => { recues[k] = Math.min(n, lot.length); signaler() }, k)
+      // Les lots parallèles ne se voient pas : on écarte un plat déjà proposé par un autre lot
       const nouveaux = ok.filter(x => {
         const cle = x.recette.nom.toLowerCase()
         if (vus.has(cle)) { refusees.push(`${x.recette.nom} (en double)`); return false }
@@ -295,6 +335,38 @@ export async function genererPourCreneaux({ creneaux, filtres = [], style = '', 
 
   if (!resultats.length && erreurs.length) throw new ErreurIA(erreurs[0].code, erreurs[0].detail)
   return { resultats, rejets, erreurs }
+}
+
+// Une recette par créneau du planning, lots en parallèle
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie }
+  return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
+}
+
+// Pistes de variété : les lots envoyés en même temps ne se voient pas, chacun part d'une cuisine différente
+const PISTES_LIVRE = [
+  'cuisine française et européenne',
+  'cuisine méditerranéenne, maghrébine ou orientale',
+  'cuisine asiatique',
+  'cuisine américaine, mexicaine ou d\'ailleurs',
+]
+
+/**
+ * `nb` recettes pour un livre (consigne du livre prioritaire), pour toute la famille.
+ * 3 lots à la fois, chacun avec sa piste de cuisine ; les lots suivants connaissent les plats déjà créés.
+ */
+export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], style = '', nomsExistants = [] }, onProgress = null, onLot = null) {
+  const items = Array.from({ length: nb }, () => ({ portions }))
+  const crees = []
+  const r = await genererEnLots(items, {
+    construirePrompt: (lot, k) => buildPromptLivre({ livre, nb: lot.length, portions, filtres, style,
+      piste: nb > TAILLE_LOT ? PISTES_LIVRE[k % PISTES_LIVRE.length] : '', nomsExistants: [...crees, ...nomsExistants] }),
+    filtres,
+  }, onProgress, async (lot) => {
+    crees.push(...lot.map(x => x.recette.nom))
+    await onLot?.(lot)
+  })
+  return r
 }
 
 // Une seule recette pour un créneau (↻ quand la bibliothèque est épuisée, ou envie du soir)

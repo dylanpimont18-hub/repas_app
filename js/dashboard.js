@@ -90,17 +90,18 @@ async function render() {
   // ── Aperçu du cycle (samedi soir → samedi midi) ──
   const dashSemaine = document.getElementById('dashSemaine')
   if (dashSemaine) {
-    const { creneaux, occupation } = await chargerCycle(debutCycle())
+    const { creneaux, occupation, absents } = await chargerCycle(debutCycle())
     const recettesCycle = await getRecettesByIds(Object.values(occupation).map(o => o.id))
     const jours = []
     for (const c of creneaux) {
       let j = jours.find(x => x.iso === dateIso(c.date))
       if (!j) { j = { iso: dateIso(c.date), date: c.date, jour: c.jour, repas: {} }; jours.push(j) }
-      j.repas[c.moment] = recettesCycle[occupation[c.cle]?.id] || null
+      j.repas[c.moment] = absents[c.cle] ? 'absent' : recettesCycle[occupation[c.cle]?.id] || null
     }
     const aujourdHui = dateIso(new Date())
     const ligne = (icone, r, present) => present
-      ? `<div class="apercu-repas">${icone} ${r ? esc(r.nom) : '<span class="text-muted">—</span>'}</div>` : ''
+      ? `<div class="apercu-repas">${icone} ${r === 'absent' ? '<span class="text-muted">pas de repas</span>'
+        : r ? esc(r.nom) : '<span class="text-muted">—</span>'}</div>` : ''
     dashSemaine.className = 'apercu-cycle'
     dashSemaine.innerHTML = jours.map(j => `
       <a href="planning.html" class="apercu-jour${j.iso === aujourdHui ? ' apercu-aujourdhui' : ''}">

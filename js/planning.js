@@ -30,17 +30,26 @@ export async function setModele(modele) {
 }
 
 // Créneaux du cycle + occupation actuelle { cle: { id, portions, source } }
+// + repas supprimés { cle: true } (ligne sans recette, source 'absent' : restent vides, hors remplissage et courses)
 export async function chargerCycle(samedi, modele = null) {
   const m = modele || await getModele()
   const creneaux = creneauxDuCycle(samedi, m)
   const lignes = await dbGetPlanningSemaines(semainesDuCycle(samedi))
   const parCle = Object.fromEntries(lignes.map(l => [`${l.semaine_key}|${l.jour}|${l.moment}`, l]))
-  const occupation = {}
+  const occupation = {}, absents = {}
   for (const c of creneaux) {
     const l = parCle[c.cle]
     if (l?.recette_id) occupation[c.cle] = { id: l.recette_id, portions: l.portions ?? c.portions, source: l.source || 'manuel' }
+    else if (l?.source === 'absent') absents[c.cle] = true
   }
-  return { modele: m, creneaux, occupation }
+  return { modele: m, creneaux, occupation, absents }
+}
+
+// Supprime des repas du cycle (pas de repas ce jour-là) ; « Rétablir » = viderCreneaux
+export async function supprimerCreneaux(creneaux) {
+  await dbUpsertPlanningLot(creneaux.map(c => ({
+    semaine_key: c.semaineKey, jour: c.jour, moment: c.moment, recette_id: null, portions: c.portions, source: 'absent',
+  })))
 }
 
 // Dernière date de consommation de chaque recette sur les 8 semaines avant le cycle : { recetteId: timestamp }

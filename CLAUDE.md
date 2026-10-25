@@ -40,6 +40,7 @@ Système de cartes pour noter chaque ingrédient par profil.
 ### 3. Bibliothèque de recettes (`recettes.html`)
 Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
 - Filtres : Végétarien, Rapide
+- Livres de recettes (ex. « Air fryer ») : une règle par livre guide la génération IA ; leurs recettes restent proposées dans le planning
 - Vue liste + modale détail + modale édition complète
 - Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients, étapes
 
@@ -108,6 +109,7 @@ planning          { semaine_key, jour, moment, recette_id, portions }
 courses_etat      { semaine_key, ingredient_nom, checked }
 ingredients_custom { id, nom, categorie, emoji }
 foyer_membres     { user_id, profil_nom }   -- seuls ces comptes passent la RLS (est_membre_foyer())
+livres            { id, nom, consigne }    -- livres de recettes ; recettes.livre_id (un livre au plus)
 ia_usage          { cree_le, action, nb_recettes, tokens_entree, tokens_sortie, cout, estime, statut, erreur }
                   -- journal des appels IA → crédit Mammouth (budget dans reglages.ia_budget)
 ```

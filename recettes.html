@@ -51,7 +51,72 @@
         placeholder="Rechercher une recette" aria-label="Rechercher une recette"
         style="padding-left:0.9rem;" autocomplete="off">
     </div>
+    <div id="livresBar" class="livres-bar" role="group" aria-label="Livres de recettes"></div>
+    <div id="livreEntete"></div>
+    <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
     <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>
+
+    <div class="modal-overlay hidden" id="modalLivre">
+      <div class="modal">
+        <button class="modal-close" id="closeLivre" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
+        <p class="modal-title" id="livreTitre">Nouveau livre</p>
+        <form id="formLivre" autocomplete="off">
+          <div class="form-group">
+            <label class="form-label" for="livreNom">Nom du livre</label>
+            <input class="form-input" id="livreNom" type="text" required maxlength="60" placeholder="Air fryer">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="livreConsigne">Règle pour l'IA</label>
+            <textarea class="form-input" id="livreConsigne" rows="3" maxlength="400"
+              placeholder="Uniquement cuit à l'air fryer : ni four, ni plaques. Indiquer température et temps."></textarea>
+            <p class="text-xs text-muted" style="margin-top:0.3rem;">Appliquée à chaque recette générée pour ce livre.</p>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAnnulerLivre">Annuler</button>
+            <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="modalGenLivre">
+      <div class="modal gen-modal">
+        <button class="modal-close" id="closeGenLivre" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
+        <p class="modal-title" id="genLivreTitre">Générer des recettes</p>
+        <p class="text-xs text-muted" id="genLivreConsigne" style="margin-bottom:1rem;"></p>
+        <div class="gen-section">
+          <div class="gen-section-label">Combien de recettes ?</div>
+          <div class="livre-nombres">
+            <div class="gen-chips-wrap" role="group" aria-label="Nombres rapides">
+              <button type="button" class="chip" data-nb-fixe="3">3</button>
+              <button type="button" class="chip" data-nb-fixe="6">6</button>
+              <button type="button" class="chip" data-nb-fixe="10">10</button>
+              <button type="button" class="chip" data-nb-fixe="15">15</button>
+            </div>
+            <div class="pas-a-pas" role="group" aria-label="Nombre de recettes">
+              <button type="button" data-nb="-1" aria-label="Une recette de moins">−</button>
+              <span id="genLivreNb">3</span>
+              <button type="button" data-nb="1" aria-label="Une recette de plus">+</button>
+            </div>
+            <label class="livre-portions">Portions
+              <input class="form-input" id="genLivrePortions" type="number" inputmode="numeric" min="1" max="12" value="4">
+            </label>
+          </div>
+        </div>
+        <div class="gen-section">
+          <div class="gen-section-label">Contraintes <span class="gen-section-aide">en plus de la règle du livre</span></div>
+          <div id="genLivreFiltres" class="gen-chips-wrap"></div>
+          <input id="genLivreIdee" class="form-input" style="margin-top:0.6rem;" type="text"
+            placeholder="Idée ou précision : poulet, apéro, desserts…" aria-label="Idée ou précision">
+        </div>
+        <div class="gen-pied">
+          <div id="genLivreEstimation"></div>
+          <p class="text-xs text-muted" id="genLivreStatus" style="margin-bottom:0.5rem;text-align:center;"></p>
+          <button class="btn btn-accent btn-full" id="btnGenLivre"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Générer</button>
+          <p class="text-xs text-muted gen-aide">Les recettes arrivent dans le livre au fur et à mesure (3 envois à la fois, quelques minutes pour 15) ; la fenêtre se ferme et tu peux continuer.</p>
+        </div>
+      </div>
+    </div>
     <div class="modal-overlay hidden" id="modalDetail">
       <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
         <button class="modal-close" id="closeDetail" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
@@ -69,6 +134,10 @@
             <input class="form-input" id="editNom" type="text" required>
           </div>
           <!-- description + format structuré -->
+          <div class="form-group">
+            <label class="form-label" for="editLivre">Livre</label>
+            <select class="form-input" id="editLivre"></select>
+          </div>
           <div class="form-group">
             <label class="form-label">Description</label>
             <textarea class="form-input" id="editDescription" rows="2"></textarea>

@@ -252,6 +252,25 @@ export function dbEcouter(tables, onChange) {
 }
 
 // ── Edge Function "ai" (proxy IA, clé côté serveur) ──────────────────
+// ── Livres de recettes ───────────────────────────────────────────────
+export async function dbGetLivres() {
+  const { data, error } = await supabase.from('livres').select('*').order('nom')
+  if (error) throw error
+  return data
+}
+
+// Crée ou met à jour un livre, retourne son id
+export async function dbUpsertLivre(livre) {
+  const { data, error } = await supabase.from('livres').upsert(livre).select('id').single()
+  if (error) throw error
+  return data.id
+}
+
+export async function dbDeleteLivre(id) {
+  const { error } = await supabase.from('livres').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ── Journal des appels IA (crédit) ───────────────────────────────────
 export async function dbAjouterUsageIA(ligne) {
   const { error } = await supabase.from('ia_usage').insert(ligne)

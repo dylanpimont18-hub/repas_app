@@ -57,8 +57,30 @@ export function htmlEstimation(nbRecettes, credit) {
     ? `<span class="credit-alerte">${icone('flamme')}Crédit probablement insuffisant</span>` : ''
   return `<div class="credit-estimation">
     ${icone('etincelle')}<span>Avec l'IA : <strong>≈ ${formatDollars(cout)}</strong> pour ${nbRecettes} recette(s)
-    <span class="text-muted">(${appels} envoi(s) en parallèle) · reste ${formatDollars(r.reste)}</span></span>${alerte}
+    <span class="text-muted">(${appels} envoi(s)) · reste ${formatDollars(r.reste)}</span></span>${alerte}
   </div>`
+}
+
+// Bandeau de suivi d'une génération en arrière-plan : etat = encours | fini | partiel | erreur
+export function majBandeau(b, { etat, texte, detail = '', pct = 0 }) {
+  const fill = b.querySelector('.gen-progress-fill')
+  // Pendant la génération : on ne met à jour que le texte et la barre (pas de clignotement)
+  if (etat === 'encours' && b.dataset.etat === 'encours' && fill) {
+    b.querySelector('.bandeau-ia-texte').textContent = texte
+    fill.style.width = `${pct}%`
+    return
+  }
+  b.dataset.etat = etat
+  b.className = `bandeau-ia bandeau-ia-${etat}`
+  b.innerHTML = `<div class="bandeau-ia-tete">
+      ${etat === 'encours' ? '<span class="loader loader-mini"></span>' : icone(etat === 'fini' ? 'check' : 'flamme')}
+      <span class="bandeau-ia-texte">${esc(texte)}</span>
+      ${etat === 'encours' ? '' : `<button class="bandeau-ia-fermer" aria-label="Fermer">${icone('croix')}</button>`}
+    </div>
+    ${etat === 'encours' ? `<div class="gen-progress-bar"><div class="gen-progress-fill" style="width:${pct}%"></div></div>
+      <p class="text-xs text-muted">Tu peux continuer à utiliser l'appli, mais reste sur cette page jusqu'à la fin.</p>` : ''}
+    ${detail}`
+  b.querySelector('.bandeau-ia-fermer')?.addEventListener('click', () => b.classList.add('hidden'))
 }
 
 // Encadré d'erreur : quoi, pourquoi, que faire (+ détail technique repliable)

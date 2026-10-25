@@ -108,6 +108,8 @@ planning          { semaine_key, jour, moment, recette_id, portions }
 courses_etat      { semaine_key, ingredient_nom, checked }
 ingredients_custom { id, nom, categorie, emoji }
 foyer_membres     { user_id, profil_nom }   -- seuls ces comptes passent la RLS (est_membre_foyer())
+ia_usage          { cree_le, action, nb_recettes, tokens_entree, tokens_sortie, cout, estime, statut, erreur }
+                  -- journal des appels IA → crédit Mammouth (budget dans reglages.ia_budget)
 ```
 
 ### Synchronisation

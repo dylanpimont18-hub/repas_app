@@ -35,19 +35,34 @@ Deno.serve(async (req) => {
     const cle = Deno.env.get('MAMMOUTH_API_KEY')
     if (!cle) return json({ error: 'CLE_MANQUANTE' }, 503)
 
-    const amont = await fetch('https://api.mammouth.ai/v1/chat/completions', {
+    const appeler = (avecDecompte: boolean) => fetch('https://api.mammouth.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${cle}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: MODELE,
         max_tokens: MAX_TOKENS,
         stream: true,
+        // décompte des tokens en fin de flux (suivi du crédit)
+        ...(avecDecompte ? { stream_options: { include_usage: true } } : {}),
         messages: [{ role: 'user', content: prompt }],
       }),
-    })
+    }).catch(() => null)
+
+    let amont = await appeler(true)
+    let texte = ''
+    if (amont && amont.status === 400) {
+      texte = await amont.text().catch(() => '')
+      // Paramètre refusé : on relance sans décompte (le coût sera estimé côté navigateur)
+      if (/stream_options|include_usage/i.test(texte)) { amont = await appeler(false); texte = '' }
+    }
+    if (!amont) return json({ error: 'MAMMOUTH_INJOIGNABLE' }, 502)
     if (!amont.ok) {
-      console.error('Mammouth', amont.status, await amont.text().catch(() => ''))
-      return json({ error: 'ERREUR_IA' }, amont.status)
+      texte ||= await amont.text().catch(() => '')
+      console.error('Mammouth', amont.status, texte)
+      // Le message de Mammouth aide à expliquer l'erreur (crédit épuisé, modèle inconnu…) ; jamais la clé
+      let detail = texte
+      try { const j = JSON.parse(texte); detail = j.error?.message || j.message || j.detail || texte } catch { /* texte brut */ }
+      return json({ error: 'ERREUR_IA', amont: amont.status, detail: String(detail).slice(0, 300) }, amont.status)
     }
     // Relais du flux SSE tel quel vers le navigateur
     return new Response(amont.body, {

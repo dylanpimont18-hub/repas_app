@@ -252,6 +252,19 @@ export function dbEcouter(tables, onChange) {
 }
 
 // ── Edge Function "ai" (proxy IA, clé côté serveur) ──────────────────
+// ── Journal des appels IA (crédit) ───────────────────────────────────
+export async function dbAjouterUsageIA(ligne) {
+  const { error } = await supabase.from('ia_usage').insert(ligne)
+  if (error) throw error
+}
+
+export async function dbGetUsageIA(depuis, limite = 500) {
+  const { data, error } = await supabase.from('ia_usage').select('*')
+    .gte('cree_le', depuis.toISOString()).order('cree_le', { ascending: false }).limit(limite)
+  if (error) throw error
+  return data
+}
+
 export async function dbAppelFonctionIA(body) {
   const session = await dbGetSession()
   if (!session) throw new Error('Session expirée — reconnecte-toi.')

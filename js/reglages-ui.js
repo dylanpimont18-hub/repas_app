@@ -6,6 +6,8 @@ import { convertirRecettes } from './ai.js'
 import { dbGetReserve, dbDeleteReserve, dbUpsertRecettes, dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
+import { expliquerErreur, formatDollars } from './credit-ia.js'
+import { chargerCredit, setBudget, htmlJauge, htmlErreurIA } from './credit-ia-ui.js'
 
 const JOURS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']
 const LABEL = { lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu', vendredi:'Ven', samedi:'Sam', dimanche:'Dim' }
@@ -72,6 +74,47 @@ async function renderReserve() {
   }))
 }
 
+// ── Crédit IA : jauge, réglages du budget, historique avec erreurs expliquées ──
+const ACTIONS_IA = { generation: 'Génération', conversion: 'Mise à jour' }
+let budgetActuel = null
+
+async function renderCredit() {
+  const { budget, lignes, resume } = await chargerCredit()
+  budgetActuel = budget
+  document.getElementById('creditJauge').innerHTML = htmlJauge(resume)
+    + (resume.estime ? '<p class="text-xs text-muted">Certains coûts sont estimés (Mammouth n\'a pas renvoyé le décompte exact).</p>' : '')
+  const montant = document.getElementById('creditMontant')
+  if (![...montant.options].some(o => Number(o.value) === budget.montant)) montant.add(new Option(`${budget.montant} $`, budget.montant))
+  montant.value = String(budget.montant)
+  document.getElementById('creditJour').value = String(budget.jour)
+
+  const recents = lignes.slice(0, 15)
+  document.getElementById('creditHistorique').innerHTML = recents.length === 0
+    ? '<p class="text-sm text-muted">Aucun appel IA pour l\'instant.</p>'
+    : recents.map((l, i) => {
+      const date = new Date(l.cree_le).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      const echec = l.statut !== 'ok'
+      return `<div class="credit-appel${echec ? ' credit-appel-echec' : ''}">
+        <span class="credit-appel-date">${esc(date)}</span>
+        <span class="credit-appel-quoi">${ACTIONS_IA[l.action] || esc(l.action)} · ${l.nb_recettes} recette(s)</span>
+        <span class="credit-appel-cout">${formatDollars(Number(l.cout))}${l.estime ? '*' : ''}</span>
+        ${echec ? `<button class="btn btn-ghost btn-sm credit-appel-pourquoi" data-erreur="${i}">${icone('loupe')}${esc(expliquerErreur(l.erreur).titre)}</button>
+          <div class="credit-appel-explication hidden" data-explication="${i}">${htmlErreurIA(expliquerErreur(l.erreur))}</div>` : ''}
+      </div>`
+    }).join('')
+  document.querySelectorAll('[data-erreur]').forEach(b => b.addEventListener('click', () =>
+    document.querySelector(`[data-explication="${b.dataset.erreur}"]`).classList.toggle('hidden')))
+}
+
+async function enregistrerBudget(changement, message) {
+  const status = document.getElementById('creditStatus')
+  try {
+    await setBudget({ ...budgetActuel, ...changement })
+    status.textContent = message
+    await renderCredit()
+  } catch (e) { status.textContent = e.message }
+}
+
 async function majBoutonConversion() {
   const anciennes = (await getRecettes()).filter(r => !r.composants)
   const btn = document.getElementById('btnConvertir')
@@ -82,7 +125,20 @@ async function majBoutonConversion() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   renderModele(await getModele())
-  await Promise.all([renderReserve(), majBoutonConversion()])
+  document.getElementById('creditJour').innerHTML = Array.from({ length: 28 }, (_, i) =>
+    `<option value="${i + 1}">le ${i + 1}${i === 0 ? 'er' : ''} du mois</option>`).join('')
+  await Promise.all([renderReserve(), majBoutonConversion(), renderCredit()])
+
+  document.getElementById('creditMontant').addEventListener('change', (e) =>
+    enregistrerBudget({ montant: Number(e.target.value) }, 'Crédit mensuel enregistré.'))
+  document.getElementById('creditJour').addEventListener('change', (e) =>
+    enregistrerBudget({ jour: Number(e.target.value) }, 'Date de recharge enregistrée.'))
+  document.getElementById('btnRecaler').addEventListener('click', () => {
+    const v = parseFloat(document.getElementById('creditRecalage').value.replace(',', '.'))
+    if (!Number.isFinite(v) || v < 0) { document.getElementById('creditStatus').textContent = 'Indique le montant restant affiché par Mammouth.'; return }
+    document.getElementById('creditRecalage').value = ''
+    enregistrerBudget({ recalage: { reste: v, le: new Date().toISOString() } }, `Recalé sur ${formatDollars(v)}.`)
+  })
 
   document.getElementById('btnSaveModele').addEventListener('click', async () => {
     const status = document.getElementById('modeleStatus')
@@ -116,5 +172,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   })
 
   dbEcouter(['reserve'], debounce(renderReserve, 300))
+  dbEcouter(['ia_usage'], debounce(renderCredit, 500))
   dbEcouter(['reglages'], debounce(async () => renderModele(await getModele()), 300))
 })

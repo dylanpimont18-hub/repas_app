@@ -51,6 +51,34 @@
       <p class="text-xs text-muted" id="modeleStatus" style="margin-top:0.4rem;"></p>
     </section>
 
+    <section class="card" id="credit" style="margin-bottom:1.25rem;">
+      <h2 class="section-title" style="margin-bottom:0.3rem;">Crédit IA</h2>
+      <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Coût calculé par l'appli à partir des tokens de chaque génération (tarif public du modèle). Mammouth n'expose pas le solde réel : recale-le de temps en temps avec <a href="https://mammouth.ai/app/account/settings/api" target="_blank" rel="noopener">ta page Mammouth</a>.</p>
+      <div id="creditJauge"></div>
+      <div class="credit-reglages">
+        <label class="form-label">Crédit mensuel
+          <select id="creditMontant" class="form-input">
+            <option value="2">2 $ (Starter)</option>
+            <option value="4">4 $ (Standard)</option>
+            <option value="10">10 $ (Expert)</option>
+          </select>
+        </label>
+        <label class="form-label">Rechargé le
+          <select id="creditJour" class="form-input"></select>
+        </label>
+      </div>
+      <div class="credit-recalage">
+        <label class="form-label" for="creditRecalage">Crédit restant affiché par Mammouth ($)</label>
+        <div class="flex" style="gap:0.5rem;">
+          <input id="creditRecalage" class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="ex. 3,20">
+          <button class="btn btn-secondary btn-sm" id="btnRecaler">Recaler</button>
+        </div>
+      </div>
+      <p class="text-xs text-muted" id="creditStatus" style="margin-top:0.4rem;"></p>
+      <h3 class="credit-sous-titre">Derniers appels</h3>
+      <div id="creditHistorique"></div>
+    </section>
+
     <section class="card" id="reserve" style="margin-bottom:1.25rem;">
       <h2 class="section-title" style="margin-bottom:0.3rem;">Réserve congélo</h2>
       <p class="text-xs text-muted" style="margin-bottom:0.75rem;">Plats mis de côté. Ils sont proposés en priorité quand tu remplis le planning.</p>

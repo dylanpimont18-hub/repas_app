@@ -25,7 +25,7 @@ Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ;
 Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle, bouton 🖨 Imprimer (mise en page @media print dans components.css).
 
 ### reglages.html
-Réglages partagés : modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
+Réglages partagés : crédit IA (jauge, budget, recalage, derniers appels), modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
 
 ---
 
@@ -49,8 +49,11 @@ Foyer (`foyer_membres` + `est_membre_foyer()`), table `ingredients_custom`, RLS 
 ### supabase/migrations/20261024b_planning_famille.sql
 Colonnes recette structurée (description, cuisine, composants, legumes_caches, tags, conservation_jours), `planning.source`, tables `reglages` et `reserve`.
 
+### supabase/migrations/20261025_ia_usage.sql
+Table `ia_usage` : journal des appels IA (tokens, coût, statut, code d'erreur) pour le suivi du crédit.
+
 ### supabase/functions/ai/index.ts
-Edge Function : proxy Mammouth AI (streaming), vérifie membre du foyer. Secret `MAMMOUTH_API_KEY`.
+Edge Function : proxy Mammouth AI (streaming + décompte des tokens `include_usage`, relance sans si refusé), vérifie membre du foyer, relaie le statut et le message d'erreur de Mammouth. Secret `MAMMOUTH_API_KEY`.
 
 ---
 
@@ -85,6 +88,7 @@ Client Supabase + toutes les opérations base de données.
 - `dbGetReserve()` / `dbAddReserve(recetteId, portions)` / `dbDeleteReserve(id)` — réserve congélo
 - `dbGetCoursesEtat` / `dbToggleCourse` / `dbResetCourses` — cases cochées des courses
 - `dbEcouter(tables, onChange)` — abonnement temps réel Supabase
+- `dbAjouterUsageIA(ligne)` / `dbGetUsageIA(depuis)` — journal des appels IA (crédit)
 - `dbAppelFonctionIA(body)` — appelle l'Edge Function `ai` avec le jeton de session
 
 ### js/utils.js
@@ -136,7 +140,7 @@ Choix des recettes dans la bibliothèque, sans IA (pur, testé).
 Relie selection.js aux données Supabase du cycle.
 - `chargerDonnees(samedi)` — cycle, recettes, réserve, historique, préférences
 - `proposerPourCreneau(d, c, options, n)` — meilleurs candidats bibliothèque
-- `remplirDepuisBibliotheque(d, cles, options)` / `completerParIA(d, creneaux, options, onProgress)`
+- `remplirDepuisBibliotheque(d, cles, options)` / `completerParIA(d, creneaux, options, onProgress, onLot)` — IA par lots, enregistrés à l'arrivée
 - `ideeIA(d, c, options)` — une recette IA enregistrée
 - `placer(d, c, recetteId, source, mode, simuler)` — remplacer / congélo / décaler
 - `echanger(d, cleA, cleB)` — intervertit deux repas ou déplace vers un créneau vide
@@ -147,7 +151,25 @@ Modale « ⚡ Envie ce soir ».
 - `renderModalEnvie(content, fermer)` — cible, sélecteurs, 3 idées bibliothèque, IA, choix du sort du plat prévu
 
 ### js/reglages-ui.js
-Page réglages : éditeur du modèle de semaine, réserve congélo, conversion IA des anciennes recettes par lots de 5.
+Page réglages : crédit IA, éditeur du modèle de semaine, réserve congélo, conversion IA des anciennes recettes par lots de 5.
+- `renderCredit()` — jauge, crédit mensuel, jour de recharge, recalage, 15 derniers appels (erreurs expliquées au toucher)
+
+### js/credit-ia.js
+Crédit IA, pur et testé.
+- `TARIF` / `BUDGET_DEFAUT` / `TAILLE_LOT` — 2 $/10 $ par M tokens, 4 $/mois, 3 recettes par appel
+- `coutTokens(entree, sortie)` / `estimerTokens(texte)` / `decouperLots(liste)`
+- `debutPeriode(date, jour)` / `finPeriode(date, jour)` — période de recharge mensuelle
+- `moyennes(lignes)` / `estimerGeneration(nb, lignes)` / `coutParRecette(lignes)` — estimations calibrées sur le journal
+- `resumeCredit(lignes, budget, maintenant)` — dépensé, restant (recalage), nb appels / erreurs
+- `codeErreurHttp(status, corps)` / `expliquerErreur(code, detail)` — titre, explication, que faire
+- `extraireRepasComplets(texte)` — récupère les repas complets d'une réponse tronquée
+- `formatDollars(v)`
+
+### js/credit-ia-ui.js
+Chargement et rendu du crédit IA.
+- `getBudget()` / `setBudget(b)` — réglage partagé `ia_budget`
+- `chargerCredit()` — journal (3 mois) + résumé de la période
+- `htmlJauge(resume, {compacte})` / `htmlEstimation(nb, credit)` / `htmlErreurIA(info)`
 
 ### js/storage.js
 Wrapper localStorage (thème uniquement).
@@ -211,7 +233,9 @@ Liste de courses.
 
 ### js/ai.js
 Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
-- `genererPourCreneaux({creneaux, filtres, style, ingredientsAReutiliser, nomsExistants, envie}, onProgress)` — une recette par créneau, format structuré, légumes cachés
+- `genererPourCreneaux({...}, onProgress, onLot)` — lots de 3 en parallèle (3 à la fois), doublons écartés, renvoie `{resultats, rejets, erreurs}`
+- `ErreurIA` — erreur avec `info` (titre, explication, conseil) ; chaque appel est journalisé dans `ia_usage`
+- `callIA(prompt, {action, nbRecettes, onChunk})` — flux SSE → `{texte, fin}` (ok / TRONQUEE / COUPEE)
 - `genererUneRecette({creneau, ...})` — une seule recette
 - `convertirRecettes(recettes)` — complète les anciennes recettes au nouveau format
 - `getSaison()` — saison courante
@@ -245,7 +269,8 @@ Rendu et interactions du planificateur hebdomadaire.
 - `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️ (choisir / vider), ⇅ déplacer, portions
 - Mode déplacement (toucher ⇅ puis la destination) et glisser-déposer sur ordinateur → `echanger()`
 - `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier
-- `initModalGen()` — « Remplir le cycle » : contraintes (tous les repas) + envies réglables (1-3 repas, espacés / à la suite) ; « Mes recettes » ou « Avec l'IA »
+- `initModalGen()` — « Remplir le cycle » : contraintes (tous les repas) + envies réglables (1-3 repas, espacés / à la suite) ; « Mes recettes » ou « Avec l'IA » (coût estimé + crédit restant)
+- `lancerGenerationIA(creneaux, sel)` / `majBandeauIA()` — génération en arrière-plan, bandeau de progression, erreurs expliquées
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.
@@ -257,6 +282,9 @@ Rendu et interactions de la liste de courses.
 
 ### tests/utils.test.mjs
 Tests unitaires de js/utils.js — `node --test tests/*.test.mjs`.
+
+### tests/credit-ia.test.mjs
+Tests de js/credit-ia.js : coûts, période, estimation, recalage, codes d'erreur, réponse tronquée.
 
 ### tests/planning-famille.test.mjs
 Tests du cycle, des filtres, de la sélection bibliothèque, du décalage et de la répartition des courses.

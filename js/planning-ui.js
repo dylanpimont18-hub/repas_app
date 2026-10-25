@@ -7,6 +7,8 @@ import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
+import { expliquerErreur } from './credit-ia.js'
+import { chargerCredit, htmlEstimation, htmlErreurIA } from './credit-ia-ui.js'
 
 let samedi  = debutCycle()
 let donnees = null
@@ -185,6 +187,59 @@ async function ouvrirSelectRecette() {
   modal.classList.remove('hidden')
 }
 
+// ── Génération IA en arrière-plan ────────────────────────────────────
+// Les recettes s'affichent lot par lot ; la page reste utilisable (quitter la page interrompt la génération)
+let iaEnCours = false
+
+function majBandeauIA({ etat, texte, detail = '', pct = 0 }) {
+  const b = document.getElementById('bandeauIA')
+  const fill = b.querySelector('.gen-progress-fill')
+  // Pendant la génération : on ne met à jour que le texte et la barre (pas de clignotement)
+  if (etat === 'encours' && b.dataset.etat === 'encours' && fill) {
+    b.querySelector('.bandeau-ia-texte').textContent = texte
+    fill.style.width = `${pct}%`
+    return
+  }
+  b.dataset.etat = etat
+  b.className = `bandeau-ia bandeau-ia-${etat}`
+  b.innerHTML = `<div class="bandeau-ia-tete">
+      ${etat === 'encours' ? '<span class="loader loader-mini"></span>' : icone(etat === 'fini' ? 'check' : 'flamme')}
+      <span class="bandeau-ia-texte">${esc(texte)}</span>
+      ${etat === 'encours' ? '' : `<button class="bandeau-ia-fermer" aria-label="Fermer">${icone('croix')}</button>`}
+    </div>
+    ${etat === 'encours' ? `<div class="gen-progress-bar"><div class="gen-progress-fill" style="width:${pct}%"></div></div>
+      <p class="text-xs text-muted">Tu peux continuer à utiliser l'appli, mais reste sur cette page jusqu'à la fin.</p>` : ''}
+    ${detail}`
+  b.querySelector('.bandeau-ia-fermer')?.addEventListener('click', () => b.classList.add('hidden'))
+}
+
+async function lancerGenerationIA(creneaux, sel) {
+  iaEnCours = true
+  const total = creneaux.length
+  majBandeauIA({ etat: 'encours', texte: `L'IA prépare ${total} recette(s)…`, pct: 3 })
+  try {
+    const { nbCrees, rejets, erreurs } = await completerParIA(donnees, creneaux, sel,
+      (n) => majBandeauIA({ etat: 'encours', texte: `L'IA prépare tes recettes : ${n} / ${total}`, pct: Math.max(3, n / total * 95) }),
+      () => renderGrid())
+    const manquants = total - nbCrees
+    const codes = new Set()
+    const detail = (rejets.length ? `<p class="text-xs">Écartées (contraintes ou en double) : ${esc(rejets.join(', '))}</p>` : '')
+      + erreurs.filter(e => !codes.has(e.code) && codes.add(e.code)).map(e => htmlErreurIA(e)).join('')
+    majBandeauIA({ etat: manquants ? 'partiel' : 'fini',
+      texte: `${nbCrees} recette(s) ajoutée(s)` + (manquants ? ` · ${manquants} repas encore vide(s)` : ''), detail })
+    if (!manquants && !detail) setTimeout(() => document.getElementById('bandeauIA').classList.add('hidden'), 6000)
+  } catch (e) {
+    majBandeauIA({ etat: 'erreur', texte: 'Aucune recette créée', detail: htmlErreurIA(e.info || expliquerErreur('INCONNUE', e.message)) })
+  } finally {
+    iaEnCours = false
+    await renderGrid()
+  }
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (iaEnCours) { e.preventDefault(); e.returnValue = '' }
+})
+
 // ── Remplir le cycle ─────────────────────────────────────────────────
 function initModalGen() {
   const modal = document.getElementById('modalGenSemaine')
@@ -195,10 +250,10 @@ function initModalGen() {
   const status      = document.getElementById('genStatus')
   const btnBiblio   = document.getElementById('btnLancerGen')
   const btnIA       = document.getElementById('btnCompleterIA')
-  const progress    = document.getElementById('genProgressWrap')
-  const fill        = document.getElementById('genProgressFill')
+  const estimation  = document.getElementById('genEstimation')
   const enviesWrap  = document.getElementById('genEnvies')
   let videsRestants = []
+  let credit = null   // crédit IA, rechargé à chaque ouverture
   let envies = {}   // { id: { actif, nb, suite } }
 
   // Envies : activer, nombre de repas (1 à 3), espacés ou à la suite
@@ -243,11 +298,15 @@ function initModalGen() {
     style:   styleInput.value.trim(),
     envies:  Object.entries(envies).filter(([, e]) => e.actif).map(([id, e]) => ({ id, nb: e.nb, suite: e.suite })),
   })
-  const majCompteur = () => {
-    document.getElementById('genCreneauxCount').textContent = chipsWrap.querySelectorAll('.chip.active').length
+  // Nombre de repas choisis + coût estimé si on passe par l'IA (`nbIA` : repas restés vides après la bibliothèque)
+  const majCompteur = (nbIA = null) => {
+    const n = chipsWrap.querySelectorAll('.chip.active').length
+    document.getElementById('genCreneauxCount').textContent = n
+    estimation.innerHTML = credit ? htmlEstimation(nbIA ?? n, credit) : ''
   }
 
   document.getElementById('btnGenererSemaine')?.addEventListener('click', () => {
+    chargerCredit().then(c => { credit = c; majCompteur(videsRestants.length || null) })
     const memo = lireFiltres()
     filtresWrap.innerHTML = FILTRES.filter(f => !estEnvie(f.id)).map(f =>
       `<button class="chip ${memo.filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}">${f.label}</button>`).join('')
@@ -258,9 +317,9 @@ function initModalGen() {
     chipsWrap.innerHTML = (vides.length ? '' : '<p class="text-xs text-muted" style="width:100%;">Tout est rempli : sélectionne les créneaux à remplacer.</p>')
       + donnees.creneaux.map(c => `<button class="chip ${donnees.occupation[c.cle] ? '' : 'active'}" data-cle="${esc(c.cle)}">
           ${esc(labelCreneau(c))}${c.portions === 1 ? icone('personne') : ''}</button>`).join('')
-    status.textContent = ''
+    status.textContent = iaEnCours ? 'Une génération IA est déjà en cours (voir le bandeau de suivi).' : ''
+    videsRestants = []
     btnIA.classList.add('hidden')
-    progress.classList.add('hidden')
     majCompteur()
     modal.classList.remove('hidden')
   })
@@ -282,6 +341,7 @@ function initModalGen() {
       status.textContent = `${nbProposes} repas proposés depuis tes recettes` + (vides.length ? ` · ${vides.length} sans idée` : '')
       btnIA.innerHTML = `${icone('etincelle')}Compléter avec l'IA (${vides.length} repas)`
       btnIA.classList.toggle('hidden', vides.length === 0)
+      majCompteur(vides.length)
       await renderGrid()
       if (!vides.length) setTimeout(() => modal.classList.add('hidden'), 900)
     } catch (e) {
@@ -292,42 +352,23 @@ function initModalGen() {
   })
 
   // Génération IA : directement pour les créneaux choisis, ou pour ceux restés vides après la bibliothèque
-  async function genererIA(creneaux, bouton) {
+  // Lancée en arrière-plan : la fenêtre se ferme, le bandeau suit la progression
+  function genererIA(creneaux) {
     if (!creneaux.length) { status.textContent = 'Sélectionne au moins un repas.'; return }
-    bouton.disabled = true
-    btnBiblio.disabled = true
-    progress.classList.remove('hidden')
-    fill.style.width = '0%'
-    const total = creneaux.length
-    status.textContent = `0 / ${total} recettes…`
-    try {
-      const sel = lireSelection()
-      memoriserFiltres(sel)
-      const { nbCrees, rejets } = await completerParIA(donnees, creneaux, sel, (n) => {
-        const k = Math.min(n, total)
-        status.textContent = `${k} / ${total} recettes…`
-        fill.style.width = `${k / total * 95}%`
-      })
-      fill.style.width = '100%'
-      status.textContent = `${nbCrees} nouvelles recettes ajoutées` + (rejets.length ? ` · refusées (contraintes) : ${rejets.join(', ')}` : '')
-      videsRestants = []
-      btnIA.classList.add('hidden')
-      await renderGrid()
-    } catch (e) {
-      fill.style.width = '0%'
-      status.textContent = e.message
-    } finally {
-      bouton.disabled = false
-      btnBiblio.disabled = false
-    }
+    if (iaEnCours) { status.textContent = 'Une génération IA est déjà en cours : attends qu\'elle se termine.'; return }
+    const sel = lireSelection()
+    memoriserFiltres(sel)
+    videsRestants = []
+    modal.classList.add('hidden')
+    lancerGenerationIA(creneaux, sel)
   }
 
-  btnIA.addEventListener('click', () => genererIA(videsRestants, btnIA))
-  document.getElementById('btnGenererIA').addEventListener('click', (e) => {
+  btnIA.addEventListener('click', () => genererIA(videsRestants))
+  document.getElementById('btnGenererIA').addEventListener('click', () => {
     const cles = [...chipsWrap.querySelectorAll('.chip.active')].map(c => c.dataset.cle)
     const deja = cles.filter(cle => donnees.occupation[cle]).length
     if (deja && !confirm(`${deja} repas déjà prévu(s) seront remplacés par de nouvelles recettes. Continuer ?`)) return
-    genererIA(cles.map(cle => donnees.parCle[cle]), e.currentTarget)
+    genererIA(cles.map(cle => donnees.parCle[cle]))
   })
 }
 

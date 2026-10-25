@@ -74,17 +74,17 @@ export async function remplirDepuisBibliotheque(d, cles, { filtres = [], style =
   return { nbProposes: propositions.length, vides: vides.map(cle => ({ ...d.parCle[cle], envies: envieDe[cle] || [] })) }
 }
 
-// Complète des créneaux par l'IA (un seul appel), enregistre recettes + planning.
+// Complète des créneaux par l'IA (lots en parallèle), enregistre recettes + planning dès qu'un lot arrive.
 // Si les créneaux ne portent pas encore leurs envies (génération directe), on les répartit ici.
-export async function completerParIA(d, creneaux, { filtres = [], style = '', envies = [] } = {}, onProgress = null) {
+export async function completerParIA(d, creneaux, { filtres = [], style = '', envies = [] } = {}, onProgress = null, onLot = null) {
   if (creneaux.some(c => !Array.isArray(c.envies))) {
     const envieDe = repartirEnvies(creneaux, envies)
     creneaux = creneaux.map(c => ({ ...c, envies: envieDe[c.cle] || [] }))
   }
   const cles = creneaux.map(c => c.cle)
-  const { resultats, rejets } = await genererPourCreneaux({ creneaux, filtres, style, ...contexteIA(d, cles) }, onProgress)
-  await importerRecettesIA(resultats)
-  return { nbCrees: resultats.length, rejets }
+  const { resultats, rejets, erreurs } = await genererPourCreneaux({ creneaux, filtres, style, ...contexteIA(d, cles) }, onProgress,
+    async (lot) => { await importerRecettesIA(lot); await onLot?.(lot) })
+  return { nbCrees: resultats.length, nbDemandes: creneaux.length, rejets, erreurs }
 }
 
 // Une idée IA pour un créneau (enregistrée en bibliothèque, pas encore placée)

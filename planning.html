@@ -50,7 +50,8 @@
         <button class="btn btn-secondary btn-sm" id="btnNextWeek" aria-label="Cycle suivant"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-droite"/></svg></button>
       </div>
     </div>
-<div id="bandeauDeplacement" class="bandeau-deplacement hidden" role="status" aria-live="polite"></div>
+    <div id="bandeauDeplacement" class="bandeau-deplacement hidden" role="status" aria-live="polite"></div>
+    <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
     <div class="planning-grid-wrapper">
       <div class="planning-grid" id="planningGrid"></div>
     </div>
@@ -86,16 +87,14 @@
         </div>
 
         <div class="gen-pied">
-          <div id="genProgressWrap" class="hidden" style="margin-bottom:0.5rem;">
-            <div class="gen-progress-bar"><div id="genProgressFill" class="gen-progress-fill"></div></div>
-          </div>
+          <div id="genEstimation"></div>
           <p class="text-xs text-muted" id="genStatus" style="margin-bottom:0.5rem;text-align:center;"></p>
           <button class="btn btn-secondary btn-full hidden" id="btnCompleterIA" style="margin-bottom:0.5rem;"></button>
           <div class="gen-actions">
             <button class="btn btn-primary" id="btnLancerGen"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Mes recettes</button>
             <button class="btn btn-accent" id="btnGenererIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Avec l'IA</button>
           </div>
-          <p class="text-xs text-muted gen-aide">« Mes recettes » pioche dans ta bibliothèque. « Avec l'IA » crée de nouvelles recettes.</p>
+          <p class="text-xs text-muted gen-aide">« Mes recettes » pioche dans ta bibliothèque. « Avec l'IA » crée de nouvelles recettes en arrière-plan : la fenêtre se ferme et tu peux continuer.</p>
         </div>
       </div>
     </div>

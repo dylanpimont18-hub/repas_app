@@ -1,10 +1,11 @@
 // js/ai.js — Génération IA (Mammouth AI via l'Edge Function Supabase "ai") + prompts
 import { getProfil }           from './preferences.js'
 import { getAllIngredients }   from './custom-ingredients.js'
-import { dbAppelFonctionIA }   from './db.js'
+import { dbAppelFonctionIA, dbAjouterUsageIA } from './db.js'
 import { validerVegetarien }   from './utils.js'
 import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
 import { labelCreneau, dateCourte } from './cycle.js'
+import { coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
 
 // Saison courante (produits de saison)
 export function getSaison() {
@@ -106,60 +107,101 @@ ${FORMAT_RECETTE}`
 }
 
 // ── Appel IA (streaming SSE au format OpenAI, relayé par l'Edge Function) ──
-async function callIA(prompt, onChunk = null) {
+const PARALLELE = 3 // lots envoyés en même temps
+
+// Erreur expliquée : `info` = { code, titre, explication, conseil, detail } pour l'affichage
+export class ErreurIA extends Error {
+  constructor(code, detail = '') {
+    const info = expliquerErreur(code, detail)
+    super(`${info.titre} — ${info.explication} ${info.conseil}`)
+    this.info = info
+  }
+}
+
+// Le journal ne doit jamais faire échouer une génération
+async function journaliser(ligne) {
+  try { await dbAjouterUsageIA(ligne) } catch (e) { console.warn('Journal IA', e.message) }
+}
+
+// Renvoie { texte, fin } avec fin = 'ok' | 'TRONQUEE' | 'COUPEE' ; chaque appel est noté dans ia_usage
+async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk = null } = {}) {
+  const base = { action, nb_recettes: nbRecettes }
   let res
   try {
     res = await dbAppelFonctionIA({ action: 'chat', prompt })
   } catch (e) {
-    throw new Error(e.message?.includes('Session') ? e.message : 'Pas de connexion internet ou serveur inaccessible.')
+    throw new ErreurIA(e.message?.includes('Session') ? 'SESSION' : 'RESEAU')
   }
 
   if (!res.ok) {
-    const detail = await res.json().catch(() => ({}))
-    if (detail.error === 'CLE_MANQUANTE') throw new Error('Clé Mammouth AI pas encore configurée sur le serveur.')
-    if (res.status === 401) throw new Error('Session expirée ou clé Mammouth invalide — reconnecte-toi ou vérifie la clé.')
-    if (res.status === 403) throw new Error('Ce compte n\'est pas membre du foyer.')
-    if (res.status === 429) throw new Error('Limite de requêtes atteinte — réessaie dans quelques minutes.')
-    if (res.status >= 500) throw new Error('Serveur IA temporairement indisponible — réessaie dans quelques instants.')
-    throw new Error(`Erreur IA ${res.status}.`)
+    const corps = await res.json().catch(() => ({}))
+    const code = codeErreurHttp(res.status, corps)
+    await journaliser({ ...base, statut: 'erreur', erreur: code }) // refusé avant génération : rien de facturé
+    throw new ErreurIA(code, corps.detail)
   }
 
   const reader  = res.body.getReader()
   const decoder = new TextDecoder()
-  let buffer = '', fullText = '', finishReason = null
+  let buffer = '', fullText = '', finishReason = null, usage = null, termine = false
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop()
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
 
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue
-      const raw = line.slice(5).trim()
-      if (!raw || raw === '[DONE]') continue
-      try {
-        const choice = JSON.parse(raw).choices?.[0]
-        const delta  = choice?.delta?.content
-        if (delta) {
-          fullText += delta
-          if (onChunk) onChunk(fullText)
-        }
-        if (choice?.finish_reason) finishReason = choice.finish_reason
-      } catch { /* ligne SSE invalide, ignorer */ }
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue
+        const raw = line.slice(5).trim()
+        if (raw === '[DONE]') { termine = true; continue }
+        if (!raw) continue
+        try {
+          const obj    = JSON.parse(raw)
+          const choice = obj.choices?.[0]
+          const delta  = choice?.delta?.content
+          if (obj.usage) usage = obj.usage
+          if (delta) {
+            fullText += delta
+            if (onChunk) onChunk(fullText)
+          }
+          if (choice?.finish_reason) finishReason = choice.finish_reason
+        } catch { /* ligne SSE invalide, ignorer */ }
+      }
     }
-  }
+  } catch { /* flux coupé : traité comme une réponse interrompue */ }
 
-  if (finishReason === 'length') throw new Error('Réponse IA tronquée — réessaie avec moins de créneaux.')
-  return fullText
+  const fin = finishReason === 'length' ? 'TRONQUEE' : (finishReason || termine) ? 'ok' : 'COUPEE'
+  const entree = usage?.prompt_tokens ?? estimerTokens(prompt)
+  const sortie = usage?.completion_tokens ?? estimerTokens(fullText)
+  await journaliser({
+    ...base, tokens_entree: entree, tokens_sortie: sortie, cout: coutTokens(entree, sortie), estime: !usage,
+    statut: fin === 'ok' ? 'ok' : fin === 'TRONQUEE' ? 'tronque' : 'erreur', erreur: fin === 'ok' ? null : fin,
+  })
+  return { texte: fullText, fin }
 }
 
 function parseJSON(text) {
   const match = text.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error('Aucun JSON dans la réponse IA')
-  try { return JSON.parse(match[0]) } catch { throw new Error('Réponse IA illisible — réessaie.') }
+  if (!match) throw new ErreurIA('ILLISIBLE')
+  try { return JSON.parse(match[0]) } catch { throw new ErreurIA('ILLISIBLE') }
+}
+
+// Réponse complète → JSON ; réponse tronquée ou coupée → les repas entièrement reçus
+function lireRepas({ texte, fin }) {
+  if (fin === 'ok') return parseJSON(texte).repas || []
+  const repas = extraireRepasComplets(texte)
+  if (!repas.length) throw new ErreurIA(fin)
+  return repas
+}
+
+// Exécute `tache` sur chaque élément, `n` à la fois
+async function enParallele(liste, n, tache) {
+  let suivant = 0
+  const travailleur = async () => { while (suivant < liste.length) { const i = suivant++; await tache(liste[i], i) } }
+  await Promise.all(Array.from({ length: Math.min(n, liste.length) }, travailleur))
 }
 
 // Nettoie une recette IA : champs attendus, tags du vocabulaire, nombres valides
@@ -202,25 +244,57 @@ function verifier(recettes, filtres) {
 
 // ── API publique ─────────────────────────────────────────────────────
 
-/**
- * Génère une recette par créneau.
- * @returns { resultats: [{ creneau, recette }], rejets: [noms] }
- */
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null) {
-  if (!creneaux.length) return { resultats: [], rejets: [] }
-  const total = creneaux.length
-  const onChunk = onProgress
-    ? text => onProgress(Math.max(0, (text.match(/"recette"\s*:/g) || []).length - 1), total)
-    : null
-  const prompt = await buildPrompt({ creneaux, filtres, style, ingredientsAReutiliser, nomsExistants, envie })
-  const data = parseJSON(await callIA(prompt, onChunk))
-  const lignes = (data.repas || []).map(x => {
+// Un lot de créneaux = un appel IA
+async function genererLot(creneaux, options, onRecues) {
+  const prompt = await buildPrompt({ creneaux, ...options })
+  const onChunk = text => onRecues(Math.max(0, (text.match(/"recette"\s*:/g) || []).length - 1))
+  const reponse = await callIA(prompt, { nbRecettes: creneaux.length, onChunk })
+  const lignes = lireRepas(reponse).map(x => {
     const i = parseInt(String(x.id || '').replace(/\D/g, ''), 10) - 1
     const creneau = creneaux[i]
     return creneau && x.recette ? { creneau, recette: nettoyerRecette(x.recette, creneau.portions) } : null
   }).filter(Boolean)
-  const { ok, rejets } = verifier(lignes, filtres)
-  return { resultats: ok, rejets }
+  return { ...verifier(lignes, options.filtres), alerte: reponse.fin === 'ok' ? null : expliquerErreur(reponse.fin) }
+}
+
+/**
+ * Génère une recette par créneau, par lots de TAILLE_LOT envoyés en parallèle.
+ * `onLot(resultats)` est appelé dès qu'un lot arrive (enregistrement au fil de l'eau).
+ * Lève une ErreurIA seulement si aucun lot n'a abouti.
+ * @returns { resultats: [{ creneau, recette }], rejets: [noms], erreurs: [info] }
+ */
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false }, onProgress = null, onLot = null) {
+  if (!creneaux.length) return { resultats: [], rejets: [], erreurs: [] }
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie }
+  const lots = decouperLots(creneaux)
+  const recues = lots.map(() => 0)
+  const signaler = () => onProgress?.(recues.reduce((a, b) => a + b, 0), creneaux.length)
+  const vus = new Set()
+  const resultats = [], rejets = [], erreurs = []
+
+  await enParallele(lots, PARALLELE, async (lot, k) => {
+    try {
+      const { ok, rejets: refusees, alerte } = await genererLot(lot, options, n => { recues[k] = Math.min(n, lot.length); signaler() })
+      // Les lots ne se voient pas : on écarte un plat déjà proposé par un autre lot
+      const nouveaux = ok.filter(x => {
+        const cle = x.recette.nom.toLowerCase()
+        if (vus.has(cle)) { refusees.push(`${x.recette.nom} (en double)`); return false }
+        vus.add(cle)
+        return true
+      })
+      rejets.push(...refusees)
+      if (alerte) erreurs.push(alerte)
+      if (onLot && nouveaux.length) await onLot(nouveaux)
+      resultats.push(...nouveaux)
+    } catch (e) {
+      erreurs.push(e.info || expliquerErreur('INCONNUE', e.message))
+    }
+    recues[k] = lot.length
+    signaler()
+  })
+
+  if (!resultats.length && erreurs.length) throw new ErreurIA(erreurs[0].code, erreurs[0].detail)
+  return { resultats, rejets, erreurs }
 }
 
 // Une seule recette pour un créneau (↻ quand la bibliothèque est épuisée, ou envie du soir)
@@ -242,7 +316,9 @@ ${recettes.map(r => JSON.stringify({ id: r.id, nom: r.nom, ingredients: r.ingred
 
 Réponds UNIQUEMENT avec du JSON valide :
 { "recettes": [ { "id": "string", "description": "2 à 3 phrases", "cuisine": "string", "composants": { "base": "string ou null", "principal": "string", "proteine": "string ou null", "legumes": ["string"] }, "legumes_caches": [{ "legume": "string", "astuce": "string" }], "tags": ["string"], "conservation_jours": number } ] }`
-  const data = parseJSON(await callIA(prompt))
+  const reponse = await callIA(prompt, { action: 'conversion', nbRecettes: recettes.length })
+  if (reponse.fin !== 'ok') throw new ErreurIA(reponse.fin)
+  const data = parseJSON(reponse.texte)
   const parId = Object.fromEntries(recettes.map(r => [r.id, r]))
   return (data.recettes || []).filter(x => parId[x.id]).map(x => {
     const n = nettoyerRecette({ ...parId[x.id], ...x }, parId[x.id].portions || 4)

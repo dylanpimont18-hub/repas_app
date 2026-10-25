@@ -3,7 +3,7 @@ import { enregistrerCreneaux, viderCreneaux } from './planning.js'
 import { debutCycle, decalerCycle, labelCycle, groupesDuCycle, labelCreneau } from './cycle.js'
 import { FILTRES, estEnvie } from './filtres.js'
 import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
-         remplirDepuisBibliotheque, completerParIA, ideeIA } from './propositions.js'
+         remplirDepuisBibliotheque, completerParIA, ideeIA, echanger } from './propositions.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
@@ -11,6 +11,7 @@ import { icone } from './icones.js'
 let samedi  = debutCycle()
 let donnees = null
 let creneauEnCours = null
+let aDeplacer = null   // clé du repas en cours de déplacement
 
 const SOURCES = { biblio: ['livre', 'biblio'], ia: ['etincelle', 'IA'], reste: ['boite', 'reste'], reserve: ['flocon', 'congélo'], manuel: ['', ''] }
 
@@ -27,7 +28,8 @@ function htmlCreneau(c, { avecJour = true } = {}) {
   const recette = occ ? donnees.recettesMap[occ.id] : null
   const [ico, label] = SOURCES[occ?.source] || SOURCES.manuel
   const moment = `${icone(c.moment === 'midi' ? 'soleil' : 'lune')}${avecJour ? `${JOUR_COURT[c.jour]} ` : ''}${c.moment}`
-  return `<div class="slot${recette ? '' : ' slot-libre'}" data-cle="${esc(c.cle)}">
+  const glissable = recette && ecranLarge.matches ? ' draggable="true"' : ''
+  return `<div class="slot${recette ? '' : ' slot-libre'}${c.cle === aDeplacer ? ' slot-source' : ''}" data-cle="${esc(c.cle)}"${glissable}>
     <div class="slot-ligne">
       <span class="slot-moment">${moment}</span>
       <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions" aria-label="Portions : ${occ?.portions ?? c.portions}">${badgePortions(c, occ?.portions ?? c.portions)}</button>
@@ -35,7 +37,7 @@ function htmlCreneau(c, { avecJour = true } = {}) {
       ${recette ? `<span class="slot-actions">
         <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition">${icone('autre')}</button>
         <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat">${icone('crayon')}</button>
-        <button class="slot-btn slot-btn-del" data-action="supprimer" data-cle="${esc(c.cle)}" title="Vider" aria-label="Vider">${icone('poubelle')}</button>
+        <button class="slot-btn" data-action="deplacer" data-cle="${esc(c.cle)}" title="Déplacer ou intervertir" aria-label="Déplacer ou intervertir">${icone('deplacer')}</button>
       </span>` : ''}
     </div>
     ${recette ? `<div class="slot-nom">${esc(recette.nom)}</div>` : `<div class="slot-vide">${icone('plus')}Choisir un plat</div>`}
@@ -105,8 +107,17 @@ function afficher() {
 
   const grid = document.getElementById('planningGrid')
   if (!grid) return
-  grid.className = ecranLarge.matches ? 'planning-frise' : 'planning-cycle'
+  grid.className = (ecranLarge.matches ? 'planning-frise' : 'planning-cycle') + (aDeplacer ? ' mode-deplacement' : '')
   grid.innerHTML = ecranLarge.matches ? htmlFrise() : htmlListe()
+
+  // Bandeau du mode déplacement
+  const bandeau = document.getElementById('bandeauDeplacement')
+  if (bandeau) {
+    const occ = aDeplacer && donnees.occupation[aDeplacer]
+    bandeau.classList.toggle('hidden', !occ)
+    if (occ) bandeau.innerHTML = `<span>${icone('deplacer')}Touche le repas de destination</span>
+      <button class="btn btn-secondary btn-sm" data-annuler>Annuler</button>`
+  }
 }
 
 // ── Actions sur un créneau ───────────────────────────────────────────
@@ -114,6 +125,7 @@ async function actionCreneau(action, cle, bouton) {
   const c = donnees.parCle[cle]
   creneauEnCours = c
   if (action === 'changer') return ouvrirSelectRecette()
+  if (action === 'deplacer') { aDeplacer = aDeplacer === cle ? null : cle; return afficher() }
   if (action === 'supprimer') { await viderCreneaux([c]); return renderGrid() }
   if (action === 'portions') {
     const occ = donnees.occupation[cle]
@@ -151,11 +163,18 @@ async function ouvrirSelectRecette() {
       <div class="recipe-name">${esc(x.nom)}</div>
       <div class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
     </div>`
-  list.innerHTML = `<p class="text-xs text-muted" style="margin-bottom:0.5rem;">${esc(labelCreneau(creneauEnCours))} · les mieux adaptées d'abord</p>`
+  const occupe = donnees.occupation[creneauEnCours.cle]
+  list.innerHTML = (occupe ? `<button class="btn btn-secondary btn-sm btn-full select-vider" data-vider>${icone('poubelle')}Vider ce repas</button>` : '')
+    + `<p class="text-xs text-muted" style="margin-bottom:0.5rem;">${esc(labelCreneau(creneauEnCours))} · les mieux adaptées d'abord</p>`
     + (donnees.recettes.length === 0 ? '<p class="text-muted text-sm" style="padding:1rem;">Aucune recette pour l\'instant.</p>' : '')
     + compatibles.map(x => carte(x, true)).join('')
     + (autres.length ? `<p class="text-xs text-muted" style="margin:0.75rem 0 0.5rem;">Autres recettes (hors critères)</p>` + autres.map(x => carte(x, false)).join('') : '')
 
+  list.querySelector('[data-vider]')?.addEventListener('click', async () => {
+    await viderCreneaux([creneauEnCours])
+    modal.classList.add('hidden')
+    await renderGrid()
+  })
   list.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', async () => {
       await enregistrerCreneaux([{ creneau: creneauEnCours, recetteId: card.dataset.id, source: 'manuel' }])
@@ -316,7 +335,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   await renderGrid()
   initModalGen()
 
-  document.getElementById('planningGrid')?.addEventListener('click', async (e) => {
+  const grille = document.getElementById('planningGrid')
+
+  // Mode déplacement : le prochain repas touché reçoit le plat (échange si occupé)
+  async function deposer(cible) {
+    const source = aDeplacer
+    aDeplacer = null
+    if (source && cible && source !== cible) await echanger(donnees, source, cible)
+    await renderGrid()
+  }
+  document.getElementById('bandeauDeplacement')?.addEventListener('click', e => {
+    if (e.target.closest('[data-annuler]')) { aDeplacer = null; afficher() }
+  })
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && aDeplacer) { aDeplacer = null; afficher() } })
+
+  // Ordinateur : glisser-déposer d'une case à l'autre
+  grille?.addEventListener('dragstart', e => {
+    const slot = e.target.closest('.slot[draggable]'); if (!slot) return
+    e.dataTransfer.setData('text/plain', slot.dataset.cle)
+    e.dataTransfer.effectAllowed = 'move'
+    slot.classList.add('slot-source')
+  })
+  grille?.addEventListener('dragend', e => e.target.closest?.('.slot')?.classList.remove('slot-source'))
+  grille?.addEventListener('dragover', e => {
+    const slot = e.target.closest('.slot'); if (!slot) return
+    e.preventDefault()
+    grille.querySelectorAll('.slot-cible').forEach(s => s !== slot && s.classList.remove('slot-cible'))
+    slot.classList.add('slot-cible')
+  })
+  grille?.addEventListener('dragleave', e => e.target.closest?.('.slot')?.classList.remove('slot-cible'))
+  grille?.addEventListener('drop', async e => {
+    const slot = e.target.closest('.slot'); if (!slot) return
+    e.preventDefault()
+    aDeplacer = e.dataTransfer.getData('text/plain')
+    await deposer(slot.dataset.cle)
+  })
+
+  grille?.addEventListener('click', async (e) => {
+    if (aDeplacer) {
+      const slot = e.target.closest('.slot')
+      if (slot) {
+        e.stopPropagation()
+        if (slot.dataset.cle === aDeplacer) { aDeplacer = null; return afficher() }
+        return deposer(slot.dataset.cle)
+      }
+    }
     const btn = e.target.closest('[data-action]')
     if (btn) { e.stopPropagation(); return actionCreneau(btn.dataset.action, btn.dataset.cle, btn) }
     const slot = e.target.closest('.slot')

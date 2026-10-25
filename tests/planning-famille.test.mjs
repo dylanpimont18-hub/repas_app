@@ -224,3 +224,14 @@ test('remplirCycle avec envie : le bouillon seulement sur ses repas, pas tous le
   assert.equal(soirs.length, 3)
   assert.equal(nbBouillon, 1)
 })
+
+test('moins d\'ingrédients différents : on préfère la recette qui réutilise, et la plus courte', async () => {
+  const { ingredientsRecette } = await import('../js/selection.js')
+  const base = { id: 'base', nom: 'Poulet riz', conservation_jours: 3, ingredients: ['Poulet (filet)', 'Riz basmati', 'Carottes', 'Oignon', 'Sel'].map(nom => ({ nom, quantite: '1' })) }
+  assert.equal(ingredientsRecette(base).frais.size + ingredientsRecette(base).autres.size, 4) // sel ignoré
+  const proche = { id: 'proche', nom: 'Curry poulet', conservation_jours: 3, ingredients: ['Poulet', 'Riz', 'Carotte', 'Curry'].map(nom => ({ nom, quantite: '1' })) }
+  const loin = { id: 'loin', nom: 'Tajine', conservation_jours: 3, ingredients: ['Agneau', 'Pruneaux', 'Amandes', 'Courge', 'Navet', 'Semoule', 'Cannelle', 'Miel', 'Coriandre', 'Raisins secs'].map(nom => ({ nom, quantite: '1' })) }
+  const ctx = nouveauContexte({ indexPrefs: [], debut, dejaChoisies: [base] })
+  const [premier] = candidats([loin, proche], trouver('dimanche', 'soir'), ctx)
+  assert.equal(premier.recette.id, 'proche')
+})

@@ -84,6 +84,11 @@ ${prefs.texte}
 
 SAISON : ${getSaison()} — privilégie les produits de saison.
 
+LISTE DE COURSES COURTE (priorité forte) :
+- Minimise le nombre d'INGRÉDIENTS DIFFÉRENTS sur l'ensemble des recettes : mieux vaut 3 recettes qui partagent 6 ingrédients que 3 recettes qui en utilisent 18 différents
+- Au plus 10 ingrédients par recette (sel, poivre, huile et eau ne comptent pas)
+- Mêmes épices, même féculent, mêmes légumes déclinés de plusieurs façons
+
 ANTI-GASPI :
 ${ingredientsAReutiliser.length ? `- Ingrédients déjà achetés pour d'autres repas du cycle, à RÉUTILISER en priorité : ${ingredientsAReutiliser.join(', ')}` : ''}
 - Entre les recettes proposées, partage un maximum d'ingrédients frais (légumes, protéines, herbes)

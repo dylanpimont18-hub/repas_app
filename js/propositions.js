@@ -1,5 +1,5 @@
 // js/propositions.js — Relie l'algorithme de sélection (selection.js) aux données Supabase du cycle
-import { chargerCycle, chargerHistorique, enregistrerCreneaux, importerRecettesIA } from './planning.js'
+import { chargerCycle, chargerHistorique, enregistrerCreneaux, viderCreneaux, importerRecettesIA } from './planning.js'
 import { getRecettes, addRecette } from './recettes.js'
 import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
@@ -113,4 +113,16 @@ export async function placer(d, creneau, recetteId, source, mode = 'remplacer', 
     if (versReserve) await dbAddReserve(versReserve.recetteId, versReserve.portions)
   }
   return { changements, versReserve }
+}
+
+// Intervertit deux repas (ou déplace vers un créneau vide) ; les portions restent celles de chaque créneau
+export async function echanger(d, cleA, cleB) {
+  if (cleA === cleB) return
+  const a = d.occupation[cleA], b = d.occupation[cleB]
+  const source = o => (o.source === 'reste' ? 'manuel' : o.source)
+  const ecrire = [], vider = []
+  if (a) ecrire.push({ creneau: d.parCle[cleB], recetteId: a.id, source: source(a) }); else vider.push(d.parCle[cleB])
+  if (b) ecrire.push({ creneau: d.parCle[cleA], recetteId: b.id, source: source(b) }); else vider.push(d.parCle[cleA])
+  if (ecrire.length) await enregistrerCreneaux(ecrire)
+  if (vider.length) await viderCreneaux(vider)
 }

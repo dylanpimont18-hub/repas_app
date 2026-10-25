@@ -129,7 +129,8 @@ Choix des recettes dans la bibliothèque, sans IA (pur, testé).
 - `repartirEnvies(creneaux, envies)` — place chaque envie (nb repas, espacés ou à la suite)
 - `remplirCycle({...})` — réserve d'abord, repas familiaux, puis restes ; envies sur leurs repas, évitées ailleurs
 - `decalerEnCascade(creneaux, plan, cle, nouveau)` — décalage pour l'envie du soir
-- `proteinePrincipale(r)` / `ingredientsFrais(r)` / `motsDe(s)` / `motsRecette(r)`
+- `proteinePrincipale(r)` / `ingredientsRecette(r)` / `motsDe(s)` / `motsRecette(r)`
+- Score : bonus ingrédient déjà prévu, malus ingrédient nouveau et recette > 8 ingrédients (moins d'ingrédients différents)
 
 ### js/propositions.js
 Relie selection.js aux données Supabase du cycle.
@@ -138,6 +139,7 @@ Relie selection.js aux données Supabase du cycle.
 - `remplirDepuisBibliotheque(d, cles, options)` / `completerParIA(d, creneaux, options, onProgress)`
 - `ideeIA(d, c, options)` — une recette IA enregistrée
 - `placer(d, c, recetteId, source, mode, simuler)` — remplacer / congélo / décaler
+- `echanger(d, cleA, cleB)` — intervertit deux repas ou déplace vers un créneau vide
 - `lireFiltres()` / `memoriserFiltres(f)` — sélecteurs mémorisés sur l'appareil
 
 ### js/envie.js
@@ -240,7 +242,8 @@ Rendu et interactions de la bibliothèque de recettes.
 Rendu et interactions du planificateur hebdomadaire.
 - `renderGrid()` / `afficher()` — charge puis affiche le cycle : liste par session (mobile) ou frise jours × repas avec bandeaux de session (≥ 1024 px) ; temps réel
 - `htmlCreneau(c)` / `htmlListe()` / `htmlFrise()` — rendu d'un repas, de la liste, de la frise
-- `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️, 🗑, portions
+- `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️ (choisir / vider), ⇅ déplacer, portions
+- Mode déplacement (toucher ⇅ puis la destination) et glisser-déposer sur ordinateur → `echanger()`
 - `ouvrirSelectRecette()` — choix manuel, recettes compatibles en premier
 - `initModalGen()` — « Remplir le cycle » : contraintes (tous les repas) + envies réglables (1-3 repas, espacés / à la suite) ; « Mes recettes » ou « Avec l'IA »
 

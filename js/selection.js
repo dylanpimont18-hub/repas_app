@@ -1,11 +1,12 @@
 // js/selection.js — Choix des recettes dans la bibliothèque, sans IA (fonctions pures, testées sous Node)
 import { normaliser, passeFiltres, contientInterdit, scoreStyle } from './filtres.js'
-import { categoriser } from './utils.js'
+import { categoriser, cleIngredient } from './utils.js'
 import { soirAssocie, dateIso } from './cycle.js'
 
 const JOUR_MS        = 86400000
 const ROTATION_JOURS = 21    // une recette ne revient pas avant 3 semaines
-const POIDS = { adore: 3, aime: 1, reutilisation: 1.5, anciennete: 0.5, ancienneteMax: 8,
+const POIDS = { adore: 3, aime: 1, reutilisation: 1.5, reutilisationAutre: 0.5, nouveauFrais: -1, nouveauAutre: -0.4,
+                recetteLongue: -0.3, seuilIngredients: 8, anciennete: 0.5, ancienneteMax: 8,
                 jamaisMangee: 3, proteineRepetee: -3, cuisineRepetee: -2, style: 4, conservationInconnue: -1,
                 envieHorsCible: -6 }
 const CATS_FRAICHES = ['Fruits & Légumes', 'Viandes & Poissons', 'Laitiers & Œufs']
@@ -59,6 +60,20 @@ export function proteinePrincipale(r) {
   return PROTEINES.find(p => motsDe(p).every(m => mots.has(m))) || null
 }
 
+// Basiques du placard : ne comptent pas comme « ingrédients différents »
+const BASIQUES = new Set(['sel', 'poivre', 'poivre noir', 'huile', "huile d'olive", 'huile tournesol', 'huile de tournesol', 'eau', 'sucre'])
+
+// Clés des ingrédients d'une recette (hors basiques), séparées en frais / autres
+export function ingredientsRecette(recette) {
+  const frais = new Set(), autres = new Set()
+  for (const i of recette.ingredients || []) {
+    const k = cleIngredient(i.nom || '')
+    if (!k || BASIQUES.has(k)) continue
+    ;(CATS_FRAICHES.includes(categoriser(i.nom || '')) ? frais : autres).add(k)
+  }
+  return { frais, autres }
+}
+
 // Ingrédients frais d'une recette (pour le bonus de réutilisation)
 export function ingredientsFrais(recette) {
   return new Set((recette.ingredients || [])
@@ -107,10 +122,13 @@ export function evaluer(recette, creneau, ctx) {
     ? Math.min((ctx.debut - derniere) / (7 * JOUR_MS), POIDS.ancienneteMax) * POIDS.anciennete
     : POIDS.jamaisMangee
 
-  // Réutilisation des ingrédients frais déjà prévus dans le cycle (anti-gaspi)
-  if (ctx.ingredientsChoisis?.size) {
-    for (const i of ingredientsFrais(recette)) if (ctx.ingredientsChoisis.has(i)) score += POIDS.reutilisation
-  }
+  // Moins d'ingrédients différents sur le cycle : bonus si déjà prévu, malus si nouveau
+  const { frais, autres } = ingredientsRecette(recette)
+  const prevus = ctx.ingredientsChoisis || new Set()
+  for (const i of frais)  score += prevus.has(i) ? POIDS.reutilisation : POIDS.nouveauFrais
+  for (const i of autres) score += prevus.has(i) ? POIDS.reutilisationAutre : POIDS.nouveauAutre
+  const nb = frais.size + autres.size
+  if (nb > POIDS.seuilIngredients) score += (nb - POIDS.seuilIngredients) * POIDS.recetteLongue
 
   // Variété : pas trois fois la même protéine ou la même cuisine
   const prot = proteinePrincipale(recette)
@@ -135,7 +153,8 @@ export function nouveauContexte({ indexPrefs, filtres = [], style = '', historiq
 export function noterChoix(ctx, recette) {
   if (!recette) return
   ctx.utilisees.add(recette.id)
-  ingredientsFrais(recette).forEach(i => ctx.ingredientsChoisis.add(i))
+  const { frais, autres } = ingredientsRecette(recette)
+  ;[...frais, ...autres].forEach(i => ctx.ingredientsChoisis.add(i))
   const prot = proteinePrincipale(recette)
   if (prot) ctx.proteines.set(prot, (ctx.proteines.get(prot) || 0) + 1)
   const cuis = normaliser(recette.cuisine)

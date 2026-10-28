@@ -1,9 +1,10 @@
 // js/courses-ui.js — Liste de courses : coche instantanée (état local), lignes entières tactiles, hors-ligne, partage
 import { listeCourses, getEtatCourses, toggleCourse, envoyerFileCourses, fileCourses, resetCourses,
          ajouterArticle, supprimerArticle, basculerPlacard } from './courses.js'
-import { debutCycle, decalerCycle, cleCycle, labelCycle } from './cycle.js'
+import { debutCycle, decalerCycle, cleCycle, labelCycle, dateIso } from './cycle.js'
 import { dbEcouter } from './db.js'
-import { esc, debounce, combinerQuantites, ORDRE_RAYONS, texteCourses } from './utils.js'
+import { esc, debounce, combinerQuantites, ORDRE_RAYONS, texteCourses, markdownCourses } from './utils.js'
+import { exporterFichier, nomDeFichier } from './fichier.js'
 import { icone } from './icones.js'
 import { confirmer, informer, signalerErreur } from './dialogue.js'
 
@@ -268,6 +269,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.print()
   })
   document.getElementById('btnPartager')?.addEventListener('click', () => partager(null))
+  // Export .md : toute la liste du cycle, cases cochées comprises, articles « au placard » en fin
+  document.getElementById('btnExporterMd')?.addEventListener('click', () => {
+    if (!liste) return
+    const titre = `Courses · ${labelCycle(samedi)}`
+    exporterFichier(nomDeFichier(`courses ${dateIso(samedi)}`), markdownCourses(liste.parties, { titre, coche, auPlacard: liste.auPlacard }))
+  })
   document.getElementById('btnPartagerDrive')?.addEventListener('click', () => partager('mercredi'))
 
   // Navigation entre cycles

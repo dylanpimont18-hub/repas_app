@@ -4,10 +4,11 @@
 import { dbGetReglage, dbSetReglage, dbEcouter, dbGetLivres, dbUpsertLivre, dbUpsertRecettes } from './db.js'
 import { chargerDonnees } from './propositions.js'
 import { NOM_LIVRE_PLACARD, lireInventaire, fusionnerInventaire, couverture, choisirDansBibliotheque, nbRecettesConseille,
-         repartirArticles, libelleArticle, utilise } from './placard.js'
+         repartirArticles, aAcheter, markdownPlacard } from './placard.js'
 import { FILTRES, estEnvie } from './filtres.js'
-import { debutCycle } from './cycle.js'
-import { esc, debounce, cleIngredient } from './utils.js'
+import { debutCycle, dateIso } from './cycle.js'
+import { esc, debounce } from './utils.js'
+import { exporterFichier, nomDeFichier } from './fichier.js'
 import { icone } from './icones.js'
 import { confirmer, informer, signalerErreur } from './dialogue.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
@@ -75,13 +76,6 @@ function afficherPlan() {
   document.getElementById('btnPlacardBiblio').disabled = !inventaire.length || !restants.length
 }
 
-// Ingrédients à acheter en plus pour une recette (hors placard et basiques)
-const BASIQUES = new Set(['sel', 'poivre', 'eau', 'huile', 'huile d\'olive', 'sucre'])
-function aAcheter(r) {
-  return (r.ingredients || []).filter(ing => !BASIQUES.has(cleIngredient(ing.nom))
-    && !inventaire.some(i => utilise({ ingredients: [ing] }, i))).map(ing => ing.nom)
-}
-
 function afficherResultats() {
   const retenues = recettesRetenues()
   const zone = document.getElementById('placardResultats')
@@ -95,7 +89,7 @@ function afficherResultats() {
   jauge.querySelector('.placard-barre-rempli').style.width = `${pct}%`
   const nomArticle = id => inventaire.find(i => i.id === id)?.nom
   document.getElementById('placardRecettes').innerHTML = retenues.map(r => {
-    const achats = aAcheter(r)
+    const achats = aAcheter(r, inventaire)
     return `<article class="card placard-recette">
       <div class="placard-recette-tete">
         <h3><a href="recettes.html?id=${encodeURIComponent(r.id)}&portions=${portionsChoisies()}">${esc(r.nom)}</a></h3>
@@ -262,6 +256,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnPlacardBiblio').addEventListener('click', () => chercherDansBibliotheque())
   document.getElementById('btnPlacardIA').addEventListener('click', trouverRecettes)
   document.getElementById('btnPlacardUtilises')?.addEventListener('click', retirerUtilises)
+  // Export .md : inventaire, recettes retenues (ingrédients pour le nombre de personnes choisi, étapes), restants
+  document.getElementById('btnExporterPlacard').addEventListener('click', () => {
+    if (!inventaire.length) return informer('Le placard est vide : rien à exporter.')
+    exporterFichier(nomDeFichier(`placard ${dateIso(new Date())}`),
+      markdownPlacard(inventaire, recettesRetenues(), { titre: `Vider le placard · ${new Date().toLocaleDateString('fr-FR')}`, portions: portionsChoisies() }))
+  })
   document.getElementById('btnPlacardOublier').addEventListener('click', async () => {
     const avant = selection
     await sauverSelection([])

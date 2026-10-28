@@ -167,6 +167,26 @@ export function texteCourses(parties, { coche = () => false, titres = { samedi: 
   return blocs.join('\n\n')
 }
 
+// Échappe ce qui serait interprété en Markdown dans un nom (« *Riz* » reste « \*Riz\* »)
+const mdTexte = s => String(s ?? '').replace(/([\\`*_[\]#|<>])/g, '\\$1')
+
+/**
+ * Liste de courses au format Markdown (.md) : titre, une section par partie, un sous-titre par rayon,
+ * cases à cocher (`- [ ]` / `- [x]`), articles « au placard » en fin de fichier.
+ */
+export function markdownCourses(parties, { titre = 'Liste de courses', coche = () => false, auPlacard = [],
+  titres = { samedi: 'Samedi, au magasin', mercredi: 'Mercredi, en drive' } } = {}) {
+  const ligne = i => { const q = combinerQuantites(i.quantites || [], i.nom); return `- [${coche(i) ? 'x' : ' '}] ${mdTexte(i.nom)}${q ? ` — ${mdTexte(q)}` : ''}` }
+  const blocs = [`# ${mdTexte(titre)}`]
+  for (const partie of ['samedi', 'mercredi']) {
+    const rayons = ORDRE_RAYONS.map(r => [r, parties[partie]?.[r] || []]).filter(([, items]) => items.length)
+    if (!rayons.length) continue
+    blocs.push(`## ${titres[partie]}`, ...rayons.map(([r, items]) => `### ${r}\n\n${items.map(ligne).join('\n')}`))
+  }
+  if (auPlacard.length) blocs.push('## Au placard (vérifier qu\'il en reste)', auPlacard.map(ligne).join('\n'))
+  return `${blocs.join('\n\n')}\n`
+}
+
 export function repartirCourses(lignes) {
   const agregat = new Map()
   for (const l of lignes) {

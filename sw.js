@@ -2,7 +2,7 @@
 // Code de l'appli : réseau d'abord (toujours la dernière version en ligne), sinon la copie en cache.
 // Données Supabase (lecture) : réseau d'abord, sinon la dernière réponse reçue. Écritures, IA, connexion : jamais en cache.
 // Changer VERSION à chaque mise en ligne qui modifie la liste ci-dessous.
-const VERSION = 'repas-v3'
+const VERSION = 'repas-v4'
 const CACHE_CODE = `${VERSION}-code`
 const CACHE_DONNEES = 'repas-donnees'   // vidé à la déconnexion (js/app.js)
 const DELAI_RESEAU = 4000               // au-delà, on sert la copie en cache (4G faible en magasin)
@@ -14,7 +14,7 @@ const COQUILLE = [
   'js/vendor/supabase-2.118.0.js',
   'js/ai.js', 'js/app.js', 'js/auth-login.js', 'js/avis.js', 'js/courses-ui.js', 'js/courses.js', 'js/credit-ia-ui.js',
   'js/controle-ia.js', 'js/credit-ia.js', 'js/cuisine.js', 'js/custom-ingredients.js', 'js/cycle.js', 'js/dashboard.js', 'js/data/ingredients.js',
-  'js/db.js', 'js/dialogue.js', 'js/envie.js', 'js/filtres-recettes.js', 'js/filtres.js', 'js/hors-ligne.js', 'js/icones.js',
+  'js/db.js', 'js/dialogue.js', 'js/envie.js', 'js/fichier.js', 'js/filtres-recettes.js', 'js/filtres.js', 'js/hors-ligne.js', 'js/icones.js',
   'js/import-pur.js', 'js/import-recette.js', 'js/impression-recette.js', 'js/livres-ui.js', 'js/minuteurs.js', 'js/modales.js',
   'js/mode-cuisine.js', 'js/photos-auto.js', 'js/placard.js', 'js/placard-ui.js', 'js/planifier-recette.js', 'js/planning-ui.js', 'js/planning.js',
   'js/preferences-ui.js', 'js/preferences.js', 'js/propositions.js', 'js/recettes-ui.js', 'js/recettes.js',

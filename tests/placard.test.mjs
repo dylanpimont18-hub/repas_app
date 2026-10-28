@@ -81,3 +81,17 @@ test('sansRecettesPlacard : le planning ne propose pas les recettes du livre « 
   assert.deepEqual(sansRecettesPlacard(r, livres).map(x => x.id), ['b', 'c'])
   assert.equal(sansRecettesPlacard(r, []).length, 3)
 })
+
+test('markdownPlacard : inventaire coché, recettes avec ingrédients pondérés, restants', async () => {
+  const { markdownPlacard } = await import('../js/placard.js')
+  const inv = lireInventaire('riz basmati 500 g\nsucre')
+  const r = { id: 'x', nom: 'Salade de riz', portions: 4, temps_prep: 10, temps_cuisson: 15,
+    ingredients: [{ nom: 'Riz', quantite: '300 g' }, { nom: 'Thon', quantite: '2 boîtes' }], etapes: ['Cuire le riz.', 'Mélanger.'] }
+  const md = markdownPlacard(inv, [r], { titre: 'Placard', portions: 2 })
+  assert.match(md, /^# Placard\n\n## Mon placard \(2\)\n\n- \[x\] Riz basmati — 500 g\n- \[ \] Sucre\n/)
+  assert.match(md, /## Recettes retenues \(1\) — 1 \/ 2 articles utilisés/)
+  assert.match(md, /### Salade de riz\n\n- \*\*Utilise :\*\* Riz basmati\n- \*\*À acheter :\*\* Thon\n- \*\*Temps :\*\* 25 min/)
+  assert.match(md, /\*\*Ingrédients \(2 pers\.\)\*\*\n\n- 150 g Riz\n- 1 boîte Thon/)
+  assert.match(md, /1\. Cuire le riz\.\n2\. Mélanger\./)
+  assert.match(md, /## Pas encore utilisés\n\n- Sucre\n$/)
+})

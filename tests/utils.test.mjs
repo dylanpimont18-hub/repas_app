@@ -120,3 +120,35 @@ test('texteCourses : liste à partager, sans les articles cochés', async () => 
   assert.equal(t, 'Samedi (magasin)\n\nFruits & Légumes\n- Carottes : 3\n\nMercredi (drive)\n\nFéculents\n- Riz : 400 g')
   assert.equal(texteCourses(parties, { seulement: 'mercredi' }), 'Mercredi (drive)\n\nFéculents\n- Riz : 400 g')
 })
+
+test('markdownCourses : fichier .md avec parties, rayons et cases cochées', async () => {
+  const { markdownCourses } = await import('../js/utils.js')
+  const parties = {
+    samedi: { 'Fruits & Légumes': [{ nom: 'Carottes', quantites: [{ valeur: '3' }], cleEtat: 'carottes' }], Divers: [{ nom: 'Lessive', quantites: [], cleEtat: 'lessive' }] },
+    mercredi: { 'Féculents': [{ nom: 'Riz *basmati*', quantites: [{ valeur: '400 g' }], cleEtat: 'riz' }] },
+  }
+  const md = markdownCourses(parties, { titre: 'Courses · Sam 24/10 → Sam 31/10', coche: i => i.cleEtat === 'lessive',
+    auPlacard: [{ nom: 'Sel', quantites: [] }] })
+  assert.equal(md, `# Courses · Sam 24/10 → Sam 31/10
+
+## Samedi, au magasin
+
+### Fruits & Légumes
+
+- [ ] Carottes — 3
+
+### Divers
+
+- [x] Lessive
+
+## Mercredi, en drive
+
+### Féculents
+
+- [ ] Riz \\*basmati\\* — 400 g
+
+## Au placard (vérifier qu'il en reste)
+
+- [ ] Sel
+`)
+})

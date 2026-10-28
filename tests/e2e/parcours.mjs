@@ -134,7 +134,7 @@ async function supabaseSimule(route) {
 
 // ── Navigateur ───────────────────────────────────────────────────────
 const navigateur = await chromium.launch()
-const contexte = await navigateur.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, locale: 'fr-FR',
+const contexte = await navigateur.newContext({ acceptDownloads: true, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, locale: 'fr-FR',
   serviceWorkers: 'block' })  // le cache hors ligne fausserait le comptage des requêtes
 await contexte.route(`${SUPABASE}/**`, supabaseSimule)
 await contexte.routeWebSocket(/realtime/, ws => ws.close()).catch(() => {})
@@ -400,6 +400,25 @@ await etape('Placard : indépendant — ses recettes ne sont pas proposées au p
   await page.goto(`${BASE}/courses.html`)
   await page.waitForSelector('.courses-item')
   assert.doesNotMatch(await page.locator('#coursesList').textContent(), /à la maison/)
+})
+
+await etape('Export .md : liste de courses et placard téléchargés en Markdown', async () => {
+  await page.goto(`${BASE}/courses.html`)
+  await page.waitForSelector('.courses-item')
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#btnExporterMd').click()])
+  assert.match(dl.suggestedFilename(), /^courses-\d{4}-\d{2}-\d{2}\.md$/)
+  const md = await readFile(await dl.path(), 'utf8')
+  assert.match(md, /^# Courses · Sam /)
+  assert.match(md, /## Samedi, au magasin/)
+  assert.match(md, /- \[[ x]\] Agneau — 1 kg/)
+  await page.goto(`${BASE}/placard.html`)
+  await page.waitForSelector('.placard-item')
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('#btnExporterPlacard').click()])
+  assert.match(dl2.suggestedFilename(), /^placard-\d{4}-\d{2}-\d{2}\.md$/)
+  const md2 = await readFile(await dl2.path(), 'utf8')
+  assert.match(md2, /## Mon placard \(6\)/)
+  assert.match(md2, /- \[x\] Pois chiches — 2 boîtes/)
+  assert.match(md2, /### Curry de poulet/)
 })
 
 await etape('Mode sombre : aucun flash clair (thème posé avant le rendu)', async () => {

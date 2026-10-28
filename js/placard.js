@@ -3,6 +3,7 @@
 // puis l'IA écrit des recettes pour les articles restants, répartis entre elles.
 import { lireLigneIngredient, cleIngredient, categoriser } from './utils.js'
 import { motsDe, evaluer } from './selection.js'
+import { ingredientsPour } from './cuisine.js'
 
 const FAMILLE = { profils: ['dylan', 'femme'], portions: 4 }
 
@@ -143,3 +144,41 @@ export function repartirArticles(items, nb) {
 /** « 2 boîtes de pois chiches » pour le prompt et l'affichage */
 export const libelleArticle = i => (i.quantite ? `${i.nom} (${i.quantite})` : i.nom)
 
+// Ingrédients d'une recette à acheter en plus du placard (hors basiques : sel, poivre, huile…)
+const BASIQUES = new Set(['sel', 'poivre', 'eau', 'huile', 'huile d\'olive', 'sucre'])
+export function aAcheter(recette, inventaire = []) {
+  return (recette.ingredients || []).filter(ing => !BASIQUES.has(cleIngredient(ing.nom))
+    && !inventaire.some(i => utilise({ ingredients: [ing] }, i))).map(ing => ing.nom)
+}
+
+const md = s => String(s ?? '').replace(/([\\`*_[\]#|<>])/g, '\\$1')
+
+/**
+ * Le placard au format Markdown (.md) : inventaire (case cochée = utilisé par une recette retenue),
+ * recettes retenues avec ce qu'elles utilisent, ce qu'il reste à acheter et leurs ingrédients pour `portions` personnes,
+ * puis les articles pas encore utilisés.
+ */
+export function markdownPlacard(inventaire, recettes, { titre = 'Vider le placard', portions = 4 } = {}) {
+  const { parRecette, utilises, restants } = couverture(inventaire, recettes)
+  const nom = id => inventaire.find(i => i.id === id)?.nom
+  const blocs = [`# ${md(titre)}`, `## Mon placard (${inventaire.length})`]
+  blocs.push(inventaire.length
+    ? inventaire.map(i => `- [${utilises.has(i.id) ? 'x' : ' '}] ${md(i.nom)}${i.quantite ? ` — ${md(i.quantite)}` : ''}`).join('\n')
+    : '_Vide_')
+  if (recettes.length) {
+    blocs.push(`## Recettes retenues (${recettes.length}) — ${utilises.size} / ${inventaire.length} articles utilisés`)
+    for (const r of recettes) {
+      const achats = aAcheter(r, inventaire)
+      blocs.push([`### ${md(r.nom)}`, '',
+        `- **Utilise :** ${md((parRecette[r.id] || []).map(nom).filter(Boolean).join(', ') || '—')}`,
+        `- **À acheter :** ${achats.length ? md(achats.join(', ')) : 'rien'}`,
+        ...(r.temps_prep || r.temps_cuisson ? [`- **Temps :** ${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min`] : []),
+        '', `**Ingrédients (${portions} pers.)**`, '',
+        ...ingredientsPour(r, portions).map(i => `- ${i.quantite ? `${md(i.quantite)} ` : ''}${md(i.nom)}`),
+        ...((r.etapes || []).length ? ['', '**Préparation**', '', ...r.etapes.map((e, k) => `${k + 1}. ${md(e)}`)] : []),
+      ].join('\n'))
+    }
+  }
+  if (restants.length && recettes.length) blocs.push('## Pas encore utilisés', restants.map(i => `- ${md(i.nom)}${i.quantite ? ` — ${md(i.quantite)}` : ''}`).join('\n'))
+  return `${blocs.join('\n\n')}\n`
+}

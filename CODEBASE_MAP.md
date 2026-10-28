@@ -335,7 +335,11 @@ Vider le placard (pur, testé).
 - `utilise(recette, item)` / `couverture(inventaire, recettes)` — correspondance par mots (« riz » ↔ « riz basmati », « lait » ≠ « lait de coco »)
 - `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton, halal et goûts via `evaluer`
 - `nbRecettesConseille(n)` / `repartirArticles(items, nb)` — articles restants répartis entre les recettes IA
+- `aAcheter(recette, inventaire)` / `markdownPlacard(inventaire, recettes, {titre, portions})` — export .md
 - `NOM_LIVRE_PLACARD` / `sansRecettesPlacard(recettes, livres)` — les recettes du livre « Vider le placard » ne sont pas proposées au planning (`chargerDonnees(samedi, { avecPlacard })`)
+
+### js/fichier.js
+`exporterFichier(nom, contenu, type)` — feuille de partage avec le fichier sur téléphone (« Enregistrer dans Fichiers »), sinon téléchargement ; `nomDeFichier(texte, ext)`.
 
 ### js/placard-ui.js
 Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Trouver les recettes » = recettes existantes puis IA, « Cuisiner » par recette.
@@ -380,7 +384,7 @@ Rendu et interactions du planificateur hebdomadaire.
 Rendu et interactions de la liste de courses.
 - `charger()` (réseau) / `afficher()` (sans requête) — deux parties samedi / mercredi par rayon, « Déjà pris » par partie
 - `basculerCoche()` — coche immédiate, envoi en arrière-plan (file si hors ligne), écho temps réel ignoré
-- `partager(partie)` — « Envoyer le drive » / « Partager » (Web Share, sinon presse-papiers)
+- `partager(partie)` — « Envoyer le drive » / « Partager » (Web Share, sinon presse-papiers) ; « Exporter .md » (`markdownCourses` dans utils.js)
 
 ---
 

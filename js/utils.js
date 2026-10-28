@@ -75,7 +75,7 @@ export function lireQuantite(valeur) {
 
 // ── Ligne d'ingrédient saisie ou collée ──────────────────────────────
 // Unités reconnues après la quantité (« 2 c.s. », « 1 pincée », « 400 g ») ; le reste est le nom de l'ingrédient
-const UNITE_LIGNE = /^(kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?|c\.? ?[àa]\.? ?s(?:oupe)?\.?|c\.? ?[àa]\.? ?c(?:af[ée])?\.?|c\.s\.?|c\.c\.?|cs|cc|cuill[eè]res? [àa] (?:soupe|caf[ée])|pinc[ée]es?|gousses?|tranches?|bottes?|bo[iî]tes?|sachets?|filets?|brins?|feuilles?|poign[ée]es?|pots?|verres?|tasses?|bols?|morceaux?|pav[ée]s?|branches?|t[eê]tes?|zestes?|traits?|cubes?|briques?)(?=\s|$)/i
+const UNITE_LIGNE = /^(kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?|c\.? ?[àa]\.? ?s(?:oupe)?\.?|c\.? ?[àa]\.? ?c(?:af[ée])?\.?|c\.s\.?|c\.c\.?|cs|cc|cuill[eè]res? [àa] (?:soupe|caf[ée])|pinc[ée]es?|gousses?|tranches?|bottes?|bo[iî]tes?|sachets?|filets?|brins?|feuilles?|poign[ée]es?|pots?|verres?|tasses?|bols?|morceaux?|pav[ée]s?|branches?|t[eê]tes?|zestes?|traits?|cubes?|briques?|paquets?|bocal|bocaux|bouteilles?|barquettes?|tablettes?|pi[eè]ces?|rouleaux?|conserves?)(?=\s|$)/i
 
 /**
  * « 400 g Tomates » → { quantite: '400 g', nom: 'Tomates' } ; « 1 pincée de sel » → { quantite: '1 pincée', nom: 'sel' } ;

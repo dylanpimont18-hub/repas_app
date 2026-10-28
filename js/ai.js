@@ -373,12 +373,12 @@ export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], 
 async function buildPromptPlacard({ lot, inventaire, portions, filtres = [], style = '', nomsExistants = [], prefs = null }) {
   prefs ||= await preferencesTexte()
   const consignes = consignesFiltres(filtres)
-  const lib = i => (i.quantite ? `${i.nom} (${i.quantite})` : i.nom)
+  const lib = i => `${i.quantite ? `${i.nom} (${i.quantite})` : i.nom}${i.vite ? ' [À FINIR VITE : en priorité et en grande quantité]' : ''}`
   return `Tu es un chef cuisinier familial expert en anti-gaspi. Le foyer veut VIDER SON PLACARD en plusieurs repas : écris ${lot.length === 1 ? 'UNE recette' : `${lot.length} recettes différentes`}, chacune construite autour de quelques articles du placard seulement.
 Ce n'est PAS une recette unique qui mélange tout le placard : chaque recette est un vrai plat de tous les jours (6 à 10 ingrédients), qui a du sens seul.
 Pour toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes. ${portions} portion(s) par recette.
 
-ARTICLES DU PLACARD ATTRIBUÉS À CHAQUE RECETTE (utilise-les TOUS, en bonne quantité, idéalement en entier) :
+ARTICLES DU PLACARD ATTRIBUÉS À CHAQUE RECETTE (utilise-les TOUS, en bonne quantité, idéalement en entier ; les épices et condiments de la liste sont des compléments qui assaisonnent le plat, pas sa base) :
 ${lot.map((x, i) => `- "c${i + 1}" : ${x.articles.map(lib).join(', ')}`).join('\n')}
 
 AUTRES ARTICLES DU PLACARD (réservés aux autres recettes : n'en prends AU PLUS qu'un ou deux par recette, seulement s'il manque vraiment quelque chose — sel, huile, épices de base sont libres) :

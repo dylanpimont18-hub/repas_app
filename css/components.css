@@ -1310,3 +1310,18 @@ button.recipe-card .recipe-name, button.recipe-card .recipe-meta { display: flex
 .placard-restants { margin-top: 0.75rem; display: flex; gap: 0.35rem; align-items: baseline; color: var(--color-info); }
 .dash-lien-placard { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; color: var(--color-text); }
 .dash-lien-placard > .ic { width: 28px; height: 28px; color: var(--color-primary); flex-shrink: 0; }
+
+/* Placard : rayons, articles exclus, « à finir vite », recettes prioritaires */
+.placard-aide { margin: -0.1rem 0 0.4rem; }
+.placard-rayon { list-style: none; margin-top: 0.75rem; }
+.placard-rayon > ul { margin: 0; padding: 0; }
+.placard-item { grid-template-columns: 1fr minmax(5rem, 30%) 44px 44px; }
+.placard-nom > span { display: flex; flex-direction: column; }
+.placard-alerte { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--color-danger); font-size: 0.78rem; }
+.placard-exclu .placard-nom { color: var(--color-text-muted); text-decoration: line-through; text-decoration-color: var(--color-danger); }
+.placard-exclu .placard-alerte { text-decoration: none; }
+.placard-vite { color: var(--color-text-muted); }
+.placard-vite.actif { color: var(--color-danger); }
+.placard-prioritaire { border-color: var(--color-primary); box-shadow: inset 3px 0 0 var(--color-primary); }
+.placard-badge { display: flex; align-items: center; gap: 0.3rem; color: var(--color-primary); font-weight: 650; }
+.placard-recette-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }

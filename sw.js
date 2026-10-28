@@ -2,7 +2,7 @@
 // Code de l'appli : réseau d'abord (toujours la dernière version en ligne), sinon la copie en cache.
 // Données Supabase (lecture) : réseau d'abord, sinon la dernière réponse reçue. Écritures, IA, connexion : jamais en cache.
 // Changer VERSION à chaque mise en ligne qui modifie la liste ci-dessous.
-const VERSION = 'repas-v4'
+const VERSION = 'repas-v5'
 const CACHE_CODE = `${VERSION}-code`
 const CACHE_DONNEES = 'repas-donnees'   // vidé à la déconnexion (js/app.js)
 const DELAI_RESEAU = 4000               // au-delà, on sert la copie en cache (4G faible en magasin)

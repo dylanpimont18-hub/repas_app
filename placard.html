@@ -59,6 +59,7 @@
       </div>
       <form id="formPlacard" autocomplete="off">
         <label class="form-label" for="champPlacard">Ajouter (une ligne ou une virgule par article, quantité si tu l'as)</label>
+        <p class="text-xs text-muted placard-aide">Touche la flamme d'un article pour le marquer « à finir vite » : il passe en premier dans les recettes.</p>
         <textarea id="champPlacard" class="form-input" rows="3" placeholder="2 boîtes de pois chiches&#10;riz basmati 500 g&#10;lentilles corail, thon x3, farine"></textarea>
         <button type="submit" class="btn btn-primary btn-sm placard-ajouter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg>Ajouter au placard</button>
       </form>
@@ -102,7 +103,7 @@
       <div id="placardRecettes" class="placard-recettes"></div>
       <div id="placardRestants"></div>
       <div class="placard-actions">
-        <button class="btn btn-secondary btn-sm" id="btnPlacardUtilises"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>C'est cuisiné : retirer du placard</button>
+        <button class="btn btn-secondary btn-sm" id="btnPlacardUtilises"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>Tout est cuisiné</button>
         <button class="btn btn-ghost btn-sm" id="btnPlacardOublier">Effacer la sélection</button>
       </div>
     </section>

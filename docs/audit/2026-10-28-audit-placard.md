@@ -56,3 +56,24 @@ Trois points faussent le résultat dès qu'on vide un vrai placard :
 3. P6, m4 et décompte des quantités, saisie guidée (quelques jours) ; photo du placard plus tard.
 
 Tout reste compatible avec CLAUDE.md : bibliothèque d'abord, halal et goûts contrôlés, mode indépendant du planning et des courses.
+
+## Suivi (28/10/2026)
+
+| # | État | Où |
+|---|---|---|
+| P1 | Corrigé : tête du nom obligatoire, têtes composées dans les deux sens | `correspond` (`placard.js`), tests P1 |
+| P2 | Corrigé : virgule décimale, `2x`/`x2`, conditionnement, « et », préfixe | `lireInventaire`, tests P2 |
+| P3 | Corrigé : « Cuisiné » par recette, décompte des quantités ; global renommé « Tout est cuisiné » | `apresCuisson`, `placard-ui.js` |
+| P4 | Corrigé : article signalé, exclu de la jauge et de l'IA, bouton Retirer | `statutArticle` |
+| P5 | Corrigé : une base par recette, épices en compléments (2 au plus) | `repartirArticles`, prompt |
+| P6 | Corrigé : fusion par article avec le serveur, écritures en file, écho temps réel comparé au contenu | `fusionnerModifications` |
+| m1 | Corrigé : choix gardé, seulement borné | `placard-ui.js` |
+| m2 | Corrigé : seconde passe à 1 article de base | `choisirDansBibliotheque` |
+| m3 | Corrigé : synonymes (steak haché, crème, emmental…) et pluriels | `SYNONYMES` |
+| m4 | Corrigé : « 300 g sur 1 kg », article partiellement utilisé | `couverture` |
+| m5 | Corrigé : « N'utilise plus rien du placard » | `afficherResultats` |
+| m6 | Corrigé : groupé par rayon avec compteur | `afficherInventaire` |
+| m7 | Corrigé : « Au plus : » | `afficherPlan` |
+| À finir vite, ordre conseillé, Autre recette, décompte | Faits | `ordreConseille`, `autreRecette`, `apresCuisson` |
+| Saisie guidée | Version légère : noms ramenés à ceux de la base des ingrédients | `lireInventaire({ noms })` |
+| Photo du placard | Non fait (effort L) | — |

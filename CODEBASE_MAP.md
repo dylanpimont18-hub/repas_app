@@ -331,10 +331,15 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 
 ### js/placard.js
 Vider le placard (pur, testé).
-- `lireInventaire(texte)` / `fusionnerInventaire(a, b)` — saisie en vrac, quantité avant ou après le nom
-- `utilise(recette, item)` / `couverture(inventaire, recettes)` — correspondance par mots (« riz » ↔ « riz basmati », « lait » ≠ « lait de coco »)
-- `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton, halal et goûts via `evaluer`
-- `nbRecettesConseille(n)` / `nbRecettesMinimum(n)` / `repartirArticles(items, nb)` / `recetteFourreTout(r, inv, attribues)` — articles restants répartis entre plusieurs recettes IA (4 au plus chacune), jamais une recette avec tout le placard
+- `lireInventaire(texte, {noms})` / `fusionnerInventaire(a, b)` — saisie en vrac (virgule décimale, `2x`, conditionnement, « et », préfixe « épices : »), noms ramenés à ceux de la base
+- `fusionnerModifications(base, local, serveur)` — fusion par article de l'inventaire partagé entre deux téléphones
+- `statutArticle(item, indexPrefs)` — « pas halal » / « … n'aime pas » (exclu), légumes à cacher autorisés
+- `utilise(recette, item)` / `couverture(inventaire, recettes, {portions})` — correspondance par mots, tête du nom obligatoire, synonymes ; `partiels` quand la quantité ne suffit pas à tout utiliser
+- `quantiteEnBase` / `texteQuantite` / `besoinArticle` — quantités comparables (g, ml, unités, conditionnements)
+- `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton (« à finir vite » d'abord), seconde passe à 1 article de base, halal et goûts via `evaluer`
+- `estBase` / `nbBases` / `nbRecettesConseille(n)` / `nbRecettesMinimum(n)` / `repartirArticles(items, nb)` / `recetteFourreTout(r, inv, attribues)` — une base par recette IA, épices en compléments (2 au plus), 4 bases au plus, jamais une recette avec tout le placard
+- `apresCuisson(inventaire, recette, portions, autres)` — retire ou décompte les articles d'une recette cuisinée
+- `ordreConseille(recettes, inventaire)` / `libelleArticle` — recettes « à finir vite » en premier
 - `aAcheter(recette, inventaire)` / `markdownPlacard(inventaire, recettes, {titre, portions})` — export .md
 - `NOM_LIVRE_PLACARD` / `sansRecettesPlacard(recettes, livres)` — les recettes du livre « Vider le placard » ne sont pas proposées au planning (`chargerDonnees(samedi, { avecPlacard })`)
 
@@ -342,7 +347,7 @@ Vider le placard (pur, testé).
 `exporterFichier(nom, contenu, type)` — feuille de partage avec le fichier sur téléphone (« Enregistrer dans Fichiers »), sinon téléchargement ; `nomDeFichier(texte, ext)`.
 
 ### js/placard-ui.js
-Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Trouver les recettes » = recettes existantes puis IA, « Cuisiner » par recette.
+Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Trouver les recettes » = recettes existantes puis IA, « Cuisiner » / « Cuisiné » / « Autre recette » par recette, recettes cuisinées gardées dans le réglage `placard_cuisinees`, écritures de l'inventaire en file et fusionnées avec le serveur.
 
 ## JS — Couche UI (rendu et interactions)
 

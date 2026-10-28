@@ -367,7 +367,7 @@ await etape('Placard : inventaire saisi en vrac, quantités modifiables', async 
   await page.waitForFunction(() => document.querySelectorAll('.placard-item').length === 6)
   await page.locator('[aria-label="Quantité de Curry"]').fill('1 pot')
   await page.locator('[aria-label="Quantité de Curry"]').press('Tab')
-  await page.waitForFunction(() => true)
+  await page.waitForLoadState('networkidle')
   const inv = tables.reglages.find(r => r.cle === 'inventaire').valeur
   assert.equal(inv.length, 6)
   assert.equal(inv.find(i => i.nom === 'Curry').quantite, '1 pot')
@@ -377,10 +377,14 @@ await etape('Placard : inventaire saisi en vrac, quantités modifiables', async 
 await etape('Placard : recettes existantes d\'abord, puis l\'IA pour tout le reste (un seul bouton)', async () => {
   const avant = appelsIA
   await page.getByRole('button', { name: 'Trouver les recettes' }).click()
-  await page.waitForFunction(() => /tout le placard est utilisé/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
+  await page.waitForFunction(() => /recette\(s\) ajoutée/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
   assert.match(await page.locator('#placardRecettes').textContent(), /Curry de poulet/)   // existante : riz + lait de coco
   assert.ok(appelsIA > avant, 'IA non appelée')
-  // L'IA n'a reçu que les articles que les recettes existantes n'utilisaient pas
+  // Les quantités comptent : 1 kg de pâtes n'est pas vidé par une seule recette, le reste est encore à placer
+  assert.match(await page.locator('#placardRestants').textContent(), /Pâtes \(\d+ g\)/)
+  // Second passage : l'IA reçoit ce qui reste des pâtes
+  await page.getByRole('button', { name: 'Trouver les recettes' }).click()
+  await page.waitForFunction(() => /tout le placard est utilisé/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
   assert.match(await page.locator('#placardCouverture').textContent(), /6 \/ 6/)
   assert.ok(tables.recettes.some(r => r.nom.startsWith('Plat du placard')), 'recettes IA non enregistrées')
   assert.ok(tables.livres.some(l => l.nom === 'Vider le placard'), 'livre non créé')
@@ -404,12 +408,50 @@ await etape('Placard : indépendant — ses recettes ne sont pas proposées au p
   assert.doesNotMatch(await page.locator('#coursesList').textContent(), /à la maison/)
 })
 
+await etape('Placard : article non halal signalé, « à finir vite », « Cuisiné » recette par recette, « Autre recette »', async () => {
+  await page.goto(`${BASE}/placard.html`)
+  await page.waitForSelector('.placard-item')
+  // Article non halal : signalé dès l'ajout, barré, hors jauge
+  await page.locator('#champPlacard').fill('lardons fumés')
+  await page.getByRole('button', { name: 'Ajouter au placard' }).click()
+  await page.getByText(/pas halal : aucune recette ne l'utilisera/).first().waitFor()
+  assert.equal(await page.locator('.placard-exclu').count(), 1)
+  // Liste groupée par rayon
+  assert.ok(await page.locator('.placard-rayon').count() >= 3)
+  // « À finir vite » enregistré pour les deux téléphones
+  await page.getByRole('button', { name: /^Thon.* : à finir vite$/ }).click()
+  await page.waitForLoadState('networkidle')
+  assert.equal(tables.reglages.find(r => r.cle === 'inventaire').valeur.find(i => i.nom.startsWith('Thon')).vite, true)
+  // La recette qui utilise le thon passe en premier
+  await page.locator('.placard-prioritaire').first().waitFor()
+  // « Cuisiné » sur une recette : seuls ses articles sortent ou baissent
+  const carte = page.locator('.placard-recette').filter({ hasText: 'Curry de poulet' })
+  const avant = tables.reglages.find(r => r.cle === 'inventaire').valeur.map(i => i.nom)
+  await carte.getByRole('button', { name: 'Cuisiné' }).click()
+  await page.getByText(/« Curry de poulet » cuisinée/).waitFor()
+  await page.waitForLoadState('networkidle')
+  const apres = tables.reglages.find(r => r.cle === 'inventaire').valeur
+  assert.ok(apres.some(i => i.nom.startsWith('Thon')), 'le thon (autre recette) a été retiré')
+  assert.ok(!apres.some(i => i.nom === 'Lait de coco') || avant.length === apres.length, 'lait de coco toujours là')
+  assert.ok(!tables.reglages.find(r => r.cle === 'placard_selection').valeur.some(id => id === 'r1'))
+  // « Autre recette » : remplacée (IA simulée) par une recette qui utilise les mêmes articles
+  const nb = await page.locator('.placard-recette').count()
+  const premiere = page.locator('.placard-recette').first()
+  const nom = await premiere.locator('h3').textContent()
+  await premiere.getByRole('button', { name: 'Autre recette' }).click()
+  await page.waitForFunction(n => ![...document.querySelectorAll('.placard-recette h3')].some(h => h.textContent === n), nom, { timeout: 15000 })
+  assert.equal(await page.locator('.placard-recette').count(), nb)
+  // Une recette cuisinée n'est pas reproposée
+  assert.doesNotMatch(await page.locator('#placardRecettes').textContent(), /Curry de poulet/)
+})
+
 await etape('Placard : jamais une recette fourre-tout (12 articles → au moins 3 recettes, 4 articles max chacune)', async () => {
   await page.goto(`${BASE}/placard.html`)
   await page.waitForSelector('.placard-item')
+  const dejaLa = await page.locator('.placard-item').count()
   await page.locator('#champPlacard').fill('farine, sucre, semoule, quinoa, boulgour, maïs, haricots rouges, sardines, olives, cacao, noix de coco râpée, vermicelles')
   await page.getByRole('button', { name: 'Ajouter au placard' }).click()
-  await page.waitForFunction(() => document.querySelectorAll('.placard-item').length === 18)
+  await page.waitForFunction(n => document.querySelectorAll('.placard-item').length === n, dejaLa + 12)
   // On essaie de descendre à 1 recette : le bouton − s'arrête au minimum
   for (let k = 0; k < 10; k++) {
     const moins = page.locator('[data-nb="-1"]')
@@ -441,9 +483,10 @@ await etape('Export .md : liste de courses et placard téléchargés en Markdown
   const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('#btnExporterPlacard').click()])
   assert.match(dl2.suggestedFilename(), /^placard-\d{4}-\d{2}-\d{2}\.md$/)
   const md2 = await readFile(await dl2.path(), 'utf8')
-  assert.match(md2, /## Mon placard \(18\)/)
+  assert.match(md2, /## Mon placard \(\d+\)/)
   assert.match(md2, /- \[x\] Pois chiches — 2 boîtes/)
-  assert.match(md2, /### Curry de poulet/)
+  assert.match(md2, /## Recettes retenues \(\d+\)/)   // le curry, cuisiné plus haut, n'y est plus
+  assert.doesNotMatch(md2, /### Curry de poulet/)
 })
 
 await etape('Mode sombre : aucun flash clair (thème posé avant le rendu)', async () => {

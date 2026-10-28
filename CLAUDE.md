@@ -65,10 +65,14 @@ Générée automatiquement depuis le planning de la semaine active.
 - Export : partage texte (drive), impression, fichier `.md` (`markdownCourses`, cases `- [ ]` / `- [x]`)
 
 ### 6. Vider le placard (`placard.html`) — mode indépendant
-Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac), partagé (`reglages.inventaire`).
+Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac : « lait 1,5 L », « 2x thon », « épices : cumin, paprika »), partagé (`reglages.inventaire`, fusionné par article entre les deux téléphones, écritures en file), groupé par rayon.
+- Article non halal ou « n'aime pas » signalé et exclu (jauge, groupes IA) ; légumes « à cacher » de Ma femme autorisés
+- « À finir vite » (flamme) : servi en premier aux recettes existantes et à l'IA ; ces recettes sont « À cuisiner en premier » (`ordreConseille`)
+- Correspondance article ↔ ingrédient par mots, tête du nom obligatoire (« riz » ≠ « vinaigre de riz »), petite table de synonymes ; quantités comparées (« 300 g sur 1 kg » → partiellement utilisé)
 - « Trouver les recettes » : toutes les recettes existantes d'abord (celles qui utilisent le plus d'articles, halal et goûts respectés), puis l'IA pour les articles restants, répartis entre plusieurs recettes (≈ 3 par recette, 4 au plus, rayons variés), rangées dans le livre « Vider le placard »
 - **Jamais une recette fourre-tout** : nombre de recettes IA ≥ articles restants ÷ 4 (le − s'arrête là), prompt « plusieurs vrais plats », recette qui utilise trop d'articles du placard écartée à la réception (`recetteFourreTout`) ; au-delà de 15 recettes × 4 articles, le surplus attend un second passage
-- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Cuisiner » (mode cuisine), « C'est cuisiné : retirer du placard »
+- Groupes IA : une base par recette (féculent, protéine, légume, conserve), épices et condiments en compléments (2 au plus, hors limite de 4)
+- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Cuisiner » (mode cuisine), « Cuisiné » **par recette** (`apresCuisson` : retire ses articles ou décompte les quantités, recette notée dans `reglages.placard_cuisinees` et plus reproposée), « Autre recette » (bibliothèque puis IA), « Tout est cuisiné »
 - Export `.md` (`markdownPlacard`) : inventaire, recettes retenues (ingrédients pour N personnes, étapes), articles restants
 - **Indépendant** : les recettes du livre « Vider le placard » ne sont jamais proposées par le planning ni ⚡ Envie (`sansRecettesPlacard` dans `chargerDonnees`), rien n'est mis au planning, l'inventaire ne change pas la liste de courses
 

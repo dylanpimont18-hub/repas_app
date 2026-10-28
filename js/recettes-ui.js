@@ -1,7 +1,7 @@
 // js/recettes-ui.js
-import { getRecettes, filtrerRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
-import { dbEcouter, dbSetImageRecette, dbSetAvis } from './db.js'
-import { esc, debounce } from './utils.js'
+import { getRecettes, filtrerRecettes, deleteRecette, addRecette } from './recettes.js'
+import { dbEcouter, dbSetImageRecette, dbSetAvis, dbGetPlanningDeRecette, dbUpsertPlanningLot } from './db.js'
+import { esc, debounce, reparerIngredient, lireLigneIngredient } from './utils.js'
 import { TAGS } from './filtres.js'
 import { icone } from './icones.js'
 import { initLivres, chargerLivres, renderLivres, getLivres, getLivreActif, nomLivre } from './livres-ui.js'
@@ -11,7 +11,10 @@ import { coutImage, formatDollars, expliquerErreur } from './credit-ia.js'
 import { htmlErreurIA } from './credit-ia-ui.js'
 import { imprimerRecette } from './impression-recette.js'
 import { ouvrirPlanifier } from './planifier-recette.js'
-import { ouvrirModeCuisine } from './mode-cuisine.js'
+import { recetteAuxPortions, ingredientsPour } from './cuisine.js'
+import { confirmer, informer, signalerErreur } from './dialogue.js'
+// Mode cuisine (et IA, minuteurs) chargé seulement au moment de cuisiner : page plus légère
+const ouvrirModeCuisine = async (...args) => (await import('./mode-cuisine.js')).ouvrirModeCuisine(...args)
 
 let filtres = {}        // recherche par nom
 let selection = {}      // filtres déduits des recettes : { groupe: [valeurs] }
@@ -33,6 +36,17 @@ function relireFiltres() {
 let disponibles = []
 let recetteEnEdition = null
 let nomsRecettes = []
+
+// ── Catalogue en mémoire : rechargé seulement quand une recette change (ici ou sur l'autre téléphone) ──
+let catalogue = null
+async function toutesLesRecettes() {
+  if (!catalogue) catalogue = getRecettes().catch(e => { catalogue = null; throw e })
+  return catalogue
+}
+function invaliderCatalogue() { catalogue = null }
+async function recetteParId(id) {
+  return (await toutesLesRecettes()).find(r => r.id === id) || null
+}
 
 // Panneau des filtres (seuls ceux portés par au moins une recette affichée) + rappel des filtres actifs
 function renderFiltres(nbResultats, nbScope) {
@@ -64,7 +78,8 @@ function renderFiltres(nbResultats, nbScope) {
 }
 
 async function renderList() {
-  const toutes    = await getRecettes()
+  let toutes
+  try { toutes = await toutesLesRecettes() } catch (e) { return signalerErreur(e, 'Chargement des recettes') }
   nomsRecettes    = toutes.map(r => r.nom)
   renderLivres(toutes)
   const livre     = getLivreActif()
@@ -80,41 +95,44 @@ async function renderList() {
   if (!container) return
   container.innerHTML = recettes.length === 0
     ? `<p class="text-muted">${base.length ? (scope.length ? 'Aucune recette ne correspond à ces filtres.' : `Aucune recette avec ${esc(ingredientsFiltre.join(' + '))}.`)
-      : livre ? 'Ce livre est vide : « Générer des recettes » pour le remplir, ou range une recette dedans depuis « Modifier ».' : 'Aucune recette. Générez-en depuis le planning !'}</p>`
+      : livre ? 'Ce livre est vide : « Générer des recettes » pour le remplir, ou range une recette dedans depuis « Modifier ».'
+      : 'Aucune recette. Ajoute la tienne avec « Nouvelle », importe-la, ou remplis le planning avec l\'IA.'}</p>`
     : recettes.map(r => `
-        <div class="recipe-card${r.image_url ? ' recipe-card-photo' : ''}" style="cursor:pointer;" data-id="${esc(r.id)}">
+        <article class="recipe-card${r.image_url ? ' recipe-card-photo' : ''}" role="button" tabindex="0" data-id="${esc(r.id)}">
           ${r.image_url ? `<img class="recipe-photo" src="${esc(r.image_url)}" alt="" loading="lazy">` : ''}
-          <div class="recipe-name">${esc(r.nom)}</div>
+          <h2 class="recipe-name">${esc(r.nom)}</h2>
           <div class="recipe-meta">
-            <span>${icone('horloge')}${r.temps_prep + r.temps_cuisson} min</span>
+            <span>${icone('horloge')}${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min</span>
             <span>${icone('famille')}${r.portions} pers.</span>
             ${r.nutrition?.calories ? `<span>${icone('flamme')}${r.nutrition.calories} kcal</span>` : ''}
           </div>
           <div class="recipe-tags">${!livre && r.livre_id && nomLivre(r.livre_id) ? `<span class="recipe-tag recipe-tag-livre">${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}${r.avis === 1 ? `<span class="recipe-tag recipe-tag-avis">${icone('coeur')}A plu</span>` : ''}${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
-        </div>`).join('')
-  container.querySelectorAll('[data-id]').forEach(card => {
-    card.addEventListener('click', () => ouvrirDetail(card.dataset.id))
-  })
+        </article>`).join('')
 }
 
-async function ouvrirDetail(id) {
-  const r = await getRecetteById(id)
-  if (!r) return
+// ── Détail d'une recette ─────────────────────────────────────────────
+// `portions` : nombre de personnes affiché (les ingrédients sont pondérés) ; par défaut, celui de la recette
+async function ouvrirDetail(id, portions = null) {
+  const r = await recetteParId(id)
+  if (!r) return informer('Cette recette n\'existe plus.', { type: 'erreur' })
+  const nb = portions || r.portions || 4
+  const vue = recetteAuxPortions(r, nb)    // recette pondérée pour `nb` personnes
+  const modifie = nb !== r.portions
   document.getElementById('detailContent').innerHTML = `
     <div class="detail-photo" id="detailPhoto">${r.image_url ? `<img src="${esc(r.image_url)}" alt="Photo : ${esc(r.nom)}">` : ''}</div>
-    <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:0.5rem;">${esc(r.nom)}</h2>
+    <h2 class="modal-title detail-titre">${esc(r.nom)}</h2>
     <div class="recipe-meta" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-      <span>${icone('horloge')}Préparation ${r.temps_prep} min</span>
-      <span>${icone('flamme')}Cuisson ${r.temps_cuisson} min</span>
-      <span>${icone('famille')}${r.portions} pers.</span>
+      <span>${icone('horloge')}Préparation ${r.temps_prep || 0} min</span>
+      <span>${icone('flamme')}Cuisson ${r.temps_cuisson || 0} min</span>
       ${r.vegetarien ? `<span>${icone('feuille')}Végétarien</span>` : ''}
       ${r.livre_id && nomLivre(r.livre_id) ? `<span>${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}
     </div>
-    ${r.nutrition ? `<div class="card" style="margin-bottom:1rem;display:flex;gap:1rem;flex-wrap:wrap;">
-      <span class="text-sm"><b>${r.nutrition.calories}</b> kcal</span>
-      <span class="text-sm"><b>${r.nutrition.proteines} g</b> protéines</span>
-      <span class="text-sm"><b>${r.nutrition.glucides} g</b> glucides</span>
-      <span class="text-sm"><b>${r.nutrition.lipides} g</b> lipides</span>
+    ${r.nutrition?.calories ? `<div class="card detail-nutrition">
+      <span class="text-sm"><b>${esc(r.nutrition.calories)}</b> kcal</span>
+      <span class="text-sm"><b>${esc(r.nutrition.proteines)} g</b> protéines</span>
+      <span class="text-sm"><b>${esc(r.nutrition.glucides)} g</b> glucides</span>
+      <span class="text-sm"><b>${esc(r.nutrition.lipides)} g</b> lipides</span>
+      <span class="text-xs text-muted">par portion</span>
     </div>` : ''}
     ${r.description ? `<p class="text-sm" style="margin-bottom:1rem;">${esc(r.description)}</p>` : ''}
     <div class="detail-avis" role="group" aria-label="Avis du foyer">
@@ -130,147 +148,204 @@ async function ouvrirDetail(id) {
       ${r.conservation_jours != null ? `<b>Conservation</b><span>${esc(r.conservation_jours)} jour(s) au frigo</span>` : ''}
     </div>` : ''}
     ${(r.legumes_caches || []).map(l => `<div class="astuce-cachee">${icone('oeil')}<span><b>${esc(l.legume)}</b> : ${esc(l.astuce)}</span></div>`).join('')}
-    <h3 style="margin-bottom:0.5rem;${r.legumes_caches?.length ? 'margin-top:1rem;' : ''}">Ingrédients</h3>
-    <ul style="margin-bottom:1rem;">
-      ${(r.ingredients || []).map(i => `<li class="text-sm" style="padding:0.2rem 0;">• ${esc(i.quantite)} ${esc(i.nom)}</li>`).join('')}
+    <div class="detail-ingredients-tete">
+      <h3>Ingrédients</h3>
+      <div class="pas-a-pas" role="group" aria-label="Nombre de personnes">
+        <button type="button" data-personnes="-1" aria-label="Une personne de moins" ${nb <= 1 ? 'disabled' : ''}>${icone('moins')}</button>
+        <output aria-live="polite">${nb} pers.</output>
+        <button type="button" data-personnes="1" aria-label="Une personne de plus" ${nb >= 20 ? 'disabled' : ''}>${icone('plus')}</button>
+      </div>
+    </div>
+    ${modifie ? `<p class="text-xs text-muted detail-pondere">Quantités recalculées pour ${nb} personne(s) (recette écrite pour ${r.portions}).
+      <button type="button" class="btn-lien" data-garder-portions>Enregistrer pour ${nb} personne(s)</button></p>` : ''}
+    <ul class="detail-ingredients">
+      ${(vue.ingredients || []).map(i => `<li class="text-sm"><span class="detail-qte">${esc(i.quantite)}</span> ${esc(i.nom)}</li>`).join('')}
     </ul>
     ${r.etapes?.length ? `<h3 style="margin-bottom:0.5rem;">Préparation</h3>
     <ol style="padding-left:1.25rem;">
       ${r.etapes.map(e => `<li class="text-sm" style="padding:0.3rem 0;">${esc(e)}</li>`).join('')}
     </ol>` : ''}
     <div id="detailPhotoErreur"></div>
-    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
-      <button class="btn btn-primary btn-sm" id="btnCuisinerRecette">${icone('marmite')}Cuisiner</button>
+    <div class="detail-actions">
+      <button class="btn btn-primary btn-sm" id="btnCuisinerRecette">${icone('marmite')}Cuisiner pour ${nb}</button>
       <button class="btn btn-secondary btn-sm" id="btnPlanifierRecette">${icone('calendrier')}Planifier</button>
-      <button class="btn btn-secondary btn-sm" id="btnImprimerRecette">${icone('imprimer')}Imprimer</button>
-      <button class="btn btn-secondary btn-sm" id="btnPhotoRecette" title="≈ ${formatDollars(coutImage().cout)} la photo">${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}</button>
-      <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">${icone('poubelle')}Supprimer</button>
-      <button class="btn btn-secondary btn-sm" id="btnEditRecette" data-id="${esc(r.id)}">${icone('crayon')}Modifier</button>
-      <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette" data-id="${esc(r.id)}">${icone('copie')}Dupliquer</button>
-    </div>`
+      <button class="btn btn-secondary btn-sm" id="btnEditRecette">${icone('crayon')}Modifier</button>
+    </div>
+    <details class="detail-plus">
+      <summary>Plus d'actions</summary>
+      <div class="detail-actions">
+        <button class="btn btn-secondary btn-sm" id="btnImprimerRecette">${icone('imprimer')}Imprimer (${nb} pers.)</button>
+        <button class="btn btn-secondary btn-sm" id="btnPhotoRecette" title="≈ ${formatDollars(coutImage().cout)} la photo">${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}</button>
+        <button class="btn btn-secondary btn-sm" id="btnDupliquerRecette">${icone('copie')}Dupliquer</button>
+        <button class="btn btn-secondary btn-sm btn-texte-danger" id="btnDeleteRecette">${icone('poubelle')}Supprimer</button>
+      </div>
+    </details>`
   document.getElementById('modalDetail').classList.remove('hidden')
+  const zone = document.getElementById('detailContent')
 
-  document.getElementById('btnImprimerRecette').addEventListener('click', () => imprimerRecette(r))
-  document.querySelectorAll('[data-avis-recette]').forEach(b => b.addEventListener('click', async () => {
-    const avis = Number(b.dataset.avisRecette) === r.avis ? null : Number(b.dataset.avisRecette) // re-toucher = retirer
-    try { await dbSetAvis([], r.id, avis) } catch (e) { return alert('Erreur : ' + e.message) }
-    ouvrirDetail(id)
+  zone.querySelectorAll('[data-personnes]').forEach(b => b.addEventListener('click', () => {
+    const suivant = Math.min(20, Math.max(1, nb + Number(b.dataset.personnes)))
+    ouvrirDetail(id, suivant).then(() => document.querySelector(`#detailContent [data-personnes="${b.dataset.personnes}"]:not([disabled])`)?.focus()
+      || document.querySelector('#detailContent [data-personnes]:not([disabled])')?.focus())
   }))
-  document.getElementById('btnCuisinerRecette').addEventListener('click', () => ouvrirModeCuisine([{ recette: r, portions: r.portions }], r.nom))
+  zone.querySelector('[data-garder-portions]')?.addEventListener('click', async () => {
+    const ok = await confirmer(`Les quantités enregistrées seront celles pour ${nb} personne(s). Le planning et les courses restent justes (ils recalculent selon les portions de chaque repas).`,
+      { titre: `Recette pour ${nb} personne(s) ?`, ok: 'Enregistrer' })
+    if (!ok) return
+    try {
+      await addRecette({ ...vue, date: r.date })
+      invaliderCatalogue()
+      informer(`« ${r.nom} » est maintenant écrite pour ${nb} personne(s).`, { type: 'ok' })
+      await ouvrirDetail(id)
+      renderList()
+    } catch (e) { signalerErreur(e, 'Enregistrement') }
+  })
+  document.getElementById('btnImprimerRecette').addEventListener('click', () => imprimerRecette(vue))
+  zone.querySelectorAll('[data-avis-recette]').forEach(b => b.addEventListener('click', async () => {
+    const avis = Number(b.dataset.avisRecette) === r.avis ? null : Number(b.dataset.avisRecette) // re-toucher = retirer
+    try { await dbSetAvis([], r.id, avis) } catch (e) { return signalerErreur(e, 'Avis') }
+    r.avis = avis
+    ouvrirDetail(id, nb)
+  }))
+  document.getElementById('btnCuisinerRecette').addEventListener('click', () => ouvrirModeCuisine([{ recette: r, portions: nb }], r.nom))
   document.getElementById('btnPlanifierRecette').addEventListener('click', () =>
-    ouvrirPlanifier(r, document.getElementById('detailContent'), () => ouvrirDetail(id)))
+    ouvrirPlanifier(r, document.getElementById('detailContent'), () => ouvrirDetail(id, nb)))
 
   // Photo IA : la page reste utilisable ; la carte se met à jour par le temps réel
   document.getElementById('btnPhotoRecette').addEventListener('click', async (e) => {
     const btn = e.currentTarget
-    const zone = document.getElementById('detailPhoto')
+    const zonePhoto = document.getElementById('detailPhoto')
     btn.disabled = true
     btn.innerHTML = `<span class="loader loader-mini"></span>Photo en cours…`
-    zone.classList.add('detail-photo-attente')
+    zonePhoto.classList.add('detail-photo-attente')
     document.getElementById('detailPhotoErreur').innerHTML = ''
     try {
       const url = await genererImageRecette(r)
       await dbSetImageRecette(r.id, url)
       r.image_url = url
-      zone.innerHTML = `<img src="${esc(url)}" alt="Photo : ${esc(r.nom)}">`
+      zonePhoto.innerHTML = `<img src="${esc(url)}" alt="Photo : ${esc(r.nom)}">`
       btn.innerHTML = `${icone('etincelle')}Nouvelle photo`
     } catch (err) {
       document.getElementById('detailPhotoErreur').innerHTML = htmlErreurIA(err.info || expliquerErreur('INCONNUE', err.message))
       btn.innerHTML = `${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}`
     } finally {
-      zone.classList.remove('detail-photo-attente')
+      zonePhoto.classList.remove('detail-photo-attente')
       btn.disabled = false
     }
   })
 
-  document.getElementById('btnDeleteRecette').addEventListener('click', async () => {
-    if (confirm(`Supprimer "${r.nom}" ?`)) {
-      await deleteRecette(id)
-      document.getElementById('modalDetail').classList.add('hidden')
-      await renderList()
-    }
-  })
-
-  document.getElementById('btnEditRecette').addEventListener('click', () => {
-    ouvrirFormEdit(r)
-  })
-
+  document.getElementById('btnDeleteRecette').addEventListener('click', () => supprimerRecette(r))
+  document.getElementById('btnEditRecette').addEventListener('click', () => ouvrirFormEdit(r))
   document.getElementById('btnDupliquerRecette').addEventListener('click', () => {
-    ouvrirFormEdit({ ...r, id: '', nom: 'Copie de ' + r.nom })
+    const { id: _, image_url: __, avis: ___, ...copie } = r
+    ouvrirFormEdit({ ...copie, id: '', nom: 'Copie de ' + r.nom })
   })
 }
 
-// ── Helpers pour les lignes dynamiques ───────────────────────────────────────
+// Suppression avec « Annuler » : la recette et ses repas prévus sont remis en place
+async function supprimerRecette(r) {
+  let prevus = []
+  try { prevus = await dbGetPlanningDeRecette(r.id) } catch { /* on supprime quand même, sans pouvoir remettre les repas */ }
+  const message = prevus.length
+    ? `Elle est prévue sur ${prevus.length} repas, qui redeviendront vides.`
+    : 'Elle sera retirée de la bibliothèque.'
+  if (!await confirmer(message, { titre: `Supprimer « ${r.nom} » ?`, ok: 'Supprimer', danger: true })) return
+  try {
+    await deleteRecette(r.id)
+  } catch (e) { return signalerErreur(e, 'Suppression') }
+  document.getElementById('modalDetail').classList.add('hidden')
+  invaliderCatalogue()
+  await renderList()
+  informer(`« ${r.nom} » supprimée.`, {
+    duree: 8000,
+    action: { label: 'Annuler', faire: async () => {
+      try {
+        await addRecette(r)
+        if (prevus.length) await dbUpsertPlanningLot(prevus)
+        invaliderCatalogue()
+        await renderList()
+        informer(`« ${r.nom} » est revenue.`, { type: 'ok' })
+      } catch (e) { signalerErreur(e, 'Annulation') }
+    } },
+  })
+}
 
-function creerLigneIngredient(valeur = '') {
+// ── Formulaire : ingrédients (quantité + nom) et étapes ──────────────
+function creerLigneIngredient({ quantite = '', nom = '' } = {}) {
   const div = document.createElement('div')
-  div.className = 'edit-row'
-  const input = document.createElement('input')
-  input.className = 'form-input'
-  input.type = 'text'
-  input.placeholder = 'ex: 200g tomates'
-  input.value = valeur
-  const btn = document.createElement('button')
-  btn.type = 'button'
-  btn.className = 'edit-row-delete'
-  btn.title = 'Supprimer'
-  btn.setAttribute('aria-label', 'Supprimer la ligne')
-  btn.innerHTML = icone('croix')
-  btn.addEventListener('click', () => div.remove())
-  div.appendChild(input)
-  div.appendChild(btn)
+  div.className = 'edit-row edit-row-ingredient'
+  div.innerHTML = `<input class="form-input edit-qte" type="text" placeholder="400 g" aria-label="Quantité" value="${esc(quantite)}">
+    <input class="form-input edit-nom" type="text" placeholder="tomates" aria-label="Ingrédient" value="${esc(nom)}">
+    <button type="button" class="edit-row-delete" aria-label="Supprimer la ligne">${icone('croix')}</button>`
+  div.querySelector('.edit-row-delete').addEventListener('click', () => div.remove())
+  // Liste collée (« 400 g tomates », une par ligne) : découpée en lignes quantité + nom
+  div.querySelector('.edit-nom').addEventListener('paste', e => {
+    const texte = e.clipboardData?.getData('text') || ''
+    const lignes = texte.split(/\r?\n/).map(lireLigneIngredient).filter(Boolean)
+    if (lignes.length < 2 && !(lignes.length === 1 && lignes[0].quantite && !div.querySelector('.edit-qte').value)) return
+    e.preventDefault()
+    const [premiere, ...suivantes] = lignes
+    div.querySelector('.edit-qte').value = premiere.quantite
+    div.querySelector('.edit-nom').value = premiere.nom
+    let apres = div
+    for (const l of suivantes) { const n = creerLigneIngredient(l); apres.after(n); apres = n }
+  })
   return div
 }
 
 function creerLigneEtape(valeur = '') {
   const div = document.createElement('div')
   div.className = 'edit-row'
-  const input = document.createElement('input')
-  input.className = 'form-input'
-  input.type = 'text'
-  input.placeholder = "Décrivez l'étape…"
-  input.value = valeur
-  const btn = document.createElement('button')
-  btn.type = 'button'
-  btn.className = 'edit-row-delete'
-  btn.title = 'Supprimer'
-  btn.setAttribute('aria-label', 'Supprimer la ligne')
-  btn.innerHTML = icone('croix')
-  btn.addEventListener('click', () => div.remove())
-  div.appendChild(input)
-  div.appendChild(btn)
+  div.innerHTML = `<textarea class="form-input" rows="2" placeholder="Décrivez l'étape…" aria-label="Étape">${esc(valeur)}</textarea>
+    <button type="button" class="edit-row-delete" aria-label="Supprimer l'étape">${icone('croix')}</button>`
+  div.querySelector('.edit-row-delete').addEventListener('click', () => div.remove())
   return div
 }
 
 function renderIngredients(ingredients) {
   const liste = document.getElementById('editIngredientsList')
   liste.innerHTML = ''
-  ;(ingredients || []).forEach(ing => {
-    const valeur = `${ing.quantite} ${ing.nom}`.trim()
-    liste.appendChild(creerLigneIngredient(valeur))
-  })
+  // Les ingrédients abîmés par l'ancien formulaire (« 400 » + « g Tomates ») sont recollés à l'ouverture
+  ;(ingredients || []).map(reparerIngredient).filter(i => i.nom || i.quantite).forEach(i => liste.appendChild(creerLigneIngredient(i)))
+  if (!liste.children.length) liste.appendChild(creerLigneIngredient())
+}
+
+function lireIngredientsFormulaire() {
+  return [...document.querySelectorAll('#editIngredientsList .edit-row-ingredient')].map(row => ({
+    quantite: row.querySelector('.edit-qte').value.trim(),
+    nom:      row.querySelector('.edit-nom').value.trim(),
+  })).filter(i => i.nom)
 }
 
 function renderEtapes(etapes) {
   const liste = document.getElementById('editEtapesList')
   liste.innerHTML = ''
-  ;(etapes || []).forEach(etape => {
-    liste.appendChild(creerLigneEtape(etape))
-  })
+  ;(etapes || []).forEach(etape => liste.appendChild(creerLigneEtape(etape)))
 }
 
-// ── Ouverture du formulaire d'édition / duplication ──────────────────────────
+// Changer les portions du formulaire pondère les quantités saisies (si la case est cochée)
+function surChangementPortions(e) {
+  const champ = e.target
+  const avant = Number(champ.dataset.avant) || 0
+  const apres = parseInt(champ.value, 10) || 0
+  champ.dataset.avant = apres || avant
+  if (!avant || !apres || avant === apres || !document.getElementById('editAjusterQuantites').checked) return
+  const ingredients = ingredientsPour({ portions: avant, ingredients: lireIngredientsFormulaire() }, apres)
+  renderIngredients(ingredients)
+  informer(`Quantités recalculées pour ${apres} personne(s).`, { type: 'ok', duree: 2500 })
+}
 
-function ouvrirFormEdit(recette) {
+// ── Ouverture du formulaire (modifier, dupliquer, nouvelle recette, import) ──
+export function ouvrirFormEdit(recette = {}) {
   recetteEnEdition = recette
 
-  // Titre de la modale
   document.getElementById('editRecetteTitle').textContent =
-    recette.id ? 'Modifier la recette' : 'Dupliquer la recette'
+    recette.id ? 'Modifier la recette' : recette.nom ? 'Nouvelle recette (à vérifier)' : 'Nouvelle recette'
 
   // Champs simples
   document.getElementById('editNom').value        = recette.nom || ''
-  document.getElementById('editPortions').value   = recette.portions || ''
+  document.getElementById('editPortions').value   = recette.portions || 4
+  document.getElementById('editPortions').dataset.avant = recette.portions || 4
   document.getElementById('editPrep').value       = recette.temps_prep || ''
   document.getElementById('editCuisson').value    = recette.temps_cuisson || ''
   document.getElementById('editVeg').checked      = !!recette.vegetarien
@@ -292,7 +367,7 @@ function ouvrirFormEdit(recette) {
   document.getElementById('editConservation').value = recette.conservation_jours ?? ''
   document.getElementById('editCaches').value       = (recette.legumes_caches || []).map(l => `${l.legume} : ${l.astuce}`).join('\n')
   const tagsWrap = document.getElementById('editTags')
-  tagsWrap.innerHTML = TAGS.map(t => `<button type="button" class="chip ${(recette.tags || []).includes(t) ? 'active' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')
+  tagsWrap.innerHTML = TAGS.map(t => `<button type="button" class="chip ${(recette.tags || []).includes(t) ? 'active' : ''}" data-tag="${esc(t)}" aria-pressed="${(recette.tags || []).includes(t)}">${esc(t)}</button>`).join('')
 
   // Nutrition
   const n = recette.nutrition || {}
@@ -312,42 +387,22 @@ function ouvrirFormEdit(recette) {
 
 async function soumettreFormEdit(e) {
   e.preventDefault()
+  const nombre = id => { const v = parseInt(document.getElementById(id).value, 10); return Number.isFinite(v) ? v : null }
 
-  // Ingrédients : chaque ligne = "quantite nom" (séparé au premier espace)
-  const ingredients = []
-  document.getElementById('editIngredientsList').querySelectorAll('.edit-row input').forEach(input => {
-    const val = input.value.trim()
-    if (!val) return
-    const idx = val.indexOf(' ')
-    if (idx === -1) {
-      ingredients.push({ quantite: val, nom: '' })
-    } else {
-      ingredients.push({ quantite: val.slice(0, idx), nom: val.slice(idx + 1) })
-    }
-  })
+  const etapes = [...document.querySelectorAll('#editEtapesList .edit-row textarea')].map(t => t.value.trim()).filter(Boolean)
+  const nutrition = { calories: nombre('editKcal'), proteines: nombre('editProt'), glucides: nombre('editGluc'), lipides: nombre('editLip') }
 
-  // Étapes
-  const etapes = []
-  document.getElementById('editEtapesList').querySelectorAll('.edit-row input').forEach(input => {
-    const val = input.value.trim()
-    if (val) etapes.push(val)
-  })
-
-  // Construction de l'objet recette
   const recette = {
+    ...(recetteEnEdition.id ? { id: recetteEnEdition.id } : {}),
     nom:           document.getElementById('editNom').value.trim(),
-    portions:      parseInt(document.getElementById('editPortions').value) || 2,
-    temps_prep:    parseInt(document.getElementById('editPrep').value)    || 0,
-    temps_cuisson: parseInt(document.getElementById('editCuisson').value) || 0,
+    portions:      nombre('editPortions') || 4,
+    temps_prep:    nombre('editPrep') || 0,
+    temps_cuisson: nombre('editCuisson') || 0,
     vegetarien:    document.getElementById('editVeg').checked,
-    ingredients,
+    ingredients:   lireIngredientsFormulaire(),
     etapes,
-    nutrition: {
-      calories:  parseInt(document.getElementById('editKcal').value) || 0,
-      proteines: parseInt(document.getElementById('editProt').value) || 0,
-      glucides:  parseInt(document.getElementById('editGluc').value) || 0,
-      lipides:   parseInt(document.getElementById('editLip').value)  || 0,
-    },
+    // Nutrition vide : rien d'enregistré (plutôt que « 0 kcal »)
+    nutrition: Object.values(nutrition).some(v => v) ? Object.fromEntries(Object.entries(nutrition).map(([k, v]) => [k, v || 0])) : null,
     date: recetteEnEdition.id ? (recetteEnEdition.date || new Date().toISOString()) : new Date().toISOString(),
     description: document.getElementById('editDescription').value.trim() || null,
     cuisine:     document.getElementById('editCuisine').value.trim().toLowerCase() || null,
@@ -362,35 +417,39 @@ async function soumettreFormEdit(e) {
       const i = l.indexOf(':')
       return i > 0 ? { legume: l.slice(0, i).trim(), astuce: l.slice(i + 1).trim() } : null
     }).filter(l => l?.legume && l.astuce),
-    conservation_jours: document.getElementById('editConservation').value === '' ? null
-      : parseInt(document.getElementById('editConservation').value, 10),
+    conservation_jours: nombre('editConservation'),
     livre_id: document.getElementById('editLivre').value || null,
   }
+  if (!recette.nom) return informer('Donne un nom à la recette.', { type: 'erreur' })
+  if (!recette.ingredients.length && !await confirmer('Cette recette n\'a aucun ingrédient : elle n\'apparaîtra pas dans les courses.', { ok: 'Enregistrer quand même' })) return
 
-  // Pour une modification, on conserve l'id existant
-  // Pour une duplication (id vide), on n'ajoute pas d'id → dbUpsertRecette en génère un nouveau
-  if (recetteEnEdition.id) {
-    recette.id = recetteEnEdition.id
-  }
+  // Contrôle halal immédiat (la bibliothèque l'écarterait de toute façon des propositions)
+  const { contientInterdit } = await import('./filtres.js')
+  if (contientInterdit(recette) && !await confirmer('Un ingrédient ressemble à du porc ou de l\'alcool : la recette ne sera jamais proposée dans le planning. Si c\'est une version halal, précise-le (« jambon de dinde », « gélatine bovine »).',
+    { titre: 'Contrainte halal', ok: 'Enregistrer quand même', danger: true })) return
 
+  const bouton = document.getElementById('btnSauverEdit')
+  bouton.disabled = true
+  let id
   try {
-    await addRecette(recette)
+    id = await addRecette(recette)
   } catch (err) {
-    alert('Erreur lors de la sauvegarde : ' + err.message)
-    return
+    bouton.disabled = false
+    return signalerErreur(err, 'Enregistrement')
   }
-
-  // Fermeture des deux modales + rechargement liste
+  bouton.disabled = false
   document.getElementById('modalEditRecette').classList.add('hidden')
-  document.getElementById('modalDetail').classList.add('hidden')
+  invaliderCatalogue()
   await renderList()
+  informer(recetteEnEdition.id ? 'Recette enregistrée.' : `« ${recette.nom} » ajoutée à la bibliothèque.`, { type: 'ok' })
+  await ouvrirDetail(id)
 }
 
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   await chargerLivres()
-  initLivres({ rafraichir: renderList, nomsRecettes: () => nomsRecettes })
+  initLivres({ rafraichir: () => { invaliderCatalogue(); return renderList() }, nomsRecettes: () => nomsRecettes })
   relireFiltres()
   const champRecherche = document.getElementById('rechercheRecette')
   if (champRecherche && filtres.recherche) champRecherche.value = filtres.recherche
@@ -403,13 +462,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const targetId = params.get('id')
   if (targetId) {
-    await ouvrirDetail(targetId)
+    await ouvrirDetail(targetId, Number(params.get('portions')) || null)
     const card = document.querySelector(`[data-id="${CSS.escape(targetId)}"]`)
     if (card) {
-      card.style.outline = '2px solid var(--color-primary)'
+      card.classList.add('recipe-card-cible')
       card.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }
+
+  // Cartes : clic (et Entrée / Espace via modales.js) → détail
+  document.getElementById('recettesList')?.addEventListener('click', e => {
+    const card = e.target.closest('[data-id]')
+    if (card) ouvrirDetail(card.dataset.id)
+  })
+
+  // Nouvelle recette, import
+  document.getElementById('btnNouvelleRecette')?.addEventListener('click', () => ouvrirFormEdit({ portions: 4 }))
+  document.getElementById('btnImporterRecette')?.addEventListener('click', async () => {
+    const { ouvrirImport } = await import('./import-recette.js')
+    ouvrirImport(recette => ouvrirFormEdit(recette))
+  })
 
   // Fermeture modale détail
   document.getElementById('closeDetail')?.addEventListener('click', () =>
@@ -429,6 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const unique = disponibles.find(g => g.id === chip.dataset.groupe)?.unique
     selection = basculer(selection, chip.dataset.groupe, chip.dataset.valeur, unique)
     await renderList()
+    document.querySelector(`#filtresPanel [data-groupe="${CSS.escape(chip.dataset.groupe)}"][data-valeur="${CSS.escape(chip.dataset.valeur)}"]`)?.focus()
   }
   document.getElementById('filtresPanel')?.addEventListener('click', surFiltre)
   document.getElementById('filtresActifs')?.addEventListener('click', surFiltre)
@@ -448,14 +521,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   champIngredient?.addEventListener('blur', validerIngredients)
   document.getElementById('btnAjouterIngredient')?.addEventListener('click', validerIngredients)
 
-  // Recherche par nom
+  // Recherche par nom (dans le catalogue en mémoire : aucune requête)
   let rechercheTimer = null
   document.getElementById('rechercheRecette')?.addEventListener('input', e => {
     clearTimeout(rechercheTimer)
     rechercheTimer = setTimeout(async () => {
       filtres.recherche = e.target.value.trim() || null
       await renderList()
-    }, 200)
+    }, 150)
   })
 
   // Fermeture modale édition
@@ -464,19 +537,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnAnnulerEdit')?.addEventListener('click', () =>
     document.getElementById('modalEditRecette').classList.add('hidden'))
 
-  // Boutons ajout de ligne
+  // Boutons ajout de ligne (le nouveau champ prend le focus)
   document.getElementById('btnAddIngredient')?.addEventListener('click', () => {
-    document.getElementById('editIngredientsList').appendChild(creerLigneIngredient())
+    const ligne = creerLigneIngredient()
+    document.getElementById('editIngredientsList').appendChild(ligne)
+    ligne.querySelector('.edit-qte').focus()
   })
   document.getElementById('btnAddEtape')?.addEventListener('click', () => {
-    document.getElementById('editEtapesList').appendChild(creerLigneEtape())
+    const ligne = creerLigneEtape()
+    document.getElementById('editEtapesList').appendChild(ligne)
+    ligne.querySelector('textarea').focus()
   })
+  document.getElementById('editPortions')?.addEventListener('change', surChangementPortions)
 
   // Soumission formulaire
   document.getElementById('formEditRecette')?.addEventListener('submit', soumettreFormEdit)
-  document.getElementById('editTags')?.addEventListener('click', e => e.target.closest('.chip')?.classList.toggle('active'))
+  document.getElementById('editTags')?.addEventListener('click', e => {
+    const chip = e.target.closest('.chip'); if (!chip) return
+    chip.classList.toggle('active')
+    chip.setAttribute('aria-pressed', chip.classList.contains('active'))
+  })
 
   // Temps réel : nouvelles recettes ou modifications faites par l'autre membre du foyer
-  dbEcouter(['recettes'], debounce(renderList, 300))
+  dbEcouter(['recettes'], debounce(() => { invaliderCatalogue(); renderList() }, 300))
   dbEcouter(['livres'], debounce(async () => { await chargerLivres(); await renderList() }, 300))
 })

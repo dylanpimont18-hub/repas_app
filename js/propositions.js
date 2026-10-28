@@ -5,7 +5,7 @@ import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
 import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
 import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
-import { genererPourCreneaux, genererUneRecette, genererIdees } from './ai.js'
+import { genererPourCreneaux, genererUneRecette, genererIdees, completerIdee } from './ai.js'
 import { apresCreation } from './photos-auto.js'
 
 const CLE_FILTRES = 'repas_filtres_cycle'
@@ -51,6 +51,7 @@ export function ingredientsPrevus(d, exclureCles = []) {
   return [...new Set(recettesPrevues(d, exclureCles).flatMap(r => (r.ingredients || []).map(i => i.nom)))].slice(0, 60)
 }
 
+// d.recettes est trié du plus récent au plus ancien : l'IA reçoit les noms les plus récents
 function contexteIA(d, exclureCles) {
   return { ingredientsAReutiliser: ingredientsPrevus(d, exclureCles), nomsExistants: d.recettes.map(r => r.nom) }
 }
@@ -107,9 +108,10 @@ export async function ideesIA(d, creneau, options = {}, nb = 3) {
   return recettes.map((r, i) => ({ ...r, id: `idee-${lot}-${i}`, provisoire: true }))
 }
 
-// Enregistre en bibliothèque l'idée choisie (photo auto si activée) ; renvoie son vrai id
+// Enregistre en bibliothèque l'idée choisie, après avoir écrit ses étapes (photo auto si activée) ; renvoie son vrai id
 export async function enregistrerIdee(idee) {
-  const { id: _, provisoire: __, ...recette } = idee
+  const { id: _, provisoire: __, ...brute } = idee
+  const recette = await completerIdee(brute)
   const id = await addRecette(recette)
   apresCreation([{ ...recette, id }])
   return id

@@ -11,7 +11,8 @@ import { expliquerErreur } from './credit-ia.js'
 import { photosEnAttente } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { platsACuisiner } from './cuisine.js'
-import { ouvrirModeCuisine } from './mode-cuisine.js'
+// Mode cuisine (et IA, minuteurs) chargé seulement au moment de cuisiner : page plus légère
+const ouvrirModeCuisine = async (...args) => (await import('./mode-cuisine.js')).ouvrirModeCuisine(...args)
 
 let samedi  = debutCycle()
 let donnees = null

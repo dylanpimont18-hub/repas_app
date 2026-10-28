@@ -40,12 +40,12 @@ export async function renderModalEnvie(content, fermer) {
     content.innerHTML = `
       <p class="modal-title">Envie pour ${esc(labelCreneau(cible).toLowerCase())}</p>
       <div class="gen-chips-wrap" style="margin-bottom:0.6rem;">
-        ${ciblesPossibles.map(c => `<button class="chip ${c.cle === cible.cle ? 'active' : ''}" data-cible="${esc(c.cle)}">${esc(labelCreneau(c))}</button>`).join('')}
+        ${ciblesPossibles.map(c => `<button class="chip ${c.cle === cible.cle ? 'active' : ''}" data-cible="${esc(c.cle)}" aria-pressed="${c.cle === cible.cle}">${esc(labelCreneau(c))}</button>`).join('')}
       </div>
       ${occ ? `<p class="text-xs text-muted" style="margin-bottom:0.6rem;">Prévu : ${esc(nomRecette(occ.id))}</p>` : ''}
       <div class="gen-chips-wrap" style="margin-bottom:0.5rem;">
         ${ENVIES_RAPIDES.map(id => FILTRES.find(f => f.id === id)).map(f =>
-          `<button class="chip ${filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}">${f.label}</button>`).join('')}
+          `<button class="chip ${filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}" aria-pressed="${filtres.includes(f.id)}">${f.label}</button>`).join('')}
       </div>
       <input id="envieStyle" class="form-input" style="margin-bottom:0.75rem;" type="text" value="${esc(style)}"
         placeholder="Style libre : asiatique, ramen…" aria-label="Style libre">
@@ -72,16 +72,18 @@ export async function renderModalEnvie(content, fermer) {
           ${icone('etincelle')}${nbIdees} idées avec ces ingrédients</button>`}
       </section>
     `
+    // Après un redessin, le focus revient sur le bouton touché (clavier, VoiceOver)
+    const redessiner = (selecteur) => { draw(); content.querySelector(selecteur)?.focus() }
     content.querySelectorAll('[data-cible]').forEach(b => b.addEventListener('click', () => {
-      cible = d.parCle[b.dataset.cible]; idees = []; draw()
+      cible = d.parCle[b.dataset.cible]; idees = []; redessiner(`[data-cible="${CSS.escape(b.dataset.cible)}"]`)
     }))
     content.querySelectorAll('[data-nb]').forEach(b => b.addEventListener('click', () => {
-      nbIdees = Number(b.dataset.nb); draw()
+      nbIdees = Number(b.dataset.nb); redessiner(`[data-nb="${nbIdees}"]`)
     }))
     content.querySelectorAll('[data-filtre]').forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.filtre
       filtres = filtres.includes(id) ? filtres.filter(x => x !== id) : [...filtres, id]
-      draw()
+      redessiner(`[data-filtre="${id}"]`)
     }))
     content.querySelector('#envieStyle')?.addEventListener('change', draw)
     content.querySelectorAll('[data-recette]').forEach(b => b.addEventListener('click', () =>
@@ -108,10 +110,10 @@ export async function renderModalEnvie(content, fermer) {
   }
 
   function carte(r, source) {
-    return `<div class="envie-card" data-recette="${esc(r.id)}" data-source="${source}">
-      <div class="envie-nom">${esc(r.nom)}</div>
-      <div class="envie-desc">${esc(r.description || '')}${r.description ? ' · ' : ''}${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min</div>
-    </div>`
+    return `<button type="button" class="envie-card" data-recette="${esc(r.id)}" data-source="${source}">
+      <span class="envie-nom">${esc(r.nom)}</span>
+      <span class="envie-desc">${esc(r.description || '')}${r.description ? ' · ' : ''}${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min</span>
+    </button>`
   }
 
   // Le créneau est déjà pris : l'app demande quoi faire du plat prévu
@@ -135,7 +137,9 @@ export async function renderModalEnvie(content, fermer) {
   }
 
   async function valider(recetteId, source, mode) {
-    content.innerHTML = '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>'
+    const ideeAEcrire = idees.some(r => r.id === recetteId && r.provisoire)
+    content.innerHTML = `<div class="flex-center envie-attente" role="status"><span class="loader"></span>
+      ${ideeAEcrire ? '<p class="text-sm text-muted">L\'IA écrit les étapes de ta recette…</p>' : ''}</div>`
     try {
       // Idée IA choisie : enregistrée en bibliothèque seulement maintenant (les autres sont oubliées)
       const idee = idees.find(r => r.id === recetteId && r.provisoire)

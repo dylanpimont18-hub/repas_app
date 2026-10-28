@@ -1,5 +1,5 @@
 // js/db.js — Client Supabase + toutes les opérations base de données
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from './vendor/supabase-2.118.0.js'
 
 export const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
 
@@ -23,6 +23,18 @@ export async function dbSignIn(email, password) {
 
 export async function dbSignOut() {
   await supabase.auth.signOut()
+}
+
+// Profil de goûts de la personne connectée ('dylan' | 'femme'), mémorisé sur l'appareil
+export async function dbGetMonProfil() {
+  const session = await dbGetSession()
+  if (!session) return null
+  const cle = `repas_profil_${session.user.id}`
+  try { const memo = localStorage.getItem(cle); if (memo) return memo } catch { /* navigation privée */ }
+  const { data, error } = await supabase.from('foyer_membres').select('profil_nom').eq('user_id', session.user.id).maybeSingle()
+  if (error || !data) return null
+  try { localStorage.setItem(cle, data.profil_nom) } catch { /* navigation privée */ }
+  return data.profil_nom
 }
 
 // ── Préférences ──────────────────────────────────────────────────────
@@ -132,6 +144,14 @@ export async function dbSetImageRecette(id, imageUrl) {
 export async function dbSetEtapesRecette(id, etapes) {
   const { error } = await supabase.from('recettes').update({ etapes }).eq('id', id)
   if (error) throw error
+}
+
+// Repas où une recette est prévue (pour pouvoir annuler sa suppression)
+export async function dbGetPlanningDeRecette(id) {
+  const { data, error } = await supabase.from('planning')
+    .select('semaine_key, jour, moment, recette_id, portions, source, avis').eq('recette_id', id)
+  if (error) throw error
+  return data
 }
 
 export async function dbDeleteRecette(id) {
@@ -324,11 +344,12 @@ export async function dbGetUsageIA(depuis, limite = 500) {
   return data
 }
 
-export async function dbAppelFonctionIA(body) {
+export async function dbAppelFonctionIA(body, { signal } = {}) {
   const session = await dbGetSession()
   if (!session) throw new Error('Session expirée — reconnecte-toi.')
   return fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ai`, {
     method: 'POST',
+    signal,
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
       'apikey': CONFIG.SUPABASE_ANON_KEY,

@@ -4,7 +4,8 @@ import { chargerCycle }      from './planning.js'
 import { dbEcouter, dbGetPlanningSemaines, dbSetAvis } from './db.js'
 import { debutCycle, decalerCycle, dateIso, ajouterJours, groupesDuCycle, creneauCourant, labelCreneau } from './cycle.js'
 import { platsACuisiner }    from './cuisine.js'
-import { ouvrirModeCuisine } from './mode-cuisine.js'
+// Mode cuisine (et IA, minuteurs) chargé seulement au moment de cuisiner : page plus légère
+const ouvrirModeCuisine = async (...args) => (await import('./mode-cuisine.js')).ouvrirModeCuisine(...args)
 import { repasANoter }       from './avis.js'
 import { esc, debounce, getSemaineKey } from './utils.js'
 import { icone }             from './icones.js'

@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="manifest" href="manifest.json">
   <title>Repas — Recettes</title>
+  <script>/* Thème posé avant l'affichage (pas de flash clair en mode sombre) */try{var t=JSON.parse(localStorage.getItem('repas_theme'));if(!t&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/components.css">
 </head>
@@ -41,12 +42,16 @@
   <main class="main">
     <div class="section-header">
       <h1 class="page-title">Recettes</h1>
+      <div class="recettes-actions">
+        <button class="btn btn-primary btn-sm" id="btnNouvelleRecette"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg>Nouvelle</button>
+        <button class="btn btn-secondary btn-sm" id="btnImporterRecette"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-importer"/></svg>Importer</button>
+      </div>
+    </div>
+    <div class="recettes-outils">
       <button class="chip" id="btnFiltres" aria-expanded="false" aria-controls="filtresPanel"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-reglages"/></svg>Filtres<span id="filtresNb" class="filtres-nb hidden"></span></button>
     </div>
-    <div style="margin-bottom:1rem;position:relative;">
       <input type="search" id="rechercheRecette" class="form-input"
-        placeholder="Rechercher une recette" aria-label="Rechercher une recette"
-        style="padding-left:0.9rem;" autocomplete="off">
+        placeholder="Rechercher une recette" aria-label="Rechercher une recette" autocomplete="off">
     </div>
     <div id="livresBar" class="livres-bar" role="group" aria-label="Livres de recettes"></div>
     <div id="livreEntete"></div>
@@ -64,7 +69,7 @@
     </div>
     <div id="filtresActifs" class="filtres-actifs"></div>
     <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
-    <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>
+    <div id="recettesList" class="recettes-liste"></div>
 
     <div class="modal-overlay hidden" id="modalLivre">
       <div class="modal">
@@ -144,7 +149,7 @@
         <form id="formEditRecette" autocomplete="off">
           <!-- nom -->
           <div class="form-group">
-            <label class="form-label">Nom</label>
+            <label class="form-label" for="editNom">Nom</label>
             <input class="form-input" id="editNom" type="text" required>
           </div>
           <!-- description + format structuré -->
@@ -153,17 +158,17 @@
             <select class="form-input" id="editLivre"></select>
           </div>
           <div class="form-group">
-            <label class="form-label">Description</label>
+            <label class="form-label" for="editDescription">Description</label>
             <textarea class="form-input" id="editDescription" rows="2"></textarea>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-            <div class="form-group" style="margin:0"><label class="form-label">Base (féculent)</label><input class="form-input" id="editBase" type="text"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Élément principal</label><input class="form-input" id="editPrincipal" type="text"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Protéine</label><input class="form-input" id="editProteine" type="text"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Cuisine</label><input class="form-input" id="editCuisine" type="text" placeholder="japonaise, marocaine…"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editBase">Base (féculent)</label><input class="form-input" id="editBase" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editPrincipal">Élément principal</label><input class="form-input" id="editPrincipal" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editProteine">Protéine</label><input class="form-input" id="editProteine" type="text"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editCuisine">Cuisine</label><input class="form-input" id="editCuisine" type="text" placeholder="japonaise, marocaine…"></div>
           </div>
           <div class="form-group">
-            <label class="form-label">Légumes (séparés par des virgules)</label>
+            <label class="form-label" for="editLegumes">Légumes (séparés par des virgules)</label>
             <input class="form-input" id="editLegumes" type="text">
           </div>
           <div class="form-group">
@@ -171,25 +176,26 @@
             <div id="editTags" class="gen-chips-wrap"></div>
           </div>
           <div class="form-group">
-            <label class="form-label">Légumes cachés (une ligne par légume : « légume : astuce »)</label>
+            <label class="form-label" for="editCaches">Légumes cachés (une ligne par légume : « légume : astuce »)</label>
             <textarea class="form-input" id="editCaches" rows="2" placeholder="Courgette : mixer dans la sauce"></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Se conserve (jours au frigo)</label>
+            <label class="form-label" for="editConservation">Se conserve (jours au frigo)</label>
             <input class="form-input" id="editConservation" type="number" min="0" max="7">
           </div>
           <!-- row: portions, prep, cuisson, vegetarien -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
             <div class="form-group" style="margin:0">
-              <label class="form-label">Portions</label>
-              <input class="form-input" id="editPortions" type="number" min="1" max="20">
+              <label class="form-label" for="editPortions">Personnes</label>
+              <input class="form-input" id="editPortions" type="number" inputmode="numeric" min="1" max="20">
+              <label class="edit-ajuster"><input type="checkbox" id="editAjusterQuantites" checked> Ajuster les quantités</label>
             </div>
             <div class="form-group" style="margin:0">
-              <label class="form-label">Prép (min)</label>
+              <label class="form-label" for="editPrep">Prép (min)</label>
               <input class="form-input" id="editPrep" type="number" min="0">
             </div>
             <div class="form-group" style="margin:0">
-              <label class="form-label">Cuisson (min)</label>
+              <label class="form-label" for="editCuisson">Cuisson (min)</label>
               <input class="form-input" id="editCuisson" type="number" min="0">
             </div>
             <div class="form-group" style="margin:0;display:flex;flex-direction:column;justify-content:center;">
@@ -200,22 +206,22 @@
           </div>
           <!-- nutrition -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-            <div class="form-group" style="margin:0"><label class="form-label">Kcal</label><input class="form-input" id="editKcal" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Protéines (g)</label><input class="form-input" id="editProt" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Glucides (g)</label><input class="form-input" id="editGluc" type="number" min="0"></div>
-            <div class="form-group" style="margin:0"><label class="form-label">Lipides (g)</label><input class="form-input" id="editLip" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editKcal">Kcal</label><input class="form-input" id="editKcal" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editProt">Protéines (g)</label><input class="form-input" id="editProt" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editGluc">Glucides (g)</label><input class="form-input" id="editGluc" type="number" min="0"></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="editLip">Lipides (g)</label><input class="form-input" id="editLip" type="number" min="0"></div>
           </div>
           <!-- ingredients list -->
           <div class="form-group">
-            <label class="form-label">Ingrédients</label>
+            <label class="form-label">Ingrédients <span class="text-xs text-muted">(quantité · nom — tu peux coller une liste entière)</span></label>
             <div id="editIngredientsList"></div>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddIngredient" style="margin-top:0.4rem;">+ Ajouter un ingrédient</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddIngredient" style="margin-top:0.4rem;"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg>Ajouter un ingrédient</button>
           </div>
           <!-- etapes list -->
           <div class="form-group">
             <label class="form-label">Étapes</label>
             <div id="editEtapesList"></div>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddEtape" style="margin-top:0.4rem;">+ Ajouter une étape</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddEtape" style="margin-top:0.4rem;"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg>Ajouter une étape</button>
           </div>
           <!-- actions -->
           <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-border);">

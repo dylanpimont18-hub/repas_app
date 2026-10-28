@@ -44,8 +44,8 @@ export function nomIngredient(nom) {
 
 // Unités équivalentes ramenées à une seule écriture
 const UNITES = [
-  [/^(c\.?\s*(a|à)\s*caf[ée]|c\.?\s*c\.?|cuill[eè]res?\s*(a|à)\s*caf[ée]|cc)$/i, 'c.c.'],
-  [/^(c\.?\s*(a|à)\s*soupe|c\.?\s*s\.?|cuill[eè]res?\s*(a|à)\s*soupe|cs)$/i, 'c.s.'],
+  [/^(c\.?\s*[aà]\.?\s*c(af[ée])?\.?|c\.?\s*c\.?|cuill[eè]res?\s*[aà]\s*caf[ée]|cc)$/i, 'c.c.'],
+  [/^(c\.?\s*[aà]\.?\s*s(oupe)?\.?|c\.?\s*s\.?|cuill[eè]res?\s*[aà]\s*soupe|cs)$/i, 'c.s.'],
   [/^(g|gr|grammes?)$/i, 'g'], [/^(kg|kilos?|kilogrammes?)$/i, 'kg'],
   [/^(ml|millilitres?)$/i, 'ml'], [/^(cl|centilitres?)$/i, 'cl'], [/^(l|litres?)$/i, 'l'],
 ]
@@ -75,7 +75,7 @@ export function lireQuantite(valeur) {
 
 // ── Ligne d'ingrédient saisie ou collée ──────────────────────────────
 // Unités reconnues après la quantité (« 2 c.s. », « 1 pincée », « 400 g ») ; le reste est le nom de l'ingrédient
-const UNITE_LIGNE = /^(kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?|c\.? ?[àa] ?s(?:oupe)?\.?|c\.? ?[àa] ?c(?:af[ée])?\.?|c\.s\.?|c\.c\.?|cs|cc|cuill[eè]res? [àa] (?:soupe|caf[ée])|pinc[ée]es?|gousses?|tranches?|bottes?|bo[iî]tes?|sachets?|filets?|brins?|feuilles?|poign[ée]es?|pots?|verres?|tasses?|bols?|morceaux?|pav[ée]s?|branches?|t[eê]tes?|zestes?|traits?|cubes?|briques?)(?=\s|$)/i
+const UNITE_LIGNE = /^(kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?|c\.? ?[àa]\.? ?s(?:oupe)?\.?|c\.? ?[àa]\.? ?c(?:af[ée])?\.?|c\.s\.?|c\.c\.?|cs|cc|cuill[eè]res? [àa] (?:soupe|caf[ée])|pinc[ée]es?|gousses?|tranches?|bottes?|bo[iî]tes?|sachets?|filets?|brins?|feuilles?|poign[ée]es?|pots?|verres?|tasses?|bols?|morceaux?|pav[ée]s?|branches?|t[eê]tes?|zestes?|traits?|cubes?|briques?)(?=\s|$)/i
 
 /**
  * « 400 g Tomates » → { quantite: '400 g', nom: 'Tomates' } ; « 1 pincée de sel » → { quantite: '1 pincée', nom: 'sel' } ;

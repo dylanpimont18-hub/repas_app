@@ -34,6 +34,16 @@ const TRACES = {
   oeil:      '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
   deplacer:  '<path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/>',
   copie:     '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  moins:     '<path d="M5 12h14"/>',
+  info:      '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  haut:      '<path d="m18 15-6-6-6 6"/>',
+  bas:       '<path d="m6 9 6 6 6-6"/>',
+  partager:  '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>',
+  minuteur:  '<path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/>',
+  importer:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  horsligne: '<path d="M12 20h.01M8.5 16.43a5 5 0 0 1 7 0M2 2l20 20M5 12.86a10 10 0 0 1 5.17-2.69M19 12.86a10 10 0 0 0-2-1.43M2 8.82a15 15 0 0 1 4.18-2.65M22 8.82a15 15 0 0 0-11.29-3.76"/>',
+  pause:     '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+  lecture:   '<path d="m6 3 14 9-14 9z"/>',
 }
 
 // <svg> référençant le sprite ; `label` → icône porteuse de sens, sinon décorative (aria-hidden)

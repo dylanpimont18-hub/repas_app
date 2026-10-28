@@ -1,5 +1,5 @@
 // js/courses-ui.js
-import { genererListeCycle, getEtatCourses, toggleCourse, resetCourses } from './courses.js'
+import { listeCourses, getEtatCourses, toggleCourse, resetCourses, ajouterArticle, supprimerArticle, basculerPlacard } from './courses.js'
 import { debutCycle, decalerCycle, cleCycle, labelCycle } from './cycle.js'
 import { dbEcouter } from './db.js'
 import { esc, debounce, combinerQuantites } from './utils.js'
@@ -8,6 +8,8 @@ import { icone } from './icones.js'
 let enCours         = null   // rendu en cours (Promise)
 let aRefaire        = false  // un changement est arrivé pendant le rendu
 let acheteesOuverte = false
+let placardOuvert   = false
+let partieAjout     = 'samedi'   // partie où vont les articles ajoutés à la main
 let samedi          = debutCycle()
 
 const PARTIES = [
@@ -35,7 +37,11 @@ async function renderUneFois() {
   const labelEl    = document.getElementById('labelSemaineCourses')
   if (labelEl) labelEl.textContent = labelCycle(samedi)
 
-  const [parties, etat] = await Promise.all([genererListeCycle(samedi), getEtatCourses(semaineKey)])
+  const [{ parties, auPlacard }, etat] = await Promise.all([listeCourses(samedi, semaineKey), getEtatCourses(semaineKey)])
+  // Article à la main : on peut le supprimer ; ingrédient de recette : on peut le dire toujours au placard
+  const actionItem = item => item.libreId
+    ? `<button class="courses-item-action" data-supprimer="${esc(item.libreId)}" aria-label="Supprimer ${esc(item.nom)}">${icone('croix')}</button>`
+    : `<button class="courses-item-action" data-placard="${esc(item.nom)}" aria-label="${esc(item.nom)} : toujours au placard" title="Toujours au placard">${icone('boite')}</button>`
 
   // Séparer les items actifs (par partie puis rayon) des items achetés
   const achetees = []
@@ -57,6 +63,7 @@ async function renderUneFois() {
             <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
             <span class="courses-item-label">${esc(item.nom)}</span>
             <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
+            ${actionItem(item)}
           </div>`).join('')}
       </div>`).join('')}
     </div>`
@@ -79,12 +86,27 @@ async function renderUneFois() {
       </div>
     </div>` : ''
 
+  // Toujours au placard : hors liste, rappel replié pour vérifier qu'il en reste
+  const htmlPlacard = auPlacard.length ? `
+    <div class="courses-placard">
+      <button class="courses-placard-entete" data-ouvrir-placard aria-expanded="${placardOuvert}">
+        <span>${icone('boite')}Au placard (${auPlacard.length}) <span class="text-xs text-muted">vérifie qu'il en reste</span></span>
+        <span>${placardOuvert ? '▲' : '▼'}</span>
+      </button>
+      ${placardOuvert ? `<div class="courses-placard-corps">${auPlacard.map(item => `
+        <div class="courses-placard-item">
+          <span>${esc(item.nom)}</span>
+          <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
+          <button class="btn btn-ghost btn-sm" data-deplacard="${esc(item.nom)}">Remettre dans la liste</button>
+        </div>`).join('')}</div>` : ''}
+    </div>` : ''
+
   const list = document.getElementById('coursesList')
   if (list) {
-    if (!htmlActifs && !htmlAchetees) {
+    if (!htmlActifs && !htmlAchetees && !htmlPlacard) {
       list.innerHTML = '<p class="text-muted">Aucun repas planifié sur ce cycle.</p>'
     } else {
-      list.innerHTML = htmlActifs + htmlAchetees
+      list.innerHTML = htmlActifs + htmlAchetees + htmlPlacard
     }
 
     // Événements checkbox items actifs
@@ -210,6 +232,43 @@ function initSwipeCourses(semaineKey) {
 document.addEventListener('DOMContentLoaded', async () => {
   await render()
 
+  // Actions sur les articles (délégation : la liste est redessinée à chaque changement)
+  document.getElementById('coursesList')?.addEventListener('click', async e => {
+    const b = e.target.closest('[data-supprimer], [data-placard], [data-deplacard], [data-ouvrir-placard]')
+    if (!b) return
+    try {
+      if (b.dataset.supprimer) await supprimerArticle(b.dataset.supprimer)
+      else if (b.dataset.placard) await basculerPlacard(b.dataset.placard, true)
+      else if (b.dataset.deplacard) await basculerPlacard(b.dataset.deplacard, false)
+      else placardOuvert = !placardOuvert
+    } catch (err) { alert('Erreur : ' + err.message) }
+    await render()
+  })
+
+  // Ajouter un article à la main dans la partie choisie
+  const formAjout = document.getElementById('formArticle')
+  const majParties = () => formAjout?.querySelectorAll('[data-partie]').forEach(b => {
+    b.classList.toggle('active', b.dataset.partie === partieAjout)
+    b.setAttribute('aria-pressed', b.dataset.partie === partieAjout)
+  })
+  majParties()
+  formAjout?.addEventListener('click', e => {
+    const b = e.target.closest('[data-partie]'); if (!b) return
+    partieAjout = b.dataset.partie
+    majParties()
+  })
+  formAjout?.addEventListener('submit', async e => {
+    e.preventDefault()
+    const champ = document.getElementById('champArticle')
+    const noms = champ.value.split(',').map(n => n.trim()).filter(Boolean)
+    if (!noms.length) return
+    try {
+      for (const nom of noms) await ajouterArticle(cleCycle(samedi), nom, partieAjout)
+      champ.value = ''
+    } catch (err) { alert('Erreur : ' + err.message) }
+    await render()
+  })
+
   // Bouton réinitialiser
   document.getElementById('btnResetCourses')?.addEventListener('click', async () => {
     if (confirm('Réinitialiser les cases à cocher ?')) {
@@ -230,5 +289,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnNextCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, 1); render() })
 
   // Temps réel : cases cochées par l'autre, ou planning / recettes modifiés
-  dbEcouter(['courses_etat', 'planning', 'recettes', 'reglages'], debounce(render, 300))
+  dbEcouter(['courses_etat', 'courses_libres', 'planning', 'recettes', 'reglages'], debounce(render, 300))
 })

@@ -1,6 +1,6 @@
 // js/recettes-ui.js
 import { getRecettes, filtrerRecettes, deleteRecette, getRecetteById, addRecette } from './recettes.js'
-import { dbEcouter, dbSetImageRecette } from './db.js'
+import { dbEcouter, dbSetImageRecette, dbSetAvis } from './db.js'
 import { esc, debounce } from './utils.js'
 import { TAGS } from './filtres.js'
 import { icone } from './icones.js'
@@ -11,10 +11,25 @@ import { coutImage, formatDollars, expliquerErreur } from './credit-ia.js'
 import { htmlErreurIA } from './credit-ia-ui.js'
 import { imprimerRecette } from './impression-recette.js'
 import { ouvrirPlanifier } from './planifier-recette.js'
+import { ouvrirModeCuisine } from './mode-cuisine.js'
 
 let filtres = {}        // recherche par nom
 let selection = {}      // filtres déduits des recettes : { groupe: [valeurs] }
 let ingredientsFiltre = [] // ingrédients que la recette doit tous contenir
+
+// Filtres retrouvés à la prochaine visite (sur cet appareil)
+const CLE_FILTRES = 'repas_filtres_recettes'
+function memoriserFiltres() {
+  try { localStorage.setItem(CLE_FILTRES, JSON.stringify({ selection, ingredientsFiltre, recherche: filtres.recherche || null })) } catch { /* navigation privée */ }
+}
+function relireFiltres() {
+  try {
+    const f = JSON.parse(localStorage.getItem(CLE_FILTRES) || '{}')
+    selection = f.selection && typeof f.selection === 'object' ? f.selection : {}
+    ingredientsFiltre = Array.isArray(f.ingredientsFiltre) ? f.ingredientsFiltre : []
+    filtres.recherche = f.recherche || null
+  } catch { /* rien de mémorisé */ }
+}
 let disponibles = []
 let recetteEnEdition = null
 let nomsRecettes = []
@@ -59,6 +74,7 @@ async function renderList() {
   disponibles     = filtresDisponibles(scope)
   selection       = nettoyerSelection(selection, disponibles)
   const recettes  = appliquerFiltres(scope, selection)
+  memoriserFiltres()
   renderFiltres(recettes.length, base.length)
   const container = document.getElementById('recettesList')
   if (!container) return
@@ -74,7 +90,7 @@ async function renderList() {
             <span>${icone('famille')}${r.portions} pers.</span>
             ${r.nutrition?.calories ? `<span>${icone('flamme')}${r.nutrition.calories} kcal</span>` : ''}
           </div>
-          <div class="recipe-tags">${!livre && r.livre_id && nomLivre(r.livre_id) ? `<span class="recipe-tag recipe-tag-livre">${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
+          <div class="recipe-tags">${!livre && r.livre_id && nomLivre(r.livre_id) ? `<span class="recipe-tag recipe-tag-livre">${icone('livre')}${esc(nomLivre(r.livre_id))}</span>` : ''}${r.avis === 1 ? `<span class="recipe-tag recipe-tag-avis">${icone('coeur')}A plu</span>` : ''}${r.vegetarien ? '<span class="recipe-tag recipe-tag-veg">Végétarien</span>' : ''}${(r.tags || []).map(t => `<span class="recipe-tag">${esc(t)}</span>`).join('')}${r.cuisine ? `<span class="recipe-tag">${esc(r.cuisine)}</span>` : ''}</div>
         </div>`).join('')
   container.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', () => ouvrirDetail(card.dataset.id))
@@ -101,6 +117,11 @@ async function ouvrirDetail(id) {
       <span class="text-sm"><b>${r.nutrition.lipides} g</b> lipides</span>
     </div>` : ''}
     ${r.description ? `<p class="text-sm" style="margin-bottom:1rem;">${esc(r.description)}</p>` : ''}
+    <div class="detail-avis" role="group" aria-label="Avis du foyer">
+      <span class="text-sm text-muted">Votre avis :</span>
+      <button class="chip ${r.avis === 1 ? 'active' : ''}" data-avis-recette="1" aria-pressed="${r.avis === 1}">${icone('coeur')}A plu</button>
+      <button class="chip ${r.avis === -1 ? 'active' : ''}" data-avis-recette="-1" aria-pressed="${r.avis === -1}">${icone('croix')}N'a pas plu</button>
+    </div>
     ${r.composants ? `<div class="recette-composants">
       ${r.composants.base ? `<b>Base</b><span>${esc(r.composants.base)}</span>` : ''}
       ${r.composants.principal ? `<b>Principal</b><span>${esc(r.composants.principal)}</span>` : ''}
@@ -119,7 +140,8 @@ async function ouvrirDetail(id) {
     </ol>` : ''}
     <div id="detailPhotoErreur"></div>
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--color-border);display:flex;gap:0.5rem;flex-wrap:wrap;">
-      <button class="btn btn-primary btn-sm" id="btnPlanifierRecette">${icone('calendrier')}Planifier</button>
+      <button class="btn btn-primary btn-sm" id="btnCuisinerRecette">${icone('marmite')}Cuisiner</button>
+      <button class="btn btn-secondary btn-sm" id="btnPlanifierRecette">${icone('calendrier')}Planifier</button>
       <button class="btn btn-secondary btn-sm" id="btnImprimerRecette">${icone('imprimer')}Imprimer</button>
       <button class="btn btn-secondary btn-sm" id="btnPhotoRecette" title="≈ ${formatDollars(coutImage().cout)} la photo">${icone('etincelle')}${r.image_url ? 'Nouvelle photo' : 'Générer une photo'}</button>
       <button class="btn btn-secondary btn-sm" id="btnDeleteRecette" data-id="${esc(r.id)}">${icone('poubelle')}Supprimer</button>
@@ -129,6 +151,12 @@ async function ouvrirDetail(id) {
   document.getElementById('modalDetail').classList.remove('hidden')
 
   document.getElementById('btnImprimerRecette').addEventListener('click', () => imprimerRecette(r))
+  document.querySelectorAll('[data-avis-recette]').forEach(b => b.addEventListener('click', async () => {
+    const avis = Number(b.dataset.avisRecette) === r.avis ? null : Number(b.dataset.avisRecette) // re-toucher = retirer
+    try { await dbSetAvis([], r.id, avis) } catch (e) { return alert('Erreur : ' + e.message) }
+    ouvrirDetail(id)
+  }))
+  document.getElementById('btnCuisinerRecette').addEventListener('click', () => ouvrirModeCuisine([{ recette: r, portions: r.portions }], r.nom))
   document.getElementById('btnPlanifierRecette').addEventListener('click', () =>
     ouvrirPlanifier(r, document.getElementById('detailContent'), () => ouvrirDetail(id)))
 
@@ -363,6 +391,9 @@ async function soumettreFormEdit(e) {
 document.addEventListener('DOMContentLoaded', async () => {
   await chargerLivres()
   initLivres({ rafraichir: renderList, nomsRecettes: () => nomsRecettes })
+  relireFiltres()
+  const champRecherche = document.getElementById('rechercheRecette')
+  if (champRecherche && filtres.recherche) champRecherche.value = filtres.recherche
   await renderList()
 
   // Gestion navigation depuis le planning

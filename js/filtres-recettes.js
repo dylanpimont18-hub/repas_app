@@ -31,6 +31,8 @@ export const GROUPES = [
   { id: 'proteine', label: 'Protéine', valeurs: r => [proteineAffichee(r)], libelle: v => v },
   { id: 'cuisine', label: 'Cuisine', valeurs: r => [r.cuisine && normaliser(r.cuisine)], libelle: majuscule },
   { id: 'style', label: 'Style', valeurs: r => (r.tags || []).map(t => String(t).toLowerCase()), libelle: majuscule },
+  { id: 'avis', label: 'Avis', valeurs: r => [r.avis === 1 && 'aime', r.avis === -1 && 'bof'],
+    libelle: v => ({ aime: 'A plu', bof: 'N\'a pas plu' })[v] },
   { id: 'pratique', label: 'Pratique',
     valeurs: r => [r.legumes_caches?.length > 0 && 'caches', (r.conservation_jours ?? 0) >= 3 && 'garde',
       (r.ingredients || []).length > 0 && (r.ingredients || []).length <= 6 && 'peu'],

@@ -1,7 +1,7 @@
 // tests/utils.test.mjs — Lancer avec : node --test tests/*.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { esc, getSemaineKey, categoriser, validerVegetarien, combinerQuantites } from '../js/utils.js'
+import { esc, getSemaineKey, categoriser, validerVegetarien, combinerQuantites, ajouterArticlesLibres, separerPlacard, cleIngredient } from '../js/utils.js'
 
 test('esc neutralise le HTML', () => {
   assert.equal(esc('<b>"Tajine" & co\'</b>'), '&lt;b&gt;&quot;Tajine&quot; &amp; co&#39;&lt;/b&gt;')
@@ -62,4 +62,22 @@ test('quantités réelles de la capture iPhone : fractions, notes, pièces, doub
   assert.equal(nomIngredient('persil frais (haché)'), 'Persil frais')
   assert.equal(categoriser('coriandre poudre'), 'Épicerie & Condiments')
   assert.equal(categoriser('Coriandre fraîche'), 'Fruits & Légumes')
+})
+
+test('ajouterArticlesLibres : range par partie et rayon, sans doublon avec les recettes', () => {
+  const parties = { samedi: { 'Fruits & Légumes': [{ nom: 'Carotte', quantites: [] }] }, mercredi: {} }
+  ajouterArticlesLibres(parties, [{ id: '1', nom: 'carottes', partie: 'samedi' }, { id: '2', nom: 'lessive', partie: 'mercredi' }])
+  assert.equal(parties.samedi['Fruits & Légumes'].length, 1)
+  assert.deepEqual(parties.mercredi.Divers, [{ nom: 'Lessive', quantites: [], libreId: '2' }])
+})
+
+test('separerPlacard : retire les articles du placard, garde les articles libres', () => {
+  const parties = {
+    samedi: { 'Épicerie & Condiments': [{ nom: 'Sel', quantites: [] }, { nom: 'Cumin', quantites: [] }] },
+    mercredi: { Divers: [{ nom: 'Sel', quantites: [], libreId: 'x' }] },
+  }
+  const { parties: reste, auPlacard } = separerPlacard(parties, [cleIngredient('sel')])
+  assert.deepEqual(reste.samedi['Épicerie & Condiments'].map(i => i.nom), ['Cumin'])
+  assert.equal(reste.mercredi.Divers.length, 1)
+  assert.deepEqual(auPlacard.map(i => i.nom), ['Sel'])
 })

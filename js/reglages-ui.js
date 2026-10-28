@@ -76,7 +76,7 @@ async function renderReserve() {
 }
 
 // ── Crédit IA : jauge, réglages du budget, historique avec erreurs expliquées ──
-const ACTIONS_IA = { generation: 'Génération', conversion: 'Mise à jour', image: 'Photo' }
+const ACTIONS_IA = { generation: 'Génération', conversion: 'Mise à jour', image: 'Photo', etapes: 'Étapes' }
 let budgetActuel = null
 
 async function renderCredit() {

@@ -53,6 +53,17 @@
         </div>
       </div>
     </div>
+    <form id="formArticle" class="courses-ajout" autocomplete="off">
+      <label for="champArticle" class="sr-only">Ajouter un article</label>
+      <div class="courses-ajout-ligne">
+        <input type="text" id="champArticle" class="form-input" placeholder="Ajouter : pain, lessive…" enterkeyhint="done">
+        <button type="submit" class="btn btn-primary btn-sm" aria-label="Ajouter l'article"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></button>
+      </div>
+      <div class="courses-ajout-parties" role="group" aria-label="Partie de la liste">
+        <button type="button" class="chip" data-partie="samedi"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-panier"/></svg>Samedi magasin</button>
+        <button type="button" class="chip" data-partie="mercredi"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-voiture"/></svg>Mercredi drive</button>
+      </div>
+    </form>
     <div id="coursesList"></div>
   </main>
 

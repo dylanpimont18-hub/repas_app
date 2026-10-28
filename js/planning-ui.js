@@ -10,6 +10,8 @@ import { icone } from './icones.js'
 import { expliquerErreur } from './credit-ia.js'
 import { photosEnAttente } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
+import { platsACuisiner } from './cuisine.js'
+import { ouvrirModeCuisine } from './mode-cuisine.js'
 
 let samedi  = debutCycle()
 let donnees = null
@@ -56,11 +58,18 @@ function htmlCreneau(c, { avecJour = true } = {}) {
   </div>`
 }
 
+// « Cuisiner » : ouvre le mode cuisine avec les plats à préparer pour ces créneaux (rien si tout vient du congélo)
+function boutonCuisiner(creneaux, titre) {
+  if (!platsACuisiner(creneaux, donnees.occupation, donnees.recettesMap).length) return ''
+  return `<button class="btn btn-ghost btn-sm btn-cuisiner" data-cuisiner="${esc(creneaux.map(c => c.cle).join(','))}"
+    data-titre="${esc(titre)}" aria-label="Cuisiner : ${esc(titre)}">${icone('marmite')}Cuisiner</button>`
+}
+
 // Mobile : liste groupée par session de cuisine
 function htmlListe() {
   return groupesDuCycle(donnees.creneaux).map(g => `
     <section class="cycle-groupe${g.enSession ? ' cycle-groupe-session' : ''}">
-      <h2 class="cycle-groupe-titre">${g.enSession ? icone('marmite') : ''}${esc(g.titre)}</h2>
+      <h2 class="cycle-groupe-titre">${g.enSession ? icone('marmite') : ''}${esc(g.titre)}${boutonCuisiner(g.creneaux, g.enSession ? `Session du ${g.cuisineLe}` : g.titre)}</h2>
       ${g.creneaux.map(c => htmlCreneau(c)).join('')}
     </section>`).join('')
 }
@@ -84,6 +93,9 @@ function htmlFrise() {
     if (der && der.cle === cle && c.enSession) der.fin = i
     else bandes.push({ cle, debut: i, fin: i, enSession: c.enSession, cuisineLe: c.cuisineLe })
   })
+  // Créneaux d'une bande : ceux de la session (ou du jour, sur place)
+  const creneauxBande = b => jours.slice(b.debut, b.fin + 1).flatMap(j => Object.values(j.creneaux))
+    .filter(c => b.enSession ? c.enSession && c.cuisineLe === b.cuisineLe : !c.enSession)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   return `<div class="frise" style="--nb-jours:${jours.length}">
     <div class="frise-coin"></div>
@@ -97,7 +109,8 @@ function htmlFrise() {
     }).join('')}
     <div class="frise-label">Cuisine</div>
     ${bandes.map(b => `<div class="frise-bande${b.enSession ? ' frise-bande-session' : ''}" style="grid-column:${b.debut + 2} / ${b.fin + 3}">
-      ${b.enSession ? `${icone('marmite')}Préparé ${esc(b.cuisineLe)}` : 'Sur place'}</div>`).join('')}
+      ${b.enSession ? `${icone('marmite')}Préparé ${esc(b.cuisineLe)}${boutonCuisiner(creneauxBande(b), `Session du ${b.cuisineLe}`)}`
+        : boutonCuisiner(creneauxBande(b), 'Cuisine sur place') || 'Sur place'}</div>`).join('')}
     ${['midi', 'soir'].map(m => `
       <div class="frise-label">${m === 'midi' ? `${icone('soleil')}Midi` : `${icone('lune')}Soir`}</div>
       ${jours.map((j, i) => j.creneaux[m]
@@ -462,6 +475,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (slot.dataset.cle === aDeplacer) { aDeplacer = null; return afficher() }
         return deposer(slot.dataset.cle)
       }
+    }
+    const btnCuisiner = e.target.closest('[data-cuisiner]')
+    if (btnCuisiner) {
+      const creneaux = btnCuisiner.dataset.cuisiner.split(',').map(cle => donnees.parCle[cle]).filter(Boolean)
+      return ouvrirModeCuisine(platsACuisiner(creneaux, donnees.occupation, donnees.recettesMap), btnCuisiner.dataset.titre)
     }
     const btn = e.target.closest('[data-action]')
     if (btn) { e.stopPropagation(); return actionCreneau(btn.dataset.action, btn.dataset.cle, btn) }

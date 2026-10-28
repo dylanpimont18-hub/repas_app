@@ -8,7 +8,7 @@ const ROTATION_JOURS = 21    // une recette ne revient pas avant 3 semaines
 const POIDS = { adore: 3, aime: 1, reutilisation: 1.5, reutilisationAutre: 0.5, nouveauFrais: -1, nouveauAutre: -0.4,
                 recetteLongue: -0.3, seuilIngredients: 8, anciennete: 0.5, ancienneteMax: 8,
                 jamaisMangee: 3, proteineRepetee: -3, cuisineRepetee: -2, style: 4, conservationInconnue: -1,
-                envieHorsCible: -6 }
+                envieHorsCible: -6, avisAime: 2, avisPasAime: -8 }
 const CATS_FRAICHES = ['Fruits & Légumes', 'Viandes & Poissons', 'Laitiers & Œufs']
 
 // ── Correspondance ingrédient noté ↔ recette, mot à mot ───────────────
@@ -135,6 +135,10 @@ export function evaluer(recette, creneau, ctx) {
       if (n === 'j_aime')  score += POIDS.aime
     }
   }
+
+  // Avis du foyer après le dernier repas : un plat qui a plu revient, un plat raté se fait rare
+  if (recette.avis === 1)  score += POIDS.avisAime
+  if (recette.avis === -1) score += POIDS.avisPasAime
 
   // Ancienneté : plus c'est loin, mieux c'est
   score += derniere

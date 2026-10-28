@@ -1,8 +1,16 @@
 // js/courses.js — Liste de courses du cycle : 🛒 samedi magasin + 🚗 mercredi drive
 import { chargerCycle }     from './planning.js'
 import { getRecettesByIds } from './recettes.js'
-import { repartirCourses }  from './utils.js'
-import { dbGetCoursesEtat, dbToggleCourse, dbResetCourses } from './db.js'
+import { repartirCourses, ajouterArticlesLibres, separerPlacard, cleIngredient } from './utils.js'
+import { dbGetCoursesEtat, dbToggleCourse, dbResetCourses, dbGetCoursesLibres, dbAddCourseLibre,
+         dbDeleteCourseLibre, dbGetReglage, dbSetReglage } from './db.js'
+
+// Liste complète du cycle : recettes + articles ajoutés à la main, moins ce qui est toujours au placard
+// → { parties: { samedi: { rayon: [item] }, mercredi: {…} }, auPlacard: [item] } ; item = { nom, quantites, libreId? }
+export async function listeCourses(samedi, cleCycle) {
+  const [parties, libres, placard] = await Promise.all([genererListeCycle(samedi), dbGetCoursesLibres(cleCycle), getPlacard()])
+  return separerPlacard(ajouterArticlesLibres(parties, libres), placard)
+}
 
 // → { samedi: { rayon: [{ nom, quantites }] }, mercredi: { ... } }
 export async function genererListeCycle(samedi) {
@@ -28,3 +36,19 @@ export async function genererListeCycle(samedi) {
 export async function getEtatCourses(cle) { return dbGetCoursesEtat(cle) }
 export async function toggleCourse(cle, nom, checked) { return dbToggleCourse(cle, nom, checked) }
 export async function resetCourses(cle) { return dbResetCourses(cle) }
+
+// Articles ajoutés à la main (pain, lessive…)
+export async function ajouterArticle(cle, nom, partie) { return dbAddCourseLibre(cle, nom.trim(), partie) }
+export async function supprimerArticle(id) { return dbDeleteCourseLibre(id) }
+
+// « Toujours au placard » : réglage partagé du foyer, liste de clés d'ingrédients
+export async function getPlacard() {
+  const v = await dbGetReglage('placard').catch(() => null)
+  return Array.isArray(v) ? v : []
+}
+export async function basculerPlacard(nom, auPlacard) {
+  const cle = cleIngredient(nom)
+  const actuel = await getPlacard()
+  const suivant = auPlacard ? [...new Set([...actuel, cle])] : actuel.filter(c => c !== cle)
+  await dbSetReglage('placard', suivant)
+}

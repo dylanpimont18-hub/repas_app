@@ -147,6 +147,38 @@ const CAT_MAP = {
     'romarin','thym','origan','gingembre','piment','herbes de provence'],
 }
 
+// Articles ajoutés à la main → rangés dans leur partie et leur rayon, sauf s'ils sont déjà dans la liste
+// libres : [{ id, nom, partie }] ; modifie et renvoie `parties`
+export function ajouterArticlesLibres(parties, libres) {
+  const presents = new Set(Object.values(parties).flatMap(rayons => Object.values(rayons).flat()).map(i => cleIngredient(i.nom)))
+  for (const l of libres) {
+    const cle = cleIngredient(l.nom)
+    if (!cle || presents.has(cle)) continue
+    presents.add(cle)
+    ;((parties[l.partie] ||= {})[categoriser(l.nom)] ||= []).push({ nom: nomIngredient(l.nom), quantites: [], libreId: l.id })
+  }
+  return parties
+}
+
+// Sépare les articles « toujours au placard » (sel, huile, épices…) : placard = [cleIngredient]
+// → { parties: sans ces articles, auPlacard: [item] }
+export function separerPlacard(parties, placard = []) {
+  const set = new Set(placard)
+  const auPlacard = []
+  const res = {}
+  for (const [partie, rayons] of Object.entries(parties)) {
+    res[partie] = {}
+    for (const [rayon, items] of Object.entries(rayons)) {
+      const gardes = items.filter(i => {
+        if (!i.libreId && set.has(cleIngredient(i.nom))) { auPlacard.push(i); return false }
+        return true
+      })
+      if (gardes.length) res[partie][rayon] = gardes
+    }
+  }
+  return { parties: res, auPlacard: auPlacard.sort((a, b) => a.nom.localeCompare(b.nom)) }
+}
+
 export function categoriser(nom) {
   const n = nom.toLowerCase()
   // Épices en poudre / moulues avant les herbes fraîches du même nom (coriandre, gingembre…)

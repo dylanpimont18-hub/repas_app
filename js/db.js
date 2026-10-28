@@ -128,6 +128,12 @@ export async function dbSetImageRecette(id, imageUrl) {
   if (error) throw error
 }
 
+// Étapes écrites après coup (mise à jour partielle)
+export async function dbSetEtapesRecette(id, etapes) {
+  const { error } = await supabase.from('recettes').update({ etapes }).eq('id', id)
+  if (error) throw error
+}
+
 export async function dbDeleteRecette(id) {
   const { error } = await supabase.from('recettes').delete().eq('id', id)
   if (error) throw error
@@ -150,11 +156,11 @@ export async function dbGetPlanning(semaineKey) {
   return planning
 }
 
-// Lignes brutes du planning pour plusieurs semaines ISO : [{ semaine_key, jour, moment, recette_id, portions, source }]
+// Lignes brutes du planning pour plusieurs semaines ISO : [{ semaine_key, jour, moment, recette_id, portions, source, avis }]
 export async function dbGetPlanningSemaines(semaineKeys) {
   const { data, error } = await supabase
     .from('planning')
-    .select('semaine_key, jour, moment, recette_id, portions, source')
+    .select('semaine_key, jour, moment, recette_id, portions, source, avis')
     .in('semaine_key', semaineKeys)
   if (error) throw error
   return data
@@ -180,10 +186,11 @@ export async function dbViderCreneaux(creneaux) {
 }
 
 // Assigne plusieurs créneaux en une requête : [{ semaine_key, jour, moment, recette_id, portions, source }]
+// Un créneau réécrit perd son avis (il portait sur le plat d'avant)
 export async function dbUpsertPlanningLot(lignes) {
   if (!lignes.length) return
   const { error } = await supabase.from('planning')
-    .upsert(lignes, { onConflict: 'semaine_key,jour,moment' })
+    .upsert(lignes.map(l => ({ avis: null, ...l })), { onConflict: 'semaine_key,jour,moment' })
   if (error) throw error
 }
 
@@ -212,6 +219,33 @@ export async function dbResetCourses(semaineKey) {
     .from('courses_etat')
     .delete()
     .eq('semaine_key', semaineKey)
+  if (error) throw error
+}
+
+// Avis après le repas (1 / -1) sur les créneaux où la recette a été mangée, et dernier avis sur la recette
+export async function dbSetAvis(creneaux, recetteId, avis) {
+  await Promise.all(creneaux.map(({ semaine_key, jour, moment }) =>
+    supabase.from('planning').update({ avis }).eq('semaine_key', semaine_key).eq('jour', jour).eq('moment', moment)
+      .then(({ error }) => { if (error) throw error })))
+  const { error } = await supabase.from('recettes').update({ avis }).eq('id', recetteId)
+  if (error) throw error
+}
+
+// ── Courses : articles ajoutés à la main ─────────────────────────────
+export async function dbGetCoursesLibres(semaineKey) {
+  const { data, error } = await supabase.from('courses_libres')
+    .select('id, nom, partie').eq('semaine_key', semaineKey).order('cree_le')
+  if (error) throw error
+  return data
+}
+
+export async function dbAddCourseLibre(semaineKey, nom, partie) {
+  const { error } = await supabase.from('courses_libres').insert({ semaine_key: semaineKey, nom, partie })
+  if (error) throw error
+}
+
+export async function dbDeleteCourseLibre(id) {
+  const { error } = await supabase.from('courses_libres').delete().eq('id', id)
   if (error) throw error
 }
 

@@ -115,11 +115,11 @@ Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans expl
 { "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
 
 Chaque <recette> :
-${avecIngredients ? FORMAT_RECETTE_LIVRE : FORMAT_RECETTE}`
+${FORMAT_RECETTE_ETAPES}`
 }
 
-// Livre : on veut une vraie recette à suivre, donc des étapes détaillées
-const FORMAT_RECETTE_LIVRE = FORMAT_RECETTE.replace('  "tags"',
+// Toujours une vraie recette à suivre (planning, envie, livre) : étapes détaillées
+const FORMAT_RECETTE_ETAPES = FORMAT_RECETTE.replace('  "tags"',
   '  "etapes": ["étape précise et complète (températures, temps, réglages de l\'appareil)"],\n  "tags"')
 
 async function buildPromptLivre({ livre, nb, portions, filtres = [], style = '', piste = '', nomsExistants = [] }) {
@@ -156,7 +156,7 @@ Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans expl
 { "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
 
 Chaque <recette> :
-${FORMAT_RECETTE_LIVRE}`
+${FORMAT_RECETTE_ETAPES}`
 }
 
 // ── Appel IA (streaming SSE au format OpenAI, relayé par l'Edge Function) ──
@@ -421,6 +421,26 @@ export async function genererIdees({ creneau, nb = 3, ...options }) {
   const { resultats, rejets } = await genererPourCreneaux({ creneaux, ...options, variantes: nb > 1 })
   if (!resultats.length) throw rejets.length ? new ErreurIA('REFUSEE', rejets.join(', ')) : new ErreurIA('ILLISIBLE')
   return resultats.map(x => x.recette)
+}
+
+// Étapes d'une recette qui n'en a pas (anciennes recettes du planning) ; ne change ni le nom ni les ingrédients
+export async function genererEtapes(recette) {
+  const prompt = `Écris les étapes de préparation de cette recette familiale, pour ${recette.portions || 4} portion(s).
+Recette : ${JSON.stringify({ nom: recette.nom, description: recette.description, ingredients: recette.ingredients,
+    legumes_caches: recette.legumes_caches, temps_prep: recette.temps_prep, temps_cuisson: recette.temps_cuisson })}
+
+RÈGLES :
+- Utilise UNIQUEMENT les ingrédients listés (sel, poivre, huile et eau autorisés) ; halal strict : ni porc ni alcool
+- Si "legumes_caches" est rempli, applique chaque astuce dans les étapes
+- Étapes précises et complètes (températures, temps, ustensiles) : un débutant doit réussir sans autre aide
+- 4 à 10 étapes, une action principale par étape
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown) : { "etapes": ["string"] }`
+  const reponse = await callIA(prompt, { action: 'etapes', nbRecettes: 1 })
+  if (reponse.fin !== 'ok') throw new ErreurIA(reponse.fin)
+  const etapes = parseJSON(reponse.texte)?.etapes
+  if (!Array.isArray(etapes) || !etapes.length) throw new ErreurIA('ILLISIBLE')
+  return etapes.map(e => String(e).trim()).filter(Boolean)
 }
 
 // Convertit d'anciennes recettes au nouveau format (description, composants, tags, conservation, légumes cachés)

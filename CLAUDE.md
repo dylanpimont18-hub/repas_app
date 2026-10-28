@@ -39,7 +39,8 @@ Système de cartes pour noter chaque ingrédient par profil.
 
 ### 3. Bibliothèque de recettes (`recettes.html`)
 Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
-- Filtres déduits des recettes affichées (régime, temps, protéine, cuisine, style, pratique) : un filtre n'apparaît que si au moins une recette le porte
+- Filtres déduits des recettes affichées (régime, temps, protéine, cuisine, style, avis, pratique) : un filtre n'apparaît que si au moins une recette le porte ; filtre « Contient les ingrédients » (toutes les puces doivent être présentes) ; filtres mémorisés sur l'appareil
+- Avis du foyer (« A plu » / « N'a pas plu », `recettes.avis`) : pèse dans la sélection de la bibliothèque
 - Photos IA (`recettes.image_url`, stockage public `recettes-images`, écrit par l'Edge Function) et impression d'une fiche recette A4
 - Livres de recettes (ex. « Air fryer ») : une règle par livre guide la génération IA ; leurs recettes restent proposées dans le planning
 - Vue liste + modale détail + modale édition complète
@@ -51,15 +52,18 @@ Cycle samedi soir → samedi midi, groupé par session de cuisine (spec : docs/s
 - Génération IA de toute la semaine (créneaux vides sélectionnables)
 - Assignation manuelle depuis la bibliothèque ou via recette de dernière minute ⚡
 - Portions réglables par repas
+- « Cuisiner » sur chaque session ou repas sur place → mode cuisine (js/mode-cuisine.js) : écran allumé, étapes en grand, plats de la session regroupés (portions additionnées, cuisson la plus longue d'abord) ; étapes écrites par l'IA si la recette n'en a pas
+- ⚡ Envie : 2 à 5 idées IA au choix, seule celle choisie est enregistrée
 
 ### 5. Liste de courses (`courses.html`)
 Générée automatiquement depuis le planning de la semaine active.
 - Ingrédients agrégés et ajustés selon les portions
 - Regroupés par catégorie de supermarché
 - Cases à cocher persistées en base (Supabase `courses_etat`)
+- Articles ajoutés à la main par partie (`courses_libres`) ; ingrédients « toujours au placard » (réglage `placard`) sortis de la liste, rappelés dans une section repliée
 
 ### 6. Dashboard (`index.html`)
-Hub central : tuiles d'accès rapide + aperçu de la semaine en cours.
+Prochain repas (cuisiner / voir la recette / ⚡ si vide), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.
 
 ## Structure de fichiers
 ```
@@ -95,6 +99,9 @@ Repas/
     ├── planning-ui.js      # Rendu UI planning + génération semaine IA
     ├── courses.js          # Agrégation ingrédients depuis planning
     ├── courses-ui.js       # Rendu UI liste de courses
+    ├── cuisine.js          # Plats d'une session et quantités ajustées (pur, testé)
+    ├── mode-cuisine.js     # Mode cuisine plein écran
+    ├── avis.js             # Plats à noter après le repas (pur, testé)
     └── data/
         └── ingredients.js  # Base de données statique des ingrédients (150+)
 ```
@@ -105,9 +112,10 @@ Repas/
 ```
 preferences       { profil_nom, ingredient_id, niveau }
 recettes          { id, nom, ingredients, etapes, temps_prep, temps_cuisson,
-                    portions, vegetarien, nutrition, date }
-planning          { semaine_key, jour, moment, recette_id, portions }
+                    portions, vegetarien, nutrition, date, avis }
+planning          { semaine_key, jour, moment, recette_id, portions, source, avis }
 courses_etat      { semaine_key, ingredient_nom, checked }
+courses_libres    { id, semaine_key, nom, partie }   -- articles ajoutés à la main (pain, lessive…)
 ingredients_custom { id, nom, categorie, emoji }
 foyer_membres     { user_id, profil_nom }   -- seuls ces comptes passent la RLS (est_membre_foyer())
 livres            { id, nom, consigne }    -- livres de recettes ; recettes.livre_id (un livre au plus)

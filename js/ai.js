@@ -198,7 +198,7 @@ async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk =
   const relancerMinuteur = () => { clearTimeout(minuteur); minuteur = setTimeout(() => arret.abort(), DELAI_SILENCE) }
   let res
   try {
-    res = await dbAppelFonctionIA({ action: 'chat', prompt, nbRecettes }, { signal: arret.signal })
+    res = await dbAppelFonctionIA({ action: 'chat', prompt, nbRecettes, type: action }, { signal: arret.signal })
   } catch (e) {
     clearTimeout(minuteur)
     throw new ErreurIA(e.name === 'AbortError' ? 'COUPEE' : e.message?.includes('Session') ? 'SESSION' : 'RESEAU')
@@ -209,10 +209,13 @@ async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk =
     clearTimeout(minuteur)
     const corps = await res.json().catch(() => ({}))
     const code = codeErreurHttp(res.status, corps)
-    await journaliser({ ...base, statut: 'erreur', erreur: code }) // refusé avant génération : rien de facturé
+    // Refusé avant génération : rien de facturé (noté par le serveur, ou ici avec une ancienne version de la fonction)
+    if (!corps.journalise) await journaliser({ ...base, statut: 'erreur', erreur: code })
     throw new ErreurIA(code, corps.detail)
   }
 
+  // La fonction note elle-même l'appel dans le journal (version récente) : on ne le refait pas ici
+  const journalServeur = res.headers.get('x-repas-journal') === '1'
   const reader  = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = '', fullText = '', finishReason = null, usage = null, termine = false
@@ -251,7 +254,7 @@ async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk =
   const fin = finishReason === 'length' ? 'TRONQUEE' : (finishReason || termine) ? 'ok' : 'COUPEE'
   const entree = usage?.prompt_tokens ?? estimerTokens(prompt)
   const sortie = usage?.completion_tokens ?? estimerTokens(fullText)
-  await journaliser({
+  if (!journalServeur) await journaliser({
     ...base, tokens_entree: entree, tokens_sortie: sortie, cout: coutTokens(entree, sortie), estime: !usage,
     statut: fin === 'ok' ? 'ok' : fin === 'TRONQUEE' ? 'tronque' : 'erreur', erreur: fin === 'ok' ? null : fin,
   })
@@ -385,11 +388,11 @@ export async function genererImageRecette(recette) {
   const corps = await res.json().catch(() => ({}))
   if (!res.ok || !corps.url) {
     const code = res.ok ? 'IMAGE_VIDE' : codeErreurHttp(res.status, corps)
-    await journaliser({ action: 'image', nb_recettes: 1, statut: 'erreur', erreur: code })
+    if (!corps.journalise) await journaliser({ action: 'image', nb_recettes: 1, statut: 'erreur', erreur: code })
     throw new ErreurIA(code, corps.detail)
   }
   const { entree, sortie, cout, estime } = coutImage(corps.usage)
-  await journaliser({ action: 'image', nb_recettes: 1, tokens_entree: entree, tokens_sortie: sortie, cout, estime, statut: 'ok' })
+  if (!corps.journalise) await journaliser({ action: 'image', nb_recettes: 1, tokens_entree: entree, tokens_sortie: sortie, cout, estime, statut: 'ok' })
   return corps.url
 }
 

@@ -2,9 +2,10 @@
 import { CATEGORIES } from './data/ingredients.js'
 import { getAllParCategorie, addCustomIngredient, removeCustomIngredient, invaliderCustomIngredients } from './custom-ingredients.js'
 import { setPreference, getANoter, getProgression, getProfil, invaliderPreferences } from './preferences.js'
-import { dbEcouter } from './db.js'
+import { dbEcouter, dbGetMonProfil } from './db.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
+import { confirmer, signalerErreur, informer } from './dialogue.js'
 
 let profilActif     = 'dylan'
 let categorieActive = Object.keys(CATEGORIES)[0]
@@ -14,7 +15,7 @@ let tableClickHandler = null
 
 const NIVEAUX = [
   { id: 'j_aime_pas', label: 'Non',    cls: 'active-naime'  },
-  { id: 'neutre',     label: '○ Neutre', cls: 'active-neutre' },
+  { id: 'neutre',     label: 'Neutre', cls: 'active-neutre' },
   { id: 'j_aime',     label: 'J\'aime', cls: 'active-aime'   },
   { id: 'j_adore',    label: 'J\'adore', cls: 'active-adore'  },
 ]
@@ -93,7 +94,8 @@ async function renderTableau() {
       html += `<td><span class="ing-name"><span>${esc(ing.emoji)}</span><span>${esc(ing.nom)}</span>${ing.custom ? ' <span class="custom-badge">perso</span>' : ''}</span></td>`
       for (const n of NIVEAUX) {
         const actif = niveauActuel === n.id
-        html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${esc(ing.id)}" data-niveau="${n.id}">${actif ? '●' : '○'}</button></td>`
+        html += `<td style="text-align:center;"><button class="pref-radio-btn ${actif ? n.cls : ''}" data-ing="${esc(ing.id)}" data-niveau="${n.id}"
+          aria-pressed="${actif}" aria-label="${esc(ing.nom)} : ${esc(n.label)}">${actif ? icone('check') : ''}</button></td>`
       }
       html += `<td>${ing.custom ? `<button class="pref-delete-btn" data-del="${esc(ing.id)}" title="Supprimer" aria-label="Supprimer ${esc(ing.nom)}">${icone('croix')}</button>` : ''}</td>`
       html += `</tr>`
@@ -107,8 +109,8 @@ async function renderTableau() {
     // Suppression d'un ingrédient custom
     const delBtn = e.target.closest('.pref-delete-btn')
     if (delBtn) {
-      if (!confirm(`Supprimer cet ingrédient personnalisé ?`)) return
-      await removeCustomIngredient(delBtn.dataset.del)
+      if (!await confirmer('Ses notes pour les deux profils seront aussi supprimées.', { titre: 'Supprimer cet ingrédient ?', ok: 'Supprimer', danger: true })) return
+      try { await removeCustomIngredient(delBtn.dataset.del) } catch (err) { return signalerErreur(err, 'Suppression') }
       await renderTableau()
       return
     }
@@ -120,25 +122,18 @@ async function renderTableau() {
     const row    = table.querySelector(`tr[data-ing-id="${CSS.escape(ingId)}"]`)
     if (!row) return
 
-    const niveauDef = NIVEAUX.find(x => x.id === niveau)
-    const estActif  = niveauDef && btn.classList.contains(niveauDef.cls)
-    if (estActif) {
-      await setPreference(profilActif, ingId, null)
-    } else {
-      await setPreference(profilActif, ingId, niveau)
-    }
+    const estActif  = btn.getAttribute('aria-pressed') === 'true'
+    try {
+      await setPreference(profilActif, ingId, estActif ? null : niveau)
+    } catch (err) { return signalerErreur(err, 'Note') }
 
     row.querySelectorAll('.pref-radio-btn').forEach(b => {
       const n = NIVEAUX.find(x => x.id === b.dataset.niveau)
-      if (!n) return
-      b.className = 'pref-radio-btn'
-      b.textContent = '○'
+      const on = !estActif && b === btn
+      b.className = `pref-radio-btn ${on ? n.cls : ''}`
+      b.setAttribute('aria-pressed', on)
+      b.innerHTML = on ? icone('check') : ''
     })
-    if (!estActif) {
-      const activeCls = NIVEAUX.find(x => x.id === niveau)?.cls
-      btn.classList.add(activeCls)
-      btn.textContent = '●'
-    }
   }
   table.addEventListener('click', tableClickHandler)
 }
@@ -178,7 +173,7 @@ async function soumettreAjoutIngredient(e) {
   try {
     await addCustomIngredient({ nom, categorie, emoji })
   } catch (err) {
-    alert("Erreur lors de l'ajout : " + err.message)
+    signalerErreur(err, 'Ajout de l\'ingrédient')
     return
   }
   fermerModalAjout()
@@ -210,6 +205,46 @@ async function refreshNavBadge() {
   } catch { /* silently ignore */ }
 }
 
+// ── Noter la carte affichée, avec « Annuler » (une erreur de swipe se rattrape d'un geste) ──
+const historique = []   // [{ profil, ing }] notes de cette visite, la plus récente à la fin
+async function noter(niveau) {
+  if (!fileAttente.length) return
+  const ing = fileAttente.shift()
+  const profil = profilActif
+  afficherProchain()
+  try {
+    await setPreference(profil, ing.id, niveau)
+  } catch (err) {
+    fileAttente.unshift(ing); afficherProchain()
+    return signalerErreur(err, 'Note non enregistrée')
+  }
+  historique.push({ profil, ing })
+  majAnnuler()
+  await updateProgress()
+  const libelle = NIVEAUX.find(n => n.id === niveau)?.label || niveau
+  informer(`${ing.nom} : ${libelle}`, { duree: 2500, action: { label: 'Annuler', faire: annulerDerniere } })
+}
+
+async function annulerDerniere() {
+  const derniere = historique.pop()
+  majAnnuler()
+  if (!derniere) return
+  try {
+    await setPreference(derniere.profil, derniere.ing.id, null)
+  } catch (err) { historique.push(derniere); majAnnuler(); return signalerErreur(err, 'Annulation') }
+  if (derniere.profil === profilActif && derniere.ing.categorie === categorieActive) {
+    fileAttente.unshift(derniere.ing)
+    afficherProchain()
+  }
+  await updateProgress()
+  document.querySelector('#prefButtons [data-niveau]')?.focus()
+}
+
+function majAnnuler() {
+  const b = document.getElementById('btnAnnulerNote')
+  if (b) b.classList.toggle('hidden', !historique.length)
+}
+
 // ── Swipe sur la carte d'ingrédient ──────────────────────────────────────────
 
 function initSwipeGesture() {
@@ -223,7 +258,7 @@ function initSwipeGesture() {
     right: creerIndicateur('swipe-indicator swipe-indicator-right', "J'adore"),
     left:  creerIndicateur('swipe-indicator swipe-indicator-left',  'Non'),
     up:    creerIndicateur('swipe-indicator swipe-indicator-up',    'J\'aime'),
-    down:  creerIndicateur('swipe-indicator swipe-indicator-down',  '○ Neutre'),
+    down:  creerIndicateur('swipe-indicator swipe-indicator-down',  'Neutre'),
   }
   Object.values(indicators).forEach(el => card.appendChild(el))
 
@@ -288,14 +323,10 @@ function initSwipeGesture() {
 
       await new Promise(r => setTimeout(r, 280))
 
-      const ing = fileAttente.shift()
-      await setPreference(profilActif, ing.id, DIRECTION_NIVEAU[dir])
-      await updateProgress()
-
       card.style.transition = 'none'
       card.style.transform = ''
       card.style.opacity = '1'
-      afficherProchain()
+      await noter(DIRECTION_NIVEAU[dir])
     } else {
       card.style.transform = ''
     }
@@ -305,7 +336,7 @@ function initSwipeGesture() {
   if (!localStorage.getItem('repas_swipe_hint_seen')) {
     const hint = document.createElement('p')
     hint.className = 'swipe-hint'
-    hint.textContent = '← Glisser pour noter · ↑ J\'aime · ↓ Neutre →'
+    hint.textContent = 'Glisse : à droite J\'adore, à gauche Non, en haut J\'aime, en bas Neutre'
     card.parentElement.insertBefore(hint, card)
     localStorage.setItem('repas_swipe_hint_seen', '1')
     hint.addEventListener('animationend', () => hint.remove())
@@ -317,24 +348,27 @@ function initSwipeGesture() {
 document.addEventListener('DOMContentLoaded', async () => {
   renderCatChips()
 
+  // Profil affiché par défaut : celui de la personne connectée
+  const majProfils = () => document.querySelectorAll('[data-profil]').forEach(b => {
+    b.classList.toggle('active', b.dataset.profil === profilActif)
+    b.setAttribute('aria-pressed', b.dataset.profil === profilActif)
+  })
+  profilActif = await dbGetMonProfil().catch(() => null) || 'dylan'
+  majProfils()
   document.querySelectorAll('[data-profil]').forEach(btn => {
     btn.addEventListener('click', async () => {
       profilActif = btn.dataset.profil
-      document.querySelectorAll('[data-profil]').forEach(b => b.classList.remove('active'))
-      btn.classList.add('active')
+      majProfils()
       await chargerFile()
       if (vueActive === 'tableau') await renderTableau()
     })
   })
 
-  document.getElementById('prefButtons')?.addEventListener('click', async (e) => {
+  document.getElementById('prefButtons')?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-niveau]')
-    if (!btn || fileAttente.length === 0) return
-    const ing = fileAttente.shift()
-    await setPreference(profilActif, ing.id, btn.dataset.niveau)
-    afficherProchain()
-    await updateProgress()
+    if (btn) noter(btn.dataset.niveau)
   })
+  document.getElementById('btnAnnulerNote')?.addEventListener('click', annulerDerniere)
 
   document.getElementById('btnVueCartes')?.addEventListener('click', () => basculerVue('cartes'))
   document.getElementById('btnVueTableau')?.addEventListener('click', async () => {

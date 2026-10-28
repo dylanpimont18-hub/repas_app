@@ -1,5 +1,7 @@
--- Schéma Supabase — Application Repas
--- À coller dans l'éditeur SQL de Supabase (SQL Editor → New query)
+-- Schéma Supabase — Application Repas (état initial)
+-- À coller dans l'éditeur SQL de Supabase (SQL Editor → New query), PUIS appliquer toutes les migrations
+-- de supabase/migrations/ dans l'ordre : sans elles, les politiques ci-dessous ouvrent les données à tout compte
+-- connecté (la migration 20261024_foyer_sync les réserve aux membres du foyer).
 
 -- Préférences d'ingrédients par profil (dylan / femme)
 CREATE TABLE preferences (

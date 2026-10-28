@@ -10,7 +10,7 @@ const DELAI_RESEAU = 4000               // au-delà, on sert la copie en cache (
 const COQUILLE = [
   './', 'index.html', 'login.html', 'planning.html', 'recettes.html', 'courses.html', 'preferences.html', 'reglages.html',
   'manifest.json', 'config.js', 'css/style.css', 'css/components.css',
-  'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
+  'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png',
   'js/vendor/supabase-2.118.0.js',
   'js/ai.js', 'js/app.js', 'js/auth-login.js', 'js/avis.js', 'js/courses-ui.js', 'js/courses.js', 'js/credit-ia-ui.js',
   'js/controle-ia.js', 'js/credit-ia.js', 'js/cuisine.js', 'js/custom-ingredients.js', 'js/cycle.js', 'js/dashboard.js', 'js/data/ingredients.js',

@@ -7,6 +7,7 @@ import { photosAutoActives, ERREURS_BLOQUANTES } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { esc } from './utils.js'
 import { icone } from './icones.js'
+import { confirmer, signalerErreur } from './dialogue.js'
 
 const NB_MAX = 20
 
@@ -72,13 +73,13 @@ async function enregistrerLivre(e) {
     document.getElementById('modalLivre').classList.add('hidden')
     await chargerLivres()
     await onChange()
-  } catch (err) { alert(`Erreur : ${err.message}`) }
+  } catch (err) { signalerErreur(err, 'Livre') }
 }
 
 async function supprimerLivre() {
   const livre = livres.find(l => l.id === livreActif)
-  if (!livre || !confirm(`Supprimer le livre « ${livre.nom} » ? Ses recettes restent dans la bibliothèque.`)) return
-  await dbDeleteLivre(livre.id)
+  if (!livre || !await confirmer('Ses recettes restent dans la bibliothèque.', { titre: `Supprimer le livre « ${livre.nom} » ?`, ok: 'Supprimer', danger: true })) return
+  try { await dbDeleteLivre(livre.id) } catch (e) { return signalerErreur(e, 'Livre') }
   livreActif = null
   await chargerLivres()
   await onChange()

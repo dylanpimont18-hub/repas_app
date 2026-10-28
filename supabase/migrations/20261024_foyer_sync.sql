@@ -9,10 +9,11 @@ ALTER TABLE foyer_membres ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Lecture membres" ON foyer_membres FOR SELECT TO authenticated
   USING (user_id = (SELECT auth.uid()));
 
-INSERT INTO foyer_membres (user_id, profil_nom)
-SELECT id, CASE email WHEN 'dylan.pimont@orange.fr' THEN 'dylan' ELSE 'femme' END
-FROM auth.users WHERE email IN ('dylan.pimont@orange.fr', 'x.amelx@hotmail.fr')
-ON CONFLICT (user_id) DO NOTHING;
+-- Ajouter les comptes du foyer (adresses à remplacer ; elles ne sont pas versionnées) :
+-- INSERT INTO foyer_membres (user_id, profil_nom)
+-- SELECT id, CASE email WHEN 'adresse-de-dylan@exemple.fr' THEN 'dylan' ELSE 'femme' END
+-- FROM auth.users WHERE email IN ('adresse-de-dylan@exemple.fr', 'adresse-de-sa-femme@exemple.fr')
+-- ON CONFLICT (user_id) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.est_membre_foyer()
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''

@@ -144,23 +144,48 @@ export function combinerQuantites(quantites, nom = '') {
 
 // ── Répartition des courses du cycle : 🛒 samedi magasin / 🚗 mercredi drive ──
 // lignes : [{ partie: 'samedi' | 'mercredi', nom, quantite, facteur }]
-// Un ingrédient utilisé dans les deux parties va dans la première (samedi) avec la quantité totale.
-// → { samedi: { rayon: [{ nom, quantites }] }, mercredi: { ... } }
+// Produits frais (fruits, légumes, viande, poisson) : achetés au plus près du repas, chaque partie sa quantité.
+// Le reste (épicerie, féculents…) utilisé dans les deux parties : tout le samedi, en quantité totale.
+// Chaque article porte `cleEtat`, la clé de sa case cochée (distincte pour la part du mercredi d'un produit frais).
+// → { samedi: { rayon: [{ nom, quantites, cleEtat }] }, mercredi: { ... } }
+export const RAYONS_FRAIS = ['Fruits & Légumes', 'Viandes & Poissons']
+export const ORDRE_RAYONS = ['Fruits & Légumes', 'Viandes & Poissons', 'Féculents', 'Laitiers & Œufs', 'Épicerie & Condiments', 'Divers']
+
+/**
+ * Liste à partager (drive, notes, message) : articles pas encore cochés, par partie puis par rayon.
+ * `parties` comme repartirCourses ; `coche(item)` → true si déjà acheté ; `seulement` : 'samedi' | 'mercredi' | null
+ */
+export function texteCourses(parties, { coche = () => false, titres = { samedi: 'Samedi (magasin)', mercredi: 'Mercredi (drive)' }, seulement = null } = {}) {
+  const blocs = []
+  for (const partie of ['samedi', 'mercredi']) {
+    if (seulement && partie !== seulement) continue
+    const rayons = ORDRE_RAYONS.map(r => [r, (parties[partie]?.[r] || []).filter(i => !coche(i))]).filter(([, items]) => items.length)
+    if (!rayons.length) continue
+    blocs.push([`${titres[partie]}`, ...rayons.map(([r, items]) =>
+      `${r}\n${items.map(i => { const q = combinerQuantites(i.quantites || [], i.nom); return `- ${i.nom}${q ? ` : ${q}` : ''}` }).join('\n')}`)].join('\n\n'))
+  }
+  return blocs.join('\n\n')
+}
+
 export function repartirCourses(lignes) {
   const agregat = new Map()
   for (const l of lignes) {
     const k = cleIngredient(l.nom)
     if (!k) continue
-    if (!agregat.has(k)) agregat.set(k, { nom: nomIngredient(l.nom), quantites: [], parties: new Set() })
-    const a = agregat.get(k)
-    a.quantites.push({ valeur: l.quantite, facteur: l.facteur ?? 1 })
-    a.parties.add(l.partie)
+    if (!agregat.has(k)) agregat.set(k, { nom: nomIngredient(l.nom), parPartie: { samedi: [], mercredi: [] } })
+    agregat.get(k).parPartie[l.partie === 'mercredi' ? 'mercredi' : 'samedi'].push({ valeur: l.quantite, facteur: l.facteur ?? 1 })
   }
   const res = { samedi: {}, mercredi: {} }
+  const ajouter = (partie, item) => { (res[partie][categoriser(item.nom)] ||= []).push(item) }
   for (const a of agregat.values()) {
-    const partie = a.parties.has('samedi') ? 'samedi' : 'mercredi'
-    const rayon  = categoriser(a.nom)
-    ;(res[partie][rayon] ||= []).push({ nom: a.nom, quantites: a.quantites })
+    const { samedi, mercredi } = a.parPartie
+    const cle = a.nom.toLowerCase().trim()
+    if (samedi.length && mercredi.length && RAYONS_FRAIS.includes(categoriser(a.nom))) {
+      ajouter('samedi', { nom: a.nom, quantites: samedi, cleEtat: cle })
+      ajouter('mercredi', { nom: a.nom, quantites: mercredi, cleEtat: `mercredi|${cle}` })
+    } else {
+      ajouter(samedi.length ? 'samedi' : 'mercredi', { nom: a.nom, quantites: [...samedi, ...mercredi], cleEtat: cle })
+    }
   }
   return res
 }
@@ -193,7 +218,7 @@ export function ajouterArticlesLibres(parties, libres) {
     const cle = cleIngredient(l.nom)
     if (!cle || presents.has(cle)) continue
     presents.add(cle)
-    ;((parties[l.partie] ||= {})[categoriser(l.nom)] ||= []).push({ nom: nomIngredient(l.nom), quantites: [], libreId: l.id })
+    ;((parties[l.partie] ||= {})[categoriser(l.nom)] ||= []).push({ nom: nomIngredient(l.nom), quantites: [], libreId: l.id, cleEtat: nomIngredient(l.nom).toLowerCase().trim() })
   }
   return parties
 }
@@ -217,12 +242,16 @@ export function separerPlacard(parties, placard = []) {
   return { parties: res, auPlacard: auPlacard.sort((a, b) => a.nom.localeCompare(b.nom)) }
 }
 
+// Mot entier (pluriel toléré) : « moule » trouvé dans « moules » mais pas dans « semoule »
+const MOTS_CATEGORIES = Object.entries(CAT_MAP).map(([cat, mots]) =>
+  [cat, mots.map(m => new RegExp(`(^|[^a-z])${sansAccents(m)}(s|x)?([^a-z]|$)`))])
+
 export function categoriser(nom) {
-  const n = nom.toLowerCase()
+  const n = sansAccents(nom)
   // Épices en poudre / moulues avant les herbes fraîches du même nom (coriandre, gingembre…)
-  if (/(^|[^a-z])(poudre|moulue?|s[ée]ch[ée]e?s?)([^a-z]|$)/.test(n) && !/tomates? s[ée]ch/.test(n)) return 'Épicerie & Condiments'
-  for (const [cat, mots] of Object.entries(CAT_MAP)) {
-    if (mots.some(m => n.includes(m))) return cat
+  if (/(^|[^a-z])(poudre|moulue?|sechee?s?)([^a-z]|$)/.test(n) && !/tomates? sech/.test(n)) return 'Épicerie & Condiments'
+  for (const [cat, motifs] of MOTS_CATEGORIES) {
+    if (motifs.some(re => re.test(n))) return cat
   }
   return 'Divers'
 }

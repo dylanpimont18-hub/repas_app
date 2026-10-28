@@ -3,6 +3,7 @@ import { debutCycle, decalerCycle, labelCycle, labelCreneau, dateIso } from './c
 import { chargerDonnees, placer } from './propositions.js'
 import { esc } from './utils.js'
 import { icone } from './icones.js'
+import { confirmer, signalerErreur } from './dialogue.js'
 
 /**
  * Affiche le choix du repas dans `zone` (contenu de la modale de détail).
@@ -60,7 +61,7 @@ export async function ouvrirPlanifier(recette, zone, retour) {
   async function choisir(c) {
     const occ = d.occupation[c.cle]
     if (occ?.id === recette.id) return
-    if (occ && !confirm(`Remplacer « ${d.recettesMap[occ.id]?.nom || 'le plat prévu'} » (${labelCreneau(c)}) ?`)) return
+    if (occ && !await confirmer(`« ${d.recettesMap[occ.id]?.nom || 'Le plat prévu'} » sera remplacé.`, { titre: `${labelCreneau(c)} : remplacer ?`, ok: 'Remplacer' })) return
     chargement()
     try {
       await placer(d, c, recette.id, 'manuel', 'remplacer')
@@ -70,7 +71,7 @@ export async function ouvrirPlanifier(recette, zone, retour) {
         <button class="btn btn-ghost btn-full btn-sm" data-retour style="margin-top:0.5rem;">${icone('gauche')}Retour à la recette</button>`
       zone.querySelector('[data-retour]').addEventListener('click', retour)
     } catch (e) {
-      alert(`Erreur : ${e.message}`)
+      signalerErreur(e, 'Planifier')
       afficher()
     }
   }

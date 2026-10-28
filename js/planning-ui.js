@@ -3,8 +3,9 @@ import { enregistrerCreneaux, viderCreneaux, supprimerCreneaux } from './plannin
 import { debutCycle, decalerCycle, labelCycle, groupesDuCycle, labelCreneau } from './cycle.js'
 import { FILTRES, estEnvie, normaliser } from './filtres.js'
 import { chargerDonnees, lireFiltres, memoriserFiltres, proposerPourCreneau,
-         remplirDepuisBibliotheque, completerParIA, ideeIA, echanger } from './propositions.js'
-import { dbEcouter } from './db.js'
+         remplirDepuisBibliotheque, annulerRemplissage, completerParIA, ideeIA, echanger } from './propositions.js'
+import { dbEcouter, dbGetReglage, dbSetReglage, dbGetMonProfil } from './db.js'
+import { confirmer, choisirNombre, informer, signalerErreur } from './dialogue.js'
 import { esc, debounce } from './utils.js'
 import { icone } from './icones.js'
 import { expliquerErreur } from './credit-ia.js'
@@ -47,15 +48,16 @@ function htmlCreneau(c, { avecJour = true } = {}) {
   return `<div class="slot${recette ? '' : ' slot-libre'}${c.cle === aDeplacer ? ' slot-source' : ''}" data-cle="${esc(c.cle)}"${glissable}>
     <div class="slot-ligne">
       <span class="slot-moment">${moment}</span>
-      <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions" aria-label="Portions : ${occ?.portions ?? c.portions}">${badgePortions(c, occ?.portions ?? c.portions)}</button>
+      <button class="portions-badge" data-action="portions" data-cle="${esc(c.cle)}" title="Changer les portions" aria-label="${esc(labelCreneau(c))} : ${occ?.portions ?? c.portions} portion(s), changer">${badgePortions(c, occ?.portions ?? c.portions)}</button>
       ${label ? `<span class="source-tag source-${esc(occ.source)}">${icone(ico)}<span class="source-txt">${label}</span></span>` : ''}
       ${recette ? `<span class="slot-actions">
-        <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition">${icone('autre')}</button>
-        <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat">${icone('crayon')}</button>
-        <button class="slot-btn" data-action="deplacer" data-cle="${esc(c.cle)}" title="Déplacer ou intervertir" aria-label="Déplacer ou intervertir">${icone('deplacer')}</button>
+        <button class="slot-btn" data-action="suivant" data-cle="${esc(c.cle)}" title="Autre proposition" aria-label="Autre proposition : ${esc(labelCreneau(c))}">${icone('autre')}</button>
+        <button class="slot-btn" data-action="changer" data-cle="${esc(c.cle)}" title="Choisir un plat" aria-label="Choisir un plat : ${esc(labelCreneau(c))}">${icone('crayon')}</button>
+        <button class="slot-btn" data-action="deplacer" data-cle="${esc(c.cle)}" title="Déplacer ou intervertir" aria-label="Déplacer ou intervertir : ${esc(labelCreneau(c))}">${icone('deplacer')}</button>
       </span>` : ''}
     </div>
-    ${recette ? `<div class="slot-nom">${esc(recette.nom)}</div>` : `<div class="slot-vide">${icone('plus')}Choisir un plat</div>`}
+    ${recette ? `<button type="button" class="slot-nom" data-ouvrir="${esc(c.cle)}">${esc(recette.nom)}</button>`
+      : `<button type="button" class="slot-vide" data-ouvrir="${esc(c.cle)}">${icone('plus')}Choisir un plat<span class="sr-only"> pour ${esc(labelCreneau(c))}</span></button>`}
   </div>`
 }
 
@@ -121,8 +123,34 @@ function htmlFrise() {
 }
 
 async function renderGrid() {
-  donnees = await chargerDonnees(samedi)
+  try {
+    donnees = await chargerDonnees(samedi)
+  } catch (e) {
+    if (!donnees) document.getElementById('planningGrid').innerHTML = `<p class="text-muted">Impossible de charger le planning : ${esc(e.message)}</p>`
+    return signalerErreur(e, 'Planning')
+  }
   afficher()
+}
+
+// ── Écritures : appliquées tout de suite à l'écran, et leur écho temps réel est ignoré ──
+const mesEcritures = new Map()   // clé de créneau → horodatage
+const noterEcritures = cles => cles.forEach(k => mesEcritures.set(k, Date.now()))
+const estMonEcho = cle => Date.now() - (mesEcritures.get(cle) || 0) < 8000
+
+// Met à jour l'occupation locale (sans recharger tout le cycle) puis redessine
+function appliquer(changements) {
+  for (const ch of changements) {
+    if (ch.vider) { delete donnees.occupation[ch.cle]; delete donnees.absents[ch.cle] }
+    else if (ch.absent) { delete donnees.occupation[ch.cle]; donnees.absents[ch.cle] = true }
+    else donnees.occupation[ch.cle] = { id: ch.recetteId, portions: ch.portions ?? donnees.parCle[ch.cle].portions, source: ch.source || 'manuel' }
+  }
+  noterEcritures(changements.map(ch => ch.cle))
+  afficher()
+}
+
+// Garde le focus sur le même bouton après un redessin (clavier, VoiceOver)
+function refocus(selecteur) {
+  requestAnimationFrame(() => document.querySelector(selecteur)?.focus())
 }
 
 function afficher() {
@@ -156,30 +184,39 @@ function afficher() {
 async function actionCreneau(action, cle, bouton) {
   const c = donnees.parCle[cle]
   creneauEnCours = c
-  if (action === 'changer') return ouvrirSelectRecette()
-  if (action === 'deplacer') { aDeplacer = aDeplacer === cle ? null : cle; return afficher() }
-  if (action === 'supprimer') { await viderCreneaux([c]); return renderGrid() }
-  if (action === 'retablir') { await viderCreneaux([c]); return renderGrid() }
-  if (action === 'portions') {
-    const occ = donnees.occupation[cle]
-    const v = parseInt(prompt(`Portions pour ${labelCreneau(c)} :`, occ?.portions ?? c.portions), 10)
-    if (!v || v < 1 || !occ) return
-    await enregistrerCreneaux([{ creneau: c, recetteId: occ.id, source: occ.source, portions: v }])
-    return renderGrid()
-  }
-  if (action === 'suivant') {
-    const { filtres, style } = lireFiltres()
-    const [prochain] = proposerPourCreneau(donnees, c, { filtres, style }, 1)
-    if (bouton) { bouton.disabled = true; bouton.innerHTML = '<span class="loader loader-mini"></span>' }
-    try {
+  try {
+    if (action === 'changer') return ouvrirSelectRecette()
+    if (action === 'deplacer') { aDeplacer = aDeplacer === cle ? null : cle; afficher(); return refocus(`[data-action="deplacer"][data-cle="${CSS.escape(cle)}"]`) }
+    if (action === 'supprimer' || action === 'retablir') { await viderCreneaux([c]); return appliquer([{ cle, vider: true }]) }
+    if (action === 'portions') {
+      const occ = donnees.occupation[cle]
+      if (!occ) return informer('Choisis d\'abord un plat pour ce repas.')
+      const v = await choisirNombre({ titre: `Portions · ${labelCreneau(c)}`, valeur: occ.portions ?? c.portions, min: 1, max: 12, unite: 'portion(s)',
+        aide: 'Pour ce repas seulement (le modèle de semaine ne change pas). Les courses suivent.' })
+      if (!v) return
+      await enregistrerCreneaux([{ creneau: c, recetteId: occ.id, source: occ.source, portions: v }])
+      appliquer([{ cle, recetteId: occ.id, source: occ.source, portions: v }])
+      return refocus(`[data-action="portions"][data-cle="${CSS.escape(cle)}"]`)
+    }
+    if (action === 'suivant') {
+      const { filtres, style } = lireFiltres()
+      const [prochain] = proposerPourCreneau(donnees, c, { filtres, style }, 1)
       if (prochain) {
         await enregistrerCreneaux([{ creneau: c, recetteId: prochain.id, source: 'biblio' }])
-      } else if (confirm('Plus rien de compatible dans tes recettes. Demander une idée à l\'IA ?')) {
-        const r = await ideeIA(donnees, c, { filtres, style })
-        await enregistrerCreneaux([{ creneau: c, recetteId: r.id, source: 'ia' }])
+        appliquer([{ cle, recetteId: prochain.id, source: 'biblio' }])
+        return refocus(`[data-action="suivant"][data-cle="${CSS.escape(cle)}"]`)
       }
-    } catch (e) { alert(e.message) }
-    return renderGrid()
+      if (!await confirmer('Plus rien de compatible dans tes recettes pour ce repas.', { titre: 'Demander une idée à l\'IA ?', ok: 'Demander à l\'IA' })) return
+      if (bouton) { bouton.disabled = true; bouton.innerHTML = '<span class="loader loader-mini"></span>' }
+      const r = await ideeIA(donnees, c, { filtres, style })
+      await enregistrerCreneaux([{ creneau: c, recetteId: r.id, source: 'ia' }])
+      donnees.recettesMap[r.id] = r
+      donnees.recettes.unshift(r)
+      appliquer([{ cle, recetteId: r.id, source: 'ia' }])
+    }
+  } catch (e) {
+    signalerErreur(e, labelCreneau(c))
+    renderGrid()
   }
 }
 
@@ -199,10 +236,10 @@ async function ouvrirSelectRecette() {
   // Texte cherché : nom + cuisine + ingrédients (sans accents)
   const texte = x => normaliser([x.nom, x.cuisine, ...(x.ingredients || []).map(i => i.nom)].filter(Boolean).join(' '))
   const carte = (x, compat) => `
-    <div class="recipe-card" style="margin-bottom:0.5rem;cursor:pointer;${compat ? '' : 'opacity:0.6;'}" data-id="${esc(x.id)}" data-texte="${esc(texte(x))}">
-      <div class="recipe-name">${esc(x.nom)}</div>
-      <div class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}</div>
-    </div>`
+    <button type="button" class="recipe-card select-carte${compat ? '' : ' select-carte-hors'}" data-id="${esc(x.id)}" data-texte="${esc(texte(x))}">
+      <span class="recipe-name">${esc(x.nom)}</span>
+      <span class="recipe-meta"><span>${icone('horloge')}${(x.temps_prep || 0) + (x.temps_cuisson || 0)} min</span>${x.vegetarien ? `<span>${icone('feuille')}végé</span>` : ''}${x.cuisine ? `<span>${esc(x.cuisine)}</span>` : ''}${compat ? '' : '<span>hors critères</span>'}</span>
+    </button>`
   const occupe = donnees.occupation[creneauEnCours.cle]
   const absent = donnees.absents[creneauEnCours.cle]
   const jourDuCreneau = creneauxDuJour(creneauEnCours)
@@ -228,21 +265,30 @@ async function ouvrirSelectRecette() {
   list.querySelectorAll('[data-gerer]').forEach(b => b.addEventListener('click', async () => {
     const action = b.dataset.gerer
     const cibles = action.endsWith('-jour') ? jourDuCreneau : [creneauEnCours]
-    if (action.startsWith('supprimer')) {
-      const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
-      if (pleins && !confirm(`${pleins} plat(s) prévu(s) seront retirés. Continuer ?`)) return
-      await supprimerCreneaux(cibles)
-    } else {
-      await viderCreneaux(cibles) // vider, ou rétablir un repas supprimé
-    }
-    modal.classList.add('hidden')
-    await renderGrid()
+    const avant = cibles.map(c => ({ c, occ: donnees.occupation[c.cle], absent: donnees.absents[c.cle] }))
+    try {
+      if (action.startsWith('supprimer')) {
+        const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
+        if (pleins && !await confirmer(`${pleins} plat(s) prévu(s) seront retirés du planning et des courses.`, { titre: 'Pas de repas ?', ok: 'Retirer', danger: true })) return
+        await supprimerCreneaux(cibles)
+        appliquer(cibles.map(c => ({ cle: c.cle, absent: true })))
+      } else {
+        await viderCreneaux(cibles) // vider, ou rétablir un repas supprimé
+        appliquer(cibles.map(c => ({ cle: c.cle, vider: true })))
+      }
+      modal.classList.add('hidden')
+      if (action !== 'retablir' && action !== 'retablir-jour') informer(action === 'vider' ? 'Repas vidé.' : 'Repas retiré.', {
+        action: { label: 'Annuler', faire: () => restaurer(avant) } })
+    } catch (e) { signalerErreur(e, 'Planning') }
   }))
   list.querySelectorAll('[data-id]').forEach(card => {
     card.addEventListener('click', async () => {
-      await enregistrerCreneaux([{ creneau: creneauEnCours, recetteId: card.dataset.id, source: 'manuel' }])
-      modal.classList.add('hidden')
-      await renderGrid()
+      try {
+        await enregistrerCreneaux([{ creneau: creneauEnCours, recetteId: card.dataset.id, source: 'manuel' }])
+        modal.classList.add('hidden')
+        appliquer([{ cle: creneauEnCours.cle, recetteId: card.dataset.id, source: 'manuel' }])
+        refocus(`[data-ouvrir="${CSS.escape(creneauEnCours.cle)}"]`)
+      } catch (e) { signalerErreur(e, 'Choix du plat') }
     })
   })
   // Recherche : chaque mot tapé doit apparaître (nom, cuisine ou ingrédient)
@@ -260,6 +306,32 @@ async function ouvrirSelectRecette() {
   modal.classList.remove('hidden')
 }
 
+// Remet des créneaux dans leur état d'avant (« Annuler »)
+async function restaurer(avant) {
+  try {
+    const remettre = avant.filter(x => x.occ), vider = avant.filter(x => !x.occ && !x.absent), absents = avant.filter(x => x.absent)
+    if (remettre.length) await enregistrerCreneaux(remettre.map(x => ({ creneau: x.c, recetteId: x.occ.id, source: x.occ.source, portions: x.occ.portions })))
+    if (vider.length) await viderCreneaux(vider.map(x => x.c))
+    if (absents.length) await supprimerCreneaux(absents.map(x => x.c))
+    appliquer([...remettre.map(x => ({ cle: x.c.cle, recetteId: x.occ.id, source: x.occ.source, portions: x.occ.portions })),
+      ...vider.map(x => ({ cle: x.c.cle, vider: true })), ...absents.map(x => ({ cle: x.c.cle, absent: true }))])
+  } catch (e) { signalerErreur(e, 'Annulation') }
+}
+
+// ── Verrou souple : une génération IA en cours sur un téléphone est visible sur l'autre ──
+const CLE_VERROU = 'ia_en_cours'
+const VERROU_MAX = 10 * 60000
+async function poserVerrou(creneaux) {
+  const qui = await dbGetMonProfil().catch(() => null)
+  await dbSetReglage(CLE_VERROU, { qui, depuis: Date.now(), cles: creneaux.map(c => c.cle) }).catch(() => {})
+}
+const leverVerrou = () => dbSetReglage(CLE_VERROU, null).catch(() => {})
+async function verrouAutreTelephone() {
+  if (iaEnCours) return null
+  const v = await dbGetReglage(CLE_VERROU).catch(() => null)
+  return v && Date.now() - v.depuis < VERROU_MAX ? v : null
+}
+
 // ── Génération IA en arrière-plan ────────────────────────────────────
 // Les recettes s'affichent lot par lot ; la page reste utilisable (quitter la page interrompt la génération)
 let iaEnCours = false
@@ -267,12 +339,14 @@ const majBandeauIA = (etat) => majBandeau(document.getElementById('bandeauIA'), 
 
 async function lancerGenerationIA(creneaux, sel) {
   iaEnCours = true
+  noterEcritures(creneaux.map(c => c.cle))
+  poserVerrou(creneaux)
   const total = creneaux.length
   majBandeauIA({ etat: 'encours', texte: `L'IA prépare ${total} recette(s)…`, pct: 3 })
   try {
     const { nbCrees, rejets, erreurs } = await completerParIA(donnees, creneaux, sel,
       (n) => majBandeauIA({ etat: 'encours', texte: `L'IA prépare tes recettes : ${n} / ${total}`, pct: Math.max(3, n / total * 95) }),
-      () => renderGrid())
+      (lot) => { noterEcritures(lot.map(x => x.creneau.cle)); return renderGrid() })
     const manquants = total - nbCrees
     const codes = new Set()
     const detail = (rejets.length ? `<p class="text-xs">Écartées (contraintes ou en double) : ${esc(rejets.join(', '))}</p>` : '')
@@ -284,6 +358,7 @@ async function lancerGenerationIA(creneaux, sel) {
     majBandeauIA({ etat: 'erreur', texte: 'Aucune recette créée', detail: htmlErreurIA(e.info || expliquerErreur('INCONNUE', e.message)) })
   } finally {
     iaEnCours = false
+    leverVerrou()
     await renderGrid()
   }
 }
@@ -361,7 +436,7 @@ function initModalGen() {
     chargerCredit().then(c => { credit = c; majCompteur(videsRestants.length || null) })
     const memo = lireFiltres()
     filtresWrap.innerHTML = FILTRES.filter(f => !estEnvie(f.id)).map(f =>
-      `<button class="chip ${memo.filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}">${f.label}</button>`).join('')
+      `<button class="chip ${memo.filtres.includes(f.id) ? 'active' : ''}" data-filtre="${f.id}" aria-pressed="${memo.filtres.includes(f.id)}">${f.label}</button>`).join('')
     envies = Object.fromEntries((memo.envies || []).map(e => [e.id, { actif: true, nb: e.nb, suite: e.suite }]))
     renderEnvies()
     styleInput.value = memo.style || ''
@@ -370,18 +445,22 @@ function initModalGen() {
     chipsWrap.innerHTML = (vides.length ? '' : '<p class="text-xs text-muted" style="width:100%;">Tout est rempli : sélectionne les créneaux à remplacer.</p>')
       + donnees.creneaux.map(c => {
         const absent = donnees.absents[c.cle]
-        return `<button class="chip ${vides.includes(c) ? 'active' : ''}${absent ? ' chip-absent' : ''}" data-cle="${esc(c.cle)}"${absent ? ' title="Pas de repas"' : ''}>
+        return `<button class="chip ${vides.includes(c) ? 'active' : ''}${absent ? ' chip-absent' : ''}" data-cle="${esc(c.cle)}" aria-pressed="${vides.includes(c)}"${absent ? ' title="Pas de repas"' : ''}>
           ${esc(labelCreneau(c))}${c.portions === 1 ? icone('personne') : ''}${absent ? icone('croix', { label: 'pas de repas' }) : ''}</button>`
       }).join('')
     status.textContent = iaEnCours ? 'Une génération IA est déjà en cours (voir le bandeau de suivi).' : ''
+    verrouAutreTelephone().then(v => {
+      if (v) status.textContent = `L'IA prépare déjà ${v.cles?.length || ''} repas depuis l'autre téléphone (${v.qui === 'dylan' ? 'Dylan' : v.qui === 'femme' ? 'ta femme' : 'autre compte'}) : attends la fin pour éviter de remplacer ses choix.`
+    })
     videsRestants = []
     btnIA.classList.add('hidden')
     majCompteur()
     modal.classList.remove('hidden')
   })
 
-  filtresWrap.addEventListener('click', e => { e.target.closest('.chip')?.classList.toggle('active') })
-  chipsWrap.addEventListener('click', e => { e.target.closest('.chip')?.classList.toggle('active'); majCompteur() })
+  const basculerPuce = chip => { if (!chip) return; chip.classList.toggle('active'); chip.setAttribute('aria-pressed', chip.classList.contains('active')) }
+  filtresWrap.addEventListener('click', e => basculerPuce(e.target.closest('.chip')))
+  chipsWrap.addEventListener('click', e => { basculerPuce(e.target.closest('.chip')); majCompteur() })
   document.getElementById('closeGenSemaine')?.addEventListener('click', () => modal.classList.add('hidden'))
 
   btnBiblio.addEventListener('click', async () => {
@@ -392,13 +471,20 @@ function initModalGen() {
     btnBiblio.disabled = true
     status.textContent = 'Recherche dans tes recettes…'
     try {
-      const { nbProposes, vides } = await remplirDepuisBibliotheque(donnees, cles, sel)
+      noterEcritures(cles)
+      const resultat = await remplirDepuisBibliotheque(donnees, cles, sel)
+      const { nbProposes, vides } = resultat
       videsRestants = vides
       status.textContent = `${nbProposes} repas proposés depuis tes recettes` + (vides.length ? ` · ${vides.length} sans idée` : '')
       btnIA.innerHTML = `${icone('etincelle')}Compléter avec l'IA (${vides.length} repas)`
       btnIA.classList.toggle('hidden', vides.length === 0)
       majCompteur(vides.length)
       await renderGrid()
+      if (nbProposes) informer(`${nbProposes} repas remplis depuis tes recettes.`, { type: 'ok', duree: 10000,
+        action: { label: 'Annuler', faire: async () => {
+          try { noterEcritures(cles); await annulerRemplissage(donnees, resultat); await renderGrid(); informer('Remplissage annulé.') }
+          catch (e) { signalerErreur(e, 'Annulation') }
+        } } })
       if (!vides.length) setTimeout(() => modal.classList.add('hidden'), 900)
     } catch (e) {
       status.textContent = e.message
@@ -419,11 +505,17 @@ function initModalGen() {
     lancerGenerationIA(creneaux, sel)
   }
 
-  btnIA.addEventListener('click', () => genererIA(videsRestants))
-  document.getElementById('btnGenererIA').addEventListener('click', () => {
+  // Une génération lancée depuis l'autre téléphone : on prévient avant d'en lancer une seconde
+  const autreGeneration = async () => {
+    const v = await verrouAutreTelephone()
+    return v && !await confirmer('L\'autre téléphone a une génération IA en cours : les deux pourraient remplir les mêmes repas.', { titre: 'Lancer quand même ?', ok: 'Lancer' })
+  }
+  btnIA.addEventListener('click', async () => { if (!await autreGeneration()) genererIA(videsRestants) })
+  document.getElementById('btnGenererIA').addEventListener('click', async () => {
     const cles = [...chipsWrap.querySelectorAll('.chip.active')].map(c => c.dataset.cle)
     const deja = cles.filter(cle => donnees.occupation[cle]).length
-    if (deja && !confirm(`${deja} repas déjà prévu(s) seront remplacés par de nouvelles recettes. Continuer ?`)) return
+    if (deja && !await confirmer(`${deja} repas déjà prévu(s) seront remplacés par de nouvelles recettes.`, { titre: 'Remplacer ces repas ?', ok: 'Remplacer' })) return
+    if (await autreGeneration()) return
     genererIA(cles.map(cle => donnees.parCle[cle]))
   })
 }
@@ -438,8 +530,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function deposer(cible) {
     const source = aDeplacer
     aDeplacer = null
-    if (source && cible && source !== cible) await echanger(donnees, source, cible)
-    await renderGrid()
+    if (!source || !cible || source === cible) return afficher()
+    const a = donnees.occupation[source], b = donnees.occupation[cible]
+    try {
+      await echanger(donnees, source, cible)
+      const src = o => (o.source === 'reste' ? 'manuel' : o.source)
+      appliquer([a ? { cle: cible, recetteId: a.id, source: src(a) } : { cle: cible, vider: true },
+        b ? { cle: source, recetteId: b.id, source: src(b) } : { cle: source, vider: true }])
+      refocus(`[data-ouvrir="${CSS.escape(cible)}"]`)
+    } catch (e) { signalerErreur(e, 'Déplacement'); renderGrid() }
   }
   document.getElementById('bandeauDeplacement')?.addEventListener('click', e => {
     if (e.target.closest('[data-annuler]')) { aDeplacer = null; afficher() }
@@ -488,18 +587,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnJour = e.target.closest('[data-jour-action]')
     if (btnJour) {
       const cibles = btnJour.dataset.cles.split(',').map(cle => donnees.parCle[cle])
-      if (btnJour.dataset.jourAction === 'retablir') await viderCreneaux(cibles)
-      else {
-        const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
-        if (pleins && !confirm(`${pleins} plat(s) prévu(s) seront retirés. Continuer ?`)) return
-        await supprimerCreneaux(cibles)
-      }
-      return renderGrid()
+      try {
+        if (btnJour.dataset.jourAction === 'retablir') { await viderCreneaux(cibles); appliquer(cibles.map(c => ({ cle: c.cle, vider: true }))) }
+        else {
+          const pleins = cibles.filter(c => donnees.occupation[c.cle]).length
+          if (pleins && !await confirmer(`${pleins} plat(s) prévu(s) seront retirés du planning et des courses.`, { titre: 'Supprimer la journée ?', ok: 'Supprimer', danger: true })) return
+          await supprimerCreneaux(cibles)
+          appliquer(cibles.map(c => ({ cle: c.cle, absent: true })))
+        }
+      } catch (err) { signalerErreur(err, 'Journée') }
+      return
     }
     const slot = e.target.closest('.slot')
     if (!slot) return
     const occ = donnees.occupation[slot.dataset.cle]
-    if (occ) window.location.href = `recettes.html?id=${encodeURIComponent(occ.id)}&from=planning`
+    if (occ) window.location.href = `recettes.html?id=${encodeURIComponent(occ.id)}&from=planning&portions=${occ.portions || ''}`
     else { creneauEnCours = donnees.parCle[slot.dataset.cle]; ouvrirSelectRecette() }
   })
 
@@ -514,6 +616,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   ecranLarge.addEventListener('change', afficher)
 
-  // Temps réel : refléter les changements faits depuis l'autre téléphone
-  dbEcouter(['planning', 'recettes', 'reserve', 'reglages'], debounce(renderGrid, 300))
+  // Temps réel : refléter les changements faits depuis l'autre téléphone (nos propres écritures sont ignorées)
+  const recharger = debounce(renderGrid, 300)
+  dbEcouter(['planning'], payload => {
+    const l = payload.new?.semaine_key ? payload.new : payload.old || {}
+    if (l.semaine_key && estMonEcho(`${l.semaine_key}|${l.jour}|${l.moment}`)) return
+    recharger()
+  })
+  dbEcouter(['recettes', 'reserve'], () => { if (!iaEnCours) recharger() })
+  dbEcouter(['reglages'], payload => { if ((payload.new?.cle || payload.old?.cle) !== CLE_VERROU) recharger() })
 })

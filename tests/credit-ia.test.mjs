@@ -98,3 +98,8 @@ test('format en dollars', () => {
   assert.equal(formatDollars(0.004), '< 0,01 $')
   assert.equal(formatDollars(0), '0,00 $')
 })
+
+test('codeErreurHttp reconnaît le plafond de budget posé par le serveur', () => {
+  assert.equal(codeErreurHttp(402, { error: 'BUDGET_ATTEINT' }), 'BUDGET_ATTEINT')
+  assert.equal(expliquerErreur('BUDGET_ATTEINT').titre, 'Budget IA du mois atteint')
+})

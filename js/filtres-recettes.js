@@ -1,6 +1,7 @@
 // js/filtres-recettes.js — Filtres de la bibliothèque déduits des recettes (pur, testé)
 // Un filtre n'existe que si au moins une recette affichée y correspond.
 import { normaliser, contientMot, contientViande, contientPoisson, texteRecette } from './filtres.js'
+import { motsDe, motsRecette } from './selection.js'
 
 const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1)
 const tempsTotal = r => (r.temps_prep || 0) + (r.temps_cuisson || 0)
@@ -81,3 +82,28 @@ export function basculer(selection, groupe, valeur, unique = false) {
 }
 
 export const nbActifs = selection => Object.values(selection).reduce((s, v) => s + v.length, 0)
+
+// Ingrédients saisis (« poulet », « carottes »…) : la recette doit tous les contenir (ET).
+// Un ingrédient de plusieurs mots (« pois chiche ») doit avoir tous ses mots dans la recette.
+export function filtrerParIngredients(recettes, ingredients = []) {
+  const items = ingredients.map(motsDe).filter(mots => mots.length)
+  if (!items.length) return recettes
+  return recettes.filter(r => {
+    const mots = motsRecette(r)
+    return items.every(item => item.every(m => mots.has(m)))
+  })
+}
+
+// « poulet, carottes et riz » → ['poulet', 'carottes', 'riz'] (sans doublon avec `deja`)
+export function ajouterIngredients(deja, texte) {
+  const vus = new Set(deja.map(i => motsDe(i).join(' ')))
+  const nouveaux = []
+  for (const brut of String(texte ?? '').split(/[,;+\n]|\bet\b/)) {
+    const nom = brut.trim()
+    const cle = motsDe(nom).join(' ')
+    if (!cle || vus.has(cle)) continue
+    vus.add(cle)
+    nouveaux.push(nom)
+  }
+  return [...deja, ...nouveaux]
+}

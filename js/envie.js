@@ -1,7 +1,7 @@
 // js/envie.js — « ⚡ Envie ce soir » : remplacer ponctuellement un repas sans casser le cycle
 import { debutCycle, creneauCourant, labelCreneau, dateIso, ajouterJours } from './cycle.js'
 import { FILTRES } from './filtres.js'
-import { chargerDonnees, proposerPourCreneau, ideeIA, placer } from './propositions.js'
+import { chargerDonnees, proposerPourCreneau, ideesIA, enregistrerIdee, placer } from './propositions.js'
 import { recettesAvecIngredients } from './selection.js'
 import { expliquerErreur } from './credit-ia.js'
 import { htmlErreurIA } from './credit-ia-ui.js'
@@ -9,6 +9,7 @@ import { esc } from './utils.js'
 import { icone } from './icones.js'
 
 const ENVIES_RAPIDES = ['reconfortant', 'bouillon', 'gras', 'healthy', 'rapide', 'sansViande', 'sansFeculents']
+const NB_IDEES = [2, 3, 4, 5]
 
 export async function renderModalEnvie(content, fermer) {
   content.innerHTML = '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>'
@@ -18,7 +19,8 @@ export async function renderModalEnvie(content, fermer) {
   let filtres = []
   let style   = ''
   let ingredients = ''   // « Avec ce que j'ai » : restes, fond de frigo
-  let ideeGeneree = null
+  let idees   = []       // idées IA au choix, non enregistrées tant qu'on n'en choisit pas une
+  let nbIdees = 3
   let erreur  = null     // info d'erreur expliquée (ou texte)
   let attente = false
 
@@ -27,6 +29,7 @@ export async function renderModalEnvie(content, fermer) {
   const ciblesPossibles = d.creneaux.filter(c => jours.includes(dateIso(c.date)))
 
   const nomRecette = id => d.recettesMap[id]?.nom || '?'
+  const memoriserIdees = () => idees.forEach(r => { d.recettesMap[r.id] = r })
 
   function draw() {
     style = content.querySelector('#envieStyle')?.value ?? style
@@ -50,9 +53,14 @@ export async function renderModalEnvie(content, fermer) {
       <div class="text-xs text-muted" style="margin-bottom:0.4rem;">Dans tes recettes :</div>
       ${propositions.length ? propositions.map(r => carte(r, 'biblio')).join('')
         : '<p class="text-sm text-muted" style="margin-bottom:0.5rem;">Aucune de tes recettes ne correspond. Essaie une idée de l’IA.</p>'}
-      ${ideeGeneree ? `<div class="text-xs text-muted" style="margin:0.6rem 0 0.4rem;">Idée de l'IA :</div>${carte(ideeGeneree, 'ia')}` : ''}
+      ${idees.length ? `<div class="text-xs text-muted" style="margin:0.6rem 0 0.4rem;">Idées de l'IA, touche celle qui te tente :</div>
+        ${idees.map(r => carte(r, 'ia')).join('')}` : ''}
+      <div class="envie-nb-idees" role="group" aria-label="Nombre d'idées de l'IA">
+        <span class="text-xs text-muted">Idées de l'IA :</span>
+        ${NB_IDEES.map(n => `<button class="chip ${n === nbIdees ? 'active' : ''}" data-nb="${n}" aria-pressed="${n === nbIdees}">${n}</button>`).join('')}
+      </div>
       ${attente ? '<div class="flex-center" style="padding:1rem;"><span class="loader"></span></div>'
-        : `<button class="btn btn-ghost btn-full" id="envieIA" style="margin-top:0.4rem;">${icone('etincelle')}Autre idée par l'IA</button>`}
+        : `<button class="btn btn-ghost btn-full" id="envieIA" style="margin-top:0.4rem;">${icone('etincelle')}${idees.length ? 'Autres idées' : `${nbIdees} idées`} par l'IA</button>`}
 
       <section class="envie-restes">
         <label class="envie-restes-titre" for="envieIngredients">${icone('boite')}Avec ce que j'ai</label>
@@ -61,11 +69,14 @@ export async function renderModalEnvie(content, fermer) {
         ${avecMesIngredients.length ? `<div class="text-xs text-muted" style="margin:0.5rem 0 0.4rem;">Tes recettes avec ces ingrédients :</div>
           ${avecMesIngredients.map(r => carte(r, 'biblio')).join('')}` : ''}
         ${attente ? '' : `<button class="btn btn-secondary btn-full" id="envieRestes" style="margin-top:0.5rem;" ${ingredients.trim() ? '' : 'disabled'}>
-          ${icone('etincelle')}Une recette avec ces ingrédients</button>`}
+          ${icone('etincelle')}${nbIdees} idées avec ces ingrédients</button>`}
       </section>
     `
     content.querySelectorAll('[data-cible]').forEach(b => b.addEventListener('click', () => {
-      cible = d.parCle[b.dataset.cible]; ideeGeneree = null; draw()
+      cible = d.parCle[b.dataset.cible]; idees = []; draw()
+    }))
+    content.querySelectorAll('[data-nb]').forEach(b => b.addEventListener('click', () => {
+      nbIdees = Number(b.dataset.nb); draw()
     }))
     content.querySelectorAll('[data-filtre]').forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.filtre
@@ -86,8 +97,8 @@ export async function renderModalEnvie(content, fermer) {
       ingredients = content.querySelector('#envieIngredients')?.value.trim() ?? ingredients
       attente = true; erreur = null; draw()
       try {
-        ideeGeneree = await ideeIA(d, cible, { filtres, style, envie: true, ...options() })
-        d.recettesMap[ideeGeneree.id] = ideeGeneree
+        idees = await ideesIA(d, cible, { filtres, style, envie: true, ...options() }, nbIdees)
+        memoriserIdees()
       } catch (e) { erreur = e.info || expliquerErreur('INCONNUE', e.message) }
       attente = false; draw()
       content.querySelector('.envie-card[data-source="ia"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -99,7 +110,7 @@ export async function renderModalEnvie(content, fermer) {
   function carte(r, source) {
     return `<div class="envie-card" data-recette="${esc(r.id)}" data-source="${source}">
       <div class="envie-nom">${esc(r.nom)}</div>
-      <div class="envie-desc">${esc(r.description || `${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min`)}</div>
+      <div class="envie-desc">${esc(r.description || '')}${r.description ? ' · ' : ''}${(r.temps_prep || 0) + (r.temps_cuisson || 0)} min</div>
     </div>`
   }
 
@@ -126,11 +137,20 @@ export async function renderModalEnvie(content, fermer) {
   async function valider(recetteId, source, mode) {
     content.innerHTML = '<div class="flex-center" style="padding:2rem;"><span class="loader"></span></div>'
     try {
+      // Idée IA choisie : enregistrée en bibliothèque seulement maintenant (les autres sont oubliées)
+      const idee = idees.find(r => r.id === recetteId && r.provisoire)
+      if (idee) {
+        const id = await enregistrerIdee(idee)
+        idees = idees.map(r => (r === idee ? { ...idee, id, provisoire: false } : r))
+        memoriserIdees()
+        recetteId = id
+      }
       await placer(d, cible, recetteId, source, mode)
       fermer()
     } catch (e) {
       erreur = e.message
       d = await chargerDonnees(d.samedi)
+      memoriserIdees()
       draw()
     }
   }

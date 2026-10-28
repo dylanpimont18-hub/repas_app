@@ -5,7 +5,7 @@ import { esc, debounce } from './utils.js'
 import { TAGS } from './filtres.js'
 import { icone } from './icones.js'
 import { initLivres, chargerLivres, renderLivres, getLivres, getLivreActif, nomLivre } from './livres-ui.js'
-import { filtresDisponibles, appliquerFiltres, nettoyerSelection, basculer, nbActifs } from './filtres-recettes.js'
+import { filtresDisponibles, appliquerFiltres, nettoyerSelection, basculer, nbActifs, filtrerParIngredients, ajouterIngredients } from './filtres-recettes.js'
 import { genererImageRecette } from './ai.js'
 import { coutImage, formatDollars, expliquerErreur } from './credit-ia.js'
 import { htmlErreurIA } from './credit-ia-ui.js'
@@ -14,20 +14,24 @@ import { ouvrirPlanifier } from './planifier-recette.js'
 
 let filtres = {}        // recherche par nom
 let selection = {}      // filtres déduits des recettes : { groupe: [valeurs] }
+let ingredientsFiltre = [] // ingrédients que la recette doit tous contenir
 let disponibles = []
 let recetteEnEdition = null
 let nomsRecettes = []
 
 // Panneau des filtres (seuls ceux portés par au moins une recette affichée) + rappel des filtres actifs
 function renderFiltres(nbResultats, nbScope) {
-  const nb = nbActifs(selection)
+  const nb = nbActifs(selection) + ingredientsFiltre.length
   const badge = document.getElementById('filtresNb')
   badge.textContent = nb
   badge.classList.toggle('hidden', nb === 0)
   document.getElementById('btnFiltres').classList.toggle('active', nb > 0)
 
+  const puceIngredient = (nom, i) => `<button class="chip active filtre-actif" data-ingredient="${i}" aria-label="Retirer l'ingrédient ${esc(nom)}">${esc(nom)}${icone('croix')}</button>`
+  document.getElementById('filtreIngredientsPuces').innerHTML = ingredientsFiltre.map(puceIngredient).join('')
+
   const actif = (g, v) => (selection[g] || []).includes(v)
-  document.getElementById('filtresPanel').innerHTML = disponibles.length === 0
+  document.getElementById('filtresGroupes').innerHTML = disponibles.length === 0
     ? '<p class="text-sm text-muted">Aucun filtre : ajoute des recettes pour en voir apparaître.</p>'
     : disponibles.map(g => `<div class="filtres-groupe">
         <div class="filtres-groupe-titre">${esc(g.label)}${g.unique ? ' <span class="text-muted">(un seul choix)</span>' : ''}</div>
@@ -39,7 +43,7 @@ function renderFiltres(nbResultats, nbScope) {
 
   const libelle = (g, v) => disponibles.find(x => x.id === g)?.options.find(o => o.valeur === v)?.label || v
   document.getElementById('filtresActifs').innerHTML = nb === 0 ? ''
-    : Object.entries(selection).flatMap(([g, vals]) => vals.map(v =>
+    : ingredientsFiltre.map(puceIngredient).join('') + Object.entries(selection).flatMap(([g, vals]) => vals.map(v =>
         `<button class="chip active filtre-actif" data-groupe="${esc(g)}" data-valeur="${esc(v)}" aria-label="Retirer le filtre ${esc(libelle(g, v))}">${esc(libelle(g, v))}${icone('croix')}</button>`)).join('')
       + `<span class="text-xs text-muted">${nbResultats} recette(s)</span>`
 }
@@ -49,16 +53,17 @@ async function renderList() {
   nomsRecettes    = toutes.map(r => r.nom)
   renderLivres(toutes)
   const livre     = getLivreActif()
-  // Filtres calculés sur les recettes visibles (livre + recherche) ; ceux qui n'existent plus sont retirés
-  const scope     = filtrerRecettes(toutes, { ...filtres, livre })
+  // Filtres calculés sur les recettes visibles (livre + recherche + ingrédients) ; ceux qui n'existent plus sont retirés
+  const base      = filtrerRecettes(toutes, { ...filtres, livre })
+  const scope     = filtrerParIngredients(base, ingredientsFiltre)
   disponibles     = filtresDisponibles(scope)
   selection       = nettoyerSelection(selection, disponibles)
   const recettes  = appliquerFiltres(scope, selection)
-  renderFiltres(recettes.length, scope.length)
+  renderFiltres(recettes.length, base.length)
   const container = document.getElementById('recettesList')
   if (!container) return
   container.innerHTML = recettes.length === 0
-    ? `<p class="text-muted">${scope.length ? 'Aucune recette ne correspond à ces filtres.'
+    ? `<p class="text-muted">${base.length ? (scope.length ? 'Aucune recette ne correspond à ces filtres.' : `Aucune recette avec ${esc(ingredientsFiltre.join(' + '))}.`)
       : livre ? 'Ce livre est vide : « Générer des recettes » pour le remplir, ou range une recette dedans depuis « Modifier ».' : 'Aucune recette. Générez-en depuis le planning !'}</p>`
     : recettes.map(r => `
         <div class="recipe-card${r.image_url ? ' recipe-card-photo' : ''}" style="cursor:pointer;" data-id="${esc(r.id)}">
@@ -386,7 +391,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.currentTarget.setAttribute('aria-expanded', ouvert)
   })
   const surFiltre = async (e) => {
-    if (e.target.closest('[data-effacer]')) { selection = {}; return renderList() }
+    if (e.target.closest('[data-effacer]')) { selection = {}; ingredientsFiltre = []; return renderList() }
+    const puce = e.target.closest('[data-ingredient]')
+    if (puce) { ingredientsFiltre = ingredientsFiltre.filter((_, i) => i !== Number(puce.dataset.ingredient)); return renderList() }
     const chip = e.target.closest('[data-groupe]'); if (!chip) return
     const unique = disponibles.find(g => g.id === chip.dataset.groupe)?.unique
     selection = basculer(selection, chip.dataset.groupe, chip.dataset.valeur, unique)
@@ -394,6 +401,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('filtresPanel')?.addEventListener('click', surFiltre)
   document.getElementById('filtresActifs')?.addEventListener('click', surFiltre)
+
+  // Ingrédients : Entrée, virgule ou « Ajouter » transforment la saisie en puces
+  const champIngredient = document.getElementById('filtreIngredient')
+  const validerIngredients = async () => {
+    const suivant = ajouterIngredients(ingredientsFiltre, champIngredient.value)
+    champIngredient.value = ''
+    if (suivant.length === ingredientsFiltre.length) return
+    ingredientsFiltre = suivant
+    await renderList()
+  }
+  champIngredient?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); validerIngredients() }
+  })
+  champIngredient?.addEventListener('blur', validerIngredients)
+  document.getElementById('btnAjouterIngredient')?.addEventListener('click', validerIngredients)
 
   // Recherche par nom
   let rechercheTimer = null

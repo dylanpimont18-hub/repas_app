@@ -5,7 +5,7 @@ import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
 import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
 import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
-import { genererPourCreneaux, genererUneRecette } from './ai.js'
+import { genererPourCreneaux, genererUneRecette, genererIdees } from './ai.js'
 import { apresCreation } from './photos-auto.js'
 
 const CLE_FILTRES = 'repas_filtres_cycle'
@@ -98,6 +98,21 @@ export async function ideeIA(d, creneau, options = {}) {
   const id = await addRecette(recette)
   apresCreation([{ ...recette, id }])
   return { ...recette, id }
+}
+
+// Plusieurs idées IA pour un créneau, NON enregistrées : id provisoire jusqu'au choix (enregistrerIdee)
+export async function ideesIA(d, creneau, options = {}, nb = 3) {
+  const recettes = await genererIdees({ creneau, nb, ...options, ...contexteIA(d, [creneau.cle]) })
+  const lot = Date.now()
+  return recettes.map((r, i) => ({ ...r, id: `idee-${lot}-${i}`, provisoire: true }))
+}
+
+// Enregistre en bibliothèque l'idée choisie (photo auto si activée) ; renvoie son vrai id
+export async function enregistrerIdee(idee) {
+  const { id: _, provisoire: __, ...recette } = idee
+  const id = await addRecette(recette)
+  apresCreation([{ ...recette, id }])
+  return id
 }
 
 // Place une recette sur un créneau, en gérant le plat déjà prévu : 'remplacer' | 'congelo' | 'decaler'

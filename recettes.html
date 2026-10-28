@@ -50,7 +50,18 @@
     </div>
     <div id="livresBar" class="livres-bar" role="group" aria-label="Livres de recettes"></div>
     <div id="livreEntete"></div>
-    <div id="filtresPanel" class="filtres-panel hidden"></div>
+    <div id="filtresPanel" class="filtres-panel hidden">
+      <div class="filtres-groupe">
+        <label class="filtres-groupe-titre" for="filtreIngredient">Contient les ingrédients</label>
+        <div class="filtre-ingredients">
+          <input type="text" id="filtreIngredient" class="form-input" autocomplete="off" enterkeyhint="done"
+            placeholder="poulet, carottes…">
+          <button class="btn btn-secondary btn-sm" id="btnAjouterIngredient" type="button">Ajouter</button>
+        </div>
+        <div id="filtreIngredientsPuces" class="gen-chips-wrap"></div>
+      </div>
+      <div id="filtresGroupes" class="filtres-groupes"></div>
+    </div>
     <div id="filtresActifs" class="filtres-actifs"></div>
     <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
     <div id="recettesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;"></div>

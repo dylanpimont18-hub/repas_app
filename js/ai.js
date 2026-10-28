@@ -64,11 +64,17 @@ function decrireCreneau(c, i) {
   return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
-async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '' }) {
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }) {
   const prefs = await preferencesTexte()
   const consignes = consignesFiltres(filtres)
-  return `Tu es un chef cuisinier familial expert en anti-gaspi. Propose ${creneaux.length === 1 ? 'UNE recette' : `${creneaux.length} recettes différentes`} pour ces repas :
-${creneaux.map(decrireCreneau).join('\n')}
+  const intro = variantes && creneaux.length > 1
+    ? `Propose ${creneaux.length} idées de recettes AU CHOIX pour un même repas (une seule sera cuisinée) :
+${decrireCreneau(creneaux[0], 0)}
+Réponds avec ${creneaux.length} entrées, ids "c1" à "c${creneaux.length}", chacune pour ce même repas.
+Les idées doivent être TRÈS DIFFÉRENTES entre elles : protéine, cuisine du monde et mode de cuisson différents (ignore la consigne de partage d'ingrédients entre recettes).`
+    : `Propose ${creneaux.length === 1 ? 'UNE recette' : `${creneaux.length} recettes différentes`} pour ces repas :
+${creneaux.map(decrireCreneau).join('\n')}`
+  return `Tu es un chef cuisinier familial expert en anti-gaspi. ${intro}
 
 CONTRAINTES ABSOLUES :
 - Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…)
@@ -344,8 +350,8 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 }
 
 // Une recette par créneau du planning, lots en parallèle
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '' }, onProgress = null, onLot = null) {
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients }
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, variantes }
   return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
 }
 
@@ -407,6 +413,14 @@ export async function genererUneRecette({ creneau, ...options }) {
   const { resultats, rejets } = await genererPourCreneaux({ creneaux: [creneau], ...options })
   if (!resultats.length) throw rejets.length ? new ErreurIA('REFUSEE', rejets.join(', ')) : new ErreurIA('ILLISIBLE')
   return resultats[0].recette
+}
+
+// Plusieurs idées au choix pour un même créneau (⚡ Envie) ; rien n'est enregistré ici
+export async function genererIdees({ creneau, nb = 3, ...options }) {
+  const creneaux = Array.from({ length: nb }, () => creneau)
+  const { resultats, rejets } = await genererPourCreneaux({ creneaux, ...options, variantes: nb > 1 })
+  if (!resultats.length) throw rejets.length ? new ErreurIA('REFUSEE', rejets.join(', ')) : new ErreurIA('ILLISIBLE')
+  return resultats.map(x => x.recette)
 }
 
 // Convertit d'anciennes recettes au nouveau format (description, composants, tags, conservation, légumes cachés)

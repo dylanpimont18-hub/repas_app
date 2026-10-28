@@ -1,7 +1,7 @@
 // tests/filtres-recettes.test.mjs — Filtres de la bibliothèque déduits des recettes
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { filtresDisponibles, appliquerFiltres, nettoyerSelection, basculer, proteineAffichee, nbActifs } from '../js/filtres-recettes.js'
+import { filtresDisponibles, appliquerFiltres, nettoyerSelection, basculer, proteineAffichee, nbActifs, filtrerParIngredients, ajouterIngredients } from '../js/filtres-recettes.js'
 
 const R = [
   { id: 'a', nom: 'Poulet croustillant', cuisine: 'Américaine', tags: ['rapide'], temps_prep: 10, temps_cuisson: 15,
@@ -61,4 +61,20 @@ test('sélection : bascule, choix unique, nettoyage', () => {
   // Livre sans recette japonaise : le filtre disparaît de la sélection
   const nettoye = nettoyerSelection({ cuisine: ['japonaise'], style: ['healthy'] }, filtresDisponibles([R[2]]))
   assert.deepEqual(nettoye, { style: ['healthy'] })
+})
+
+test('filtrerParIngredients : toutes les puces doivent être dans la recette (ET), sans accents ni pluriel', () => {
+  const ids = (ings) => filtrerParIngredients(R, ings).map(r => r.id)
+  assert.deepEqual(ids([]), ['a', 'b', 'c'])
+  assert.deepEqual(ids(['Poulets']), ['a'])
+  assert.deepEqual(ids(['poulet', 'chapelure']), ['a'])
+  assert.deepEqual(ids(['poulet', 'saumon']), [])
+  assert.deepEqual(ids(['pois chiche', 'LAIT de coco']), ['c'])
+  assert.deepEqual(ids(['soja']), ['b'])
+})
+
+test('ajouterIngredients : découpe la saisie et ignore les doublons', () => {
+  assert.deepEqual(ajouterIngredients([], 'poulet, carottes et riz'), ['poulet', 'carottes', 'riz'])
+  assert.deepEqual(ajouterIngredients(['poulet'], 'Poulets ; tomate'), ['poulet', 'tomate'])
+  assert.deepEqual(ajouterIngredients(['poulet'], '  , '), ['poulet'])
 })

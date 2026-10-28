@@ -4,6 +4,26 @@ Périmètre : dépôt `repas_app` au commit `19a66b3` (6 pages, 33 modules JS �
 Méthode : lecture intégrale du code, scripts de vérification (contrastes WCAG, graphe d'imports, filtre halal, analyse des ingrédients), comparaison avec les specs `docs/superpowers/specs/*`.
 Légende : **[Constat]** vérifié dans le code ou par script · **[Hypothèse]** non vérifiable ici (appareil réel, réseau, tableau de bord Supabase).
 
+## Suivi des correctifs (branche `feat/correctifs-audit`)
+
+| Point | État | Où |
+|---|---|---|
+| B1 Halal incomplet | ✅ 24 termes ajoutés, versions halal précisées autorisées, vinaigres exclus | `js/filtres.js`, `tests/halal.test.mjs` |
+| B2 Édition qui abîme les quantités | ✅ formulaire quantité + nom, réparation automatique (Réglages) | `js/recettes-ui.js`, `js/utils.js` |
+| M1 Goûts non contrôlés après l'IA | ✅ `evaluer()` appliqué à chaque recette reçue | `js/controle-ia.js` |
+| M2 Restes oubliés en mode cuisine | ✅ portions des midis « reste » ajoutées | `js/cuisine.js` |
+| M3 Pas de nouvelle recette | ✅ « Nouvelle » + « Importer » (lien JSON-LD, texte, IA en dernier recours) | `js/import-*.js` |
+| M4 Hors-ligne | ✅ service worker, file d'attente des coches | `sw.js`, `js/hors-ligne.js`, `js/courses.js` |
+| M5 Courses (13 requêtes, 20 px) | ✅ 1 écriture par coche, ligne entière tactile, libellé | `js/courses-ui.js` |
+| M6 Planning (rechargements, conflits) | ✅ mises à jour locales, écho ignoré, verrou souple IA ; ⚠ pas de contrôle de version ligne à ligne | `js/planning-ui.js` |
+| M7 Accessibilité modales et cartes | ✅ générique (`js/modales.js`), cartes en boutons | |
+| M8 Edge Function | ✅ halal système, journal et plafond serveur, migration `20261028b` | `supabase/` |
+| M9 Produits frais du jeudi achetés samedi | ✅ frais répartis par partie | `js/utils.js` |
+| m1–m18 | ✅ sauf : avis par profil (arbitrage), plan de session entrelacé (conseil simple seulement), mini-inventaire (vague 3) | |
+| Taille des lots IA | ⏸ gardée à 3 (lots parallèles plus rapides ; gain de coût marginal) | |
+
+Nouveau : nombre de personnes réglable dans le détail d'une recette, ingrédients pondérés (cuisiner, imprimer, enregistrer).
+
 ---
 
 ## 1. Synthèse exécutive

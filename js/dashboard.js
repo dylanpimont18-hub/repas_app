@@ -91,7 +91,7 @@ function htmlProchainRepas() {
     </div>
     <div class="dash-actions">
       ${boutonCuisiner(plats, r.nom)}
-      <a href="recettes.html?id=${encodeURIComponent(r.id)}&from=dashboard" class="btn btn-secondary btn-sm">Voir la recette</a>
+      <a href="recettes.html?id=${encodeURIComponent(r.id)}&from=dashboard&portions=${occ.portions || ''}" class="btn btn-secondary btn-sm">Voir la recette</a>
     </div>
   </section>`
 }

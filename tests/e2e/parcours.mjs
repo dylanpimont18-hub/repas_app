@@ -317,11 +317,34 @@ await etape('Réglages : réparation des quantités abîmées', async () => {
   assert.deepEqual(tables.recettes.find(x => x.id === 'r2').ingredients, [{ quantite: '400 g', nom: 'Pâtes' }])
 })
 
+await etape('⚡ Envie : propositions de la bibliothèque, choix sur un repas déjà prévu → décaler', async () => {
+  await page.goto(`${BASE}/planning.html`)
+  await page.waitForSelector('.slot-nom')
+  await page.locator('#btnFlash').click()
+  await page.locator('.envie-card').first().waitFor()
+  await page.locator('.envie-card[data-source="biblio"]').first().click()
+  // Repas libre : placé directement ; repas occupé : choix décaler / congélo / supprimer
+  await page.waitForFunction(() => document.querySelector('#modalFlash').classList.contains('hidden') || document.querySelector('[data-mode="decaler"]'))
+  if (await page.locator('[data-mode="decaler"]').count()) {
+    await page.locator('[data-mode="decaler"]').click()
+    await page.locator('#modalFlash.hidden').waitFor({ state: 'attached' })
+  }
+})
+
+await etape('Grand écran : frise du planning, sans erreur', async () => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`${BASE}/planning.html`)
+  await page.waitForSelector('.frise')
+  assert.ok(await page.locator('.frise-bande-session').count() > 0)
+})
+
 await etape('Mode sombre : aucun flash clair (thème posé avant le rendu)', async () => {
   await page.evaluate(() => localStorage.setItem('repas_theme', JSON.stringify('dark')))
   await page.goto(`${BASE}/courses.html`, { waitUntil: 'commit' })
   await page.waitForSelector('html')
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForSelector('.courses-item')
 })
 
 await etape('Aucune erreur JavaScript pendant les parcours', async () => {

@@ -44,7 +44,8 @@ Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
 - Photos IA (`recettes.image_url`, stockage public `recettes-images`, écrit par l'Edge Function) et impression d'une fiche recette A4
 - Livres de recettes (ex. « Air fryer ») : une règle par livre guide la génération IA ; leurs recettes restent proposées dans le planning
 - Vue liste + modale détail + modale édition complète
-- Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients, étapes
+- Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients (quantité + nom), étapes ; « Nouvelle » et « Importer » (lien ou texte)
+- Détail : nombre de personnes réglable, ingrédients pondérés (cuisiner, imprimer, ou enregistrer pour ce nombre)
 
 ### 4. Planificateur (`planning.html`)
 Cycle samedi soir → samedi midi, groupé par session de cuisine (spec : docs/superpowers/specs/2026-10-24-planning-famille-batch-design.md).
@@ -74,7 +75,8 @@ Repas/
 ├── recettes.html           # Bibliothèque de recettes
 ├── planning.html           # Planificateur hebdomadaire
 ├── courses.html            # Liste de courses
-├── manifest.json           # PWA manifest (icônes à compléter)
+├── manifest.json           # PWA manifest (icônes normales + maskable)
+├── sw.js                   # Service worker : hors-ligne (code + dernières données)
 ├── config.js               # Non versionné : SUPABASE_URL, SUPABASE_ANON_KEY (publiques)
 ├── supabase/
 │   ├── functions/ai/       # Edge Function : proxy Mammouth AI
@@ -102,6 +104,14 @@ Repas/
     ├── cuisine.js          # Plats d'une session et quantités ajustées (pur, testé)
     ├── mode-cuisine.js     # Mode cuisine plein écran
     ├── avis.js             # Plats à noter après le repas (pur, testé)
+    ├── dialogue.js         # Confirmations, nombres, messages (remplace alert/confirm/prompt)
+    ├── modales.js          # Accessibilité de toutes les modales (dialogue, focus, Échap, Tab)
+    ├── hors-ligne.js       # Service worker + bandeau hors connexion
+    ├── minuteurs.js        # Minuteurs du mode cuisine
+    ├── controle-ia.js      # Contrôle des recettes IA : halal, goûts, légumes cachés (pur, testé)
+    ├── import-pur.js       # Import de recette : JSON-LD, texte collé (pur, testé)
+    ├── import-recette.js   # Fenêtre « Importer une recette »
+    ├── vendor/             # supabase-js épinglé (copie locale)
     └── data/
         └── ingredients.js  # Base de données statique des ingrédients (150+)
 ```
@@ -148,7 +158,11 @@ repas_theme   // "light" | "dark" — seule donnée encore en localStorage
 - Nommage : camelCase JS, kebab-case CSS et fichiers HTML
 - Commentaires en français
 - `config.js` (non versionné) ne contient que des valeurs publiques ; les secrets vont dans Supabase
-- Tests : `node --test tests/*.test.mjs` (fonctions pures de `js/utils.js`)
+- Tests : `node --test tests/*.test.mjs` (fonctions pures) et `node tests/e2e/parcours.mjs` (parcours dans Chromium, Supabase simulé)
+- Jamais d'`alert` / `confirm` / `prompt` : `js/dialogue.js` (`confirmer`, `choisirNombre`, `informer`, `signalerErreur`)
+- Nouveau fichier JS ou page : l'ajouter à `COQUILLE` dans `sw.js` (tests/sw.test.mjs le vérifie) et changer `VERSION`
+- Après une écriture, mettre à jour l'état local plutôt que tout recharger ; ignorer l'écho temps réel de ses propres écritures
+- Déploiement Supabase : fonction `ai` d'abord, puis les migrations (20261028b rend `ia_usage` en lecture seule)
 
 ## Prompt IA (règles de base)
 Chaque appel IA inclut toujours :

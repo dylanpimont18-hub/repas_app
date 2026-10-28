@@ -66,7 +66,8 @@ Générée automatiquement depuis le planning de la semaine active.
 
 ### 6. Vider le placard (`placard.html`) — mode indépendant
 Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac), partagé (`reglages.inventaire`).
-- « Trouver les recettes » : toutes les recettes existantes d'abord (celles qui utilisent le plus d'articles, halal et goûts respectés), puis l'IA pour les articles restants, répartis entre ses recettes (≈ 3 par recette, rayons variés), rangées dans le livre « Vider le placard »
+- « Trouver les recettes » : toutes les recettes existantes d'abord (celles qui utilisent le plus d'articles, halal et goûts respectés), puis l'IA pour les articles restants, répartis entre plusieurs recettes (≈ 3 par recette, 4 au plus, rayons variés), rangées dans le livre « Vider le placard »
+- **Jamais une recette fourre-tout** : nombre de recettes IA ≥ articles restants ÷ 4 (le − s'arrête là), prompt « plusieurs vrais plats », recette qui utilise trop d'articles du placard écartée à la réception (`recetteFourreTout`) ; au-delà de 15 recettes × 4 articles, le surplus attend un second passage
 - Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Cuisiner » (mode cuisine), « C'est cuisiné : retirer du placard »
 - Export `.md` (`markdownPlacard`) : inventaire, recettes retenues (ingrédients pour N personnes, étapes), articles restants
 - **Indépendant** : les recettes du livre « Vider le placard » ne sont jamais proposées par le planning ni ⚡ Envie (`sansRecettesPlacard` dans `chargerDonnees`), rien n'est mis au planning, l'inventaire ne change pas la liste de courses

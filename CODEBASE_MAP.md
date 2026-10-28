@@ -334,7 +334,7 @@ Vider le placard (pur, testé).
 - `lireInventaire(texte)` / `fusionnerInventaire(a, b)` — saisie en vrac, quantité avant ou après le nom
 - `utilise(recette, item)` / `couverture(inventaire, recettes)` — correspondance par mots (« riz » ↔ « riz basmati », « lait » ≠ « lait de coco »)
 - `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton, halal et goûts via `evaluer`
-- `nbRecettesConseille(n)` / `repartirArticles(items, nb)` — articles restants répartis entre les recettes IA
+- `nbRecettesConseille(n)` / `nbRecettesMinimum(n)` / `repartirArticles(items, nb)` / `recetteFourreTout(r, inv, attribues)` — articles restants répartis entre plusieurs recettes IA (4 au plus chacune), jamais une recette avec tout le placard
 - `aAcheter(recette, inventaire)` / `markdownPlacard(inventaire, recettes, {titre, portions})` — export .md
 - `NOM_LIVRE_PLACARD` / `sansRecettesPlacard(recettes, livres)` — les recettes du livre « Vider le placard » ne sont pas proposées au planning (`chargerDonnees(samedi, { avecPlacard })`)
 

@@ -374,14 +374,15 @@ async function buildPromptPlacard({ lot, inventaire, portions, filtres = [], sty
   prefs ||= await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   const lib = i => (i.quantite ? `${i.nom} (${i.quantite})` : i.nom)
-  return `Tu es un chef cuisinier familial expert en anti-gaspi. Le foyer veut VIDER SON PLACARD : écris ${lot.length === 1 ? 'UNE recette' : `${lot.length} recettes différentes`} qui utilisent ce qu'il a déjà à la maison.
+  return `Tu es un chef cuisinier familial expert en anti-gaspi. Le foyer veut VIDER SON PLACARD en plusieurs repas : écris ${lot.length === 1 ? 'UNE recette' : `${lot.length} recettes différentes`}, chacune construite autour de quelques articles du placard seulement.
+Ce n'est PAS une recette unique qui mélange tout le placard : chaque recette est un vrai plat de tous les jours (6 à 10 ingrédients), qui a du sens seul.
 Pour toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes. ${portions} portion(s) par recette.
 
-ARTICLES À UTILISER (chaque recette a les siens ; utilise-les TOUS, en grande quantité, idéalement en entier) :
+ARTICLES DU PLACARD ATTRIBUÉS À CHAQUE RECETTE (utilise-les TOUS, en bonne quantité, idéalement en entier) :
 ${lot.map((x, i) => `- "c${i + 1}" : ${x.articles.map(lib).join(', ')}`).join('\n')}
 
-TOUT LE PLACARD (tu peux aussi y piocher pour compléter, c'est déjà acheté) :
-${inventaire.map(lib).join(', ')}
+AUTRES ARTICLES DU PLACARD (réservés aux autres recettes : n'en prends AU PLUS qu'un ou deux par recette, seulement s'il manque vraiment quelque chose — sel, huile, épices de base sont libres) :
+${inventaire.filter(i => !lot.some(x => x.articles.some(a => a.id === i.id))).map(lib).join(', ') || '—'}
 
 CONTRAINTES ABSOLUES :
 - Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…). Un article du placard qui ne serait pas halal est ignoré

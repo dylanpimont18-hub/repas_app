@@ -4,7 +4,8 @@
 import { dbGetReglage, dbSetReglage, dbEcouter, dbGetLivres, dbUpsertLivre, dbUpsertRecettes } from './db.js'
 import { chargerDonnees } from './propositions.js'
 import { NOM_LIVRE_PLACARD, lireInventaire, fusionnerInventaire, couverture, choisirDansBibliotheque, nbRecettesConseille,
-         repartirArticles, aAcheter, markdownPlacard } from './placard.js'
+         repartirArticles, aAcheter, markdownPlacard,
+         nbRecettesMinimum, recetteFourreTout, MAX_RECETTES_IA } from './placard.js'
 import { FILTRES, estEnvie } from './filtres.js'
 import { debutCycle, dateIso } from './cycle.js'
 import { esc, debounce } from './utils.js'
@@ -62,15 +63,19 @@ function afficherInventaire() {
 
 function afficherPlan() {
   const { restants } = couverture(inventaire, recettesRetenues())
+  // Jamais une recette fourre-tout : au moins assez de recettes pour 4 articles du placard chacune au plus
+  const minimum = nbRecettesMinimum(restants.length)
   if (!nbIAChoisi) nbIA = nbRecettesConseille(restants.length)
+  nbIA = Math.max(minimum, Math.min(nbIA, MAX_RECETTES_IA))
   document.getElementById('placardNbIA').textContent = nbIA
-  document.querySelector('[data-nb="-1"]').disabled = nbIA <= 0
-  document.querySelector('[data-nb="1"]').disabled = nbIA >= 15
+  document.querySelector('[data-nb="-1"]').disabled = nbIA <= minimum
+  document.querySelector('[data-nb="1"]').disabled = nbIA >= Math.min(MAX_RECETTES_IA, restants.length)
   const plan = document.getElementById('placardPlan')
   if (!inventaire.length) plan.textContent = ''
   else if (!restants.length) plan.innerHTML = `${icone('check')}Tous les articles du placard sont utilisés par les recettes retenues.`
   else plan.textContent = `${restants.length} article(s) pas encore utilisé(s) : tes recettes existantes d'abord`
-    + (nbIA ? `, puis l'IA en écrira jusqu'à ${nbIA} pour le reste.` : ' (aucune recette demandée à l\'IA).')
+    + (nbIA ? `, puis l'IA écrira jusqu'à ${nbIA} recettes différentes, chacune avec 3 ou 4 articles du placard.` : '.')
+    + (restants.length > MAX_RECETTES_IA * 4 ? ` Les ${restants.length - MAX_RECETTES_IA * 4} derniers articles attendront un second passage.` : '')
   document.getElementById('placardEstimation').innerHTML = credit && nbIA && restants.length ? htmlEstimation(nbIA, credit) : ''
   document.getElementById('btnPlacardIA').disabled = iaEnCours || !restants.length
   document.getElementById('btnPlacardBiblio').disabled = !inventaire.length || !restants.length
@@ -150,6 +155,7 @@ async function completerParIA() {
   const { restants } = couverture(inventaire, recettesRetenues())
   if (!restants.length || !nbIA || iaEnCours) return
   const groupes = repartirArticles(restants, nbIA)
+  const fourreTout = []
   const portions = portionsChoisies()
   const bandeau = etat => majBandeau(document.getElementById('bandeauIA'), etat)
   iaEnCours = true
@@ -164,17 +170,25 @@ async function completerParIA() {
     },
     n => bandeau({ etat: 'encours', texte: `Placard : ${n} / ${groupes.length} recette(s)`, pct: Math.max(3, n / groupes.length * 95) }),
     async lot => {
-      const recettes = lot.map(x => ({ ...x.recette, livre_id: livreId }))
+      // Une recette qui met presque tout le placard dans un seul plat est écartée
+      const gardees = lot.filter(x => {
+        if (!recetteFourreTout(x.recette, inventaire, x.creneau.articles)) return true
+        fourreTout.push(x.recette.nom)
+        return false
+      })
+      if (!gardees.length) return
+      const recettes = gardees.map(x => ({ ...x.recette, livre_id: livreId }))
       const ids = await dbUpsertRecettes(recettes)
       recettes.forEach((r, i) => { const rec = { ...r, id: ids[i] }; donnees.recettes.unshift(rec); donnees.recettesMap[rec.id] = rec })
       apresCreation(recettes.map((r, i) => ({ ...r, id: ids[i] })))
       await sauverSelection([...selection, ...ids])
     })
     const { restants: encore } = couverture(inventaire, recettesRetenues())
-    const detail = (rejets.length ? `<p class="text-xs">Écartées : ${esc(rejets.join(', '))}</p>` : '')
+    const ecartees = [...rejets, ...fourreTout.map(n => `${n} (trop d'articles du placard dans un seul plat)`)]
+    const detail = (ecartees.length ? `<p class="text-xs">Écartées : ${esc(ecartees.join(', '))}</p>` : '')
       + [...new Map(erreurs.map(e => [e.code, e])).values()].map(e => htmlErreurIA(e)).join('')
     bandeau({ etat: encore.length || detail ? 'partiel' : 'fini',
-      texte: `${resultats.length} recette(s) ajoutée(s)` + (encore.length ? ` · ${encore.length} article(s) encore inutilisé(s)` : ' · tout le placard est utilisé'), detail })
+      texte: `${resultats.length - fourreTout.length} recette(s) ajoutée(s)` + (encore.length ? ` · ${encore.length} article(s) encore inutilisé(s)` : ' · tout le placard est utilisé'), detail })
   } catch (e) {
     bandeau({ etat: 'erreur', texte: 'Aucune recette créée', detail: htmlErreurIA(e.info || expliquerErreur('INCONNUE', e.message)) })
   } finally {
@@ -244,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   })
   document.querySelector('.placard-options .pas-a-pas').addEventListener('click', e => {
     const b = e.target.closest('[data-nb]'); if (!b) return
-    nbIA = Math.min(15, Math.max(0, nbIA + Number(b.dataset.nb)))
+    nbIA = nbIA + Number(b.dataset.nb)   // bornes (minimum sans fourre-tout, maximum) appliquées par afficherPlan
     nbIAChoisi = true
     afficherPlan()
   })

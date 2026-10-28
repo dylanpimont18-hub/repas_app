@@ -121,24 +121,47 @@ export function choisirDansBibliotheque(inventaire, recettes, { indexPrefs = [],
   return choisies.map(c => ({ recette: c.recette, articles: c.articles }))
 }
 
+// Vider le placard = plusieurs vrais plats, jamais une recette fourre-tout : au plus 4 articles du placard
+// attribués à chaque recette IA (≈ 3 visés), au plus 15 recettes par passage (le reste au passage suivant)
+export const ARTICLES_PAR_RECETTE = 3
+export const MAX_ARTICLES_PAR_RECETTE = 4
+export const MAX_RECETTES_IA = 15
+
 /** Nombre de recettes IA conseillé pour les articles restants (≈ 3 articles du placard par recette) */
-export function nbRecettesConseille(nbRestants, parRecette = 3) {
+export function nbRecettesConseille(nbRestants, parRecette = ARTICLES_PAR_RECETTE) {
   if (!nbRestants) return 0
-  return Math.min(15, Math.max(1, Math.ceil(nbRestants / parRecette)))
+  return Math.min(MAX_RECETTES_IA, Math.max(1, Math.ceil(nbRestants / parRecette)))
+}
+
+/** Nombre minimal de recettes pour qu'aucune n'ait plus de 4 articles du placard */
+export function nbRecettesMinimum(nbRestants) {
+  if (!nbRestants) return 0
+  return Math.min(MAX_RECETTES_IA, Math.ceil(nbRestants / MAX_ARTICLES_PAR_RECETTE))
 }
 
 /**
  * Répartit les articles restants entre `nb` recettes : chaque recette reçoit des articles de rayons variés
- * (une base, une protéine, des légumes, des épices…) pour que les associations aient du sens.
- * @returns [[items], …] (nb groupes, aucun article oublié)
+ * (une base, une protéine, des légumes, des épices…) pour que les associations aient du sens,
+ * et jamais plus de 4 (pas de recette fourre-tout). S'il y a trop d'articles pour `nb` recettes,
+ * le surplus attend le passage suivant.
+ * @returns [[items], …]
  */
 export function repartirArticles(items, nb) {
   if (!nb || !items.length) return []
   const ordre = ['Féculents', 'Viandes & Poissons', 'Fruits & Légumes', 'Laitiers & Œufs', 'Épicerie & Condiments', 'Divers']
   const tries = [...items].sort((a, b) => ordre.indexOf(categoriser(a.nom)) - ordre.indexOf(categoriser(b.nom)))
-  const groupes = Array.from({ length: Math.min(nb, items.length) }, () => [])
-  tries.forEach((item, k) => groupes[k % groupes.length].push(item))
+  const groupes = Array.from({ length: Math.min(nb, items.length, MAX_RECETTES_IA) }, () => [])
+  tries.slice(0, groupes.length * MAX_ARTICLES_PAR_RECETTE).forEach((item, k) => groupes[k % groupes.length].push(item))
   return groupes
+}
+
+/**
+ * Une recette IA met-elle trop du placard dans un seul plat ? (articles du placard utilisés au-delà des siens + 2)
+ * Sert à écarter une recette fourre-tout même si l'IA n'a pas suivi la consigne.
+ */
+export function recetteFourreTout(recette, inventaire, attribues = []) {
+  const utilises = inventaire.filter(i => utilise(recette, i)).length
+  return utilises > Math.max(MAX_ARTICLES_PAR_RECETTE, attribues.length) + 2
 }
 
 /** « 2 boîtes de pois chiches » pour le prompt et l'affichage */

@@ -77,10 +77,12 @@ const CLES = { planning: ['semaine_key', 'jour', 'moment'], courses_etat: ['sema
 
 // IA simulée (comme Mammouth en flux SSE) : une recette par ligne « - "cN" : articles » du prompt « Vider le placard »
 let appelsIA = 0
+const promptsIA = []
 async function iaSimulee(route) {
   const corps = JSON.parse(route.request().postData() || '{}')
   if (corps.action !== 'chat') return route.fulfill({ status: 503, json: { error: 'CLE_MANQUANTE' } })
   appelsIA++
+  promptsIA.push(String(corps.prompt))
   const lignes = [...String(corps.prompt).matchAll(/^- "c(\d+)" : (.+)$/gm)]
   const repas = lignes.map(([, n, articles]) => ({ id: `c${n}`, recette: {
     nom: `Plat du placard ${appelsIA}-${n}`, description: 'Recette anti-gaspi.', cuisine: 'française',
@@ -402,6 +404,29 @@ await etape('Placard : indépendant — ses recettes ne sont pas proposées au p
   assert.doesNotMatch(await page.locator('#coursesList').textContent(), /à la maison/)
 })
 
+await etape('Placard : jamais une recette fourre-tout (12 articles → au moins 3 recettes, 4 articles max chacune)', async () => {
+  await page.goto(`${BASE}/placard.html`)
+  await page.waitForSelector('.placard-item')
+  await page.locator('#champPlacard').fill('farine, sucre, semoule, quinoa, boulgour, maïs, haricots rouges, sardines, olives, cacao, noix de coco râpée, vermicelles')
+  await page.getByRole('button', { name: 'Ajouter au placard' }).click()
+  await page.waitForFunction(() => document.querySelectorAll('.placard-item').length === 18)
+  // On essaie de descendre à 1 recette : le bouton − s'arrête au minimum
+  for (let k = 0; k < 10; k++) {
+    const moins = page.locator('[data-nb="-1"]')
+    if (await moins.isDisabled()) break
+    await moins.click()
+  }
+  const nb = Number(await page.locator('#placardNbIA').textContent())
+  assert.ok(nb >= 3, `minimum non respecté : ${nb}`)
+  promptsIA.length = 0
+  await page.getByRole('button', { name: 'Trouver les recettes' }).click()
+  await page.waitForFunction(() => /ajoutée/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
+  const lignes = promptsIA.flatMap(p => [...p.matchAll(/^- "c\d+" : (.+)$/gm)].map(m => m[1].split(', ').length))
+  assert.ok(lignes.length >= 3, `${lignes.length} recette(s) demandée(s)`)
+  assert.ok(lignes.every(n => n <= 4), `articles par recette : ${lignes.join(', ')}`)
+  assert.ok(promptsIA.every(p => /PAS une recette unique/.test(p)))
+})
+
 await etape('Export .md : liste de courses et placard téléchargés en Markdown', async () => {
   await page.goto(`${BASE}/courses.html`)
   await page.waitForSelector('.courses-item')
@@ -416,7 +441,7 @@ await etape('Export .md : liste de courses et placard téléchargés en Markdown
   const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('#btnExporterPlacard').click()])
   assert.match(dl2.suggestedFilename(), /^placard-\d{4}-\d{2}-\d{2}\.md$/)
   const md2 = await readFile(await dl2.path(), 'utf8')
-  assert.match(md2, /## Mon placard \(6\)/)
+  assert.match(md2, /## Mon placard \(18\)/)
   assert.match(md2, /- \[x\] Pois chiches — 2 boîtes/)
   assert.match(md2, /### Curry de poulet/)
 })

@@ -95,3 +95,25 @@ test('markdownPlacard : inventaire coché, recettes avec ingrédients pondérés
   assert.match(md, /1\. Cuire le riz\.\n2\. Mélanger\./)
   assert.match(md, /## Pas encore utilisés\n\n- Sucre\n$/)
 })
+
+test('jamais une recette fourre-tout : au plus 4 articles du placard attribués par recette', async () => {
+  const { repartirArticles, nbRecettesMinimum, nbRecettesConseille, recetteFourreTout } = await import('../js/placard.js')
+  const vingt = lireInventaire(Array.from({ length: 20 }, (_, i) => `article${i}`).join('\n'))
+  // Même si on demande 1 recette, l'appli n'en fait pas une avec les 20 articles
+  assert.equal(nbRecettesMinimum(20), 5)
+  assert.equal(nbRecettesConseille(20), 7)
+  assert.ok(repartirArticles(vingt, 1)[0].length <= 4)
+  assert.ok(repartirArticles(vingt, 7).every(g => g.length <= 4))
+  assert.equal(repartirArticles(vingt, 7).flat().length, 20)
+  // Au-delà de 15 recettes × 4 articles, le surplus attend le passage suivant
+  const cent = lireInventaire(Array.from({ length: 100 }, (_, i) => `produit${i}`).join('\n'))
+  const g = repartirArticles(cent, 30)
+  assert.equal(g.length, 15)
+  assert.equal(g.flat().length, 60)
+  // Une recette qui utilise presque tout le placard est repérée
+  const inv = lireInventaire('riz\npâtes\nthon\npois chiches\nlentilles\nmaïs\ncarottes\nfarine')
+  const tout = { nom: 'Tout le placard', ingredients: inv.map(i => ({ nom: i.nom, quantite: '1' })) }
+  const normal = { nom: 'Salade de riz au thon', ingredients: [{ nom: 'Riz' }, { nom: 'Thon' }, { nom: 'Maïs' }, { nom: 'Tomates' }] }
+  assert.equal(recetteFourreTout(tout, inv, inv.slice(0, 3)), true)
+  assert.equal(recetteFourreTout(normal, inv, inv.slice(0, 3)), false)
+})

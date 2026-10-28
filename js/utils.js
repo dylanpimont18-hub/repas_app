@@ -73,6 +73,44 @@ export function lireQuantite(valeur) {
   return null
 }
 
+// ── Ligne d'ingrédient saisie ou collée ──────────────────────────────
+// Unités reconnues après la quantité (« 2 c.s. », « 1 pincée », « 400 g ») ; le reste est le nom de l'ingrédient
+const UNITE_LIGNE = /^(kg|g|gr|grammes?|mg|ml|cl|dl|l|litres?|c\.? ?[àa] ?s(?:oupe)?\.?|c\.? ?[àa] ?c(?:af[ée])?\.?|c\.s\.?|c\.c\.?|cs|cc|cuill[eè]res? [àa] (?:soupe|caf[ée])|pinc[ée]es?|gousses?|tranches?|bottes?|bo[iî]tes?|sachets?|filets?|brins?|feuilles?|poign[ée]es?|pots?|verres?|tasses?|bols?|morceaux?|pav[ée]s?|branches?|t[eê]tes?|zestes?|traits?|cubes?|briques?)(?=\s|$)/i
+
+/**
+ * « 400 g Tomates » → { quantite: '400 g', nom: 'Tomates' } ; « 1 pincée de sel » → { quantite: '1 pincée', nom: 'sel' } ;
+ * « Sel » → { quantite: '', nom: 'Sel' }
+ */
+export function lireLigneIngredient(ligne) {
+  let reste = String(ligne ?? '').replace(/^[-•*]\s*/, '').replace(/\s+/g, ' ').trim()
+  if (!reste) return null
+  const nombre = reste.match(/^((?:\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔])(?:\s*(?:à|-)\s*\d+(?:[.,]\d+)?)?(?:\s+\d+\s*\/\s*\d+|\s*[½¼¾⅓⅔])?)\s*(.*)$/)
+  if (!nombre) return { quantite: '', nom: reste }
+  let quantite = nombre[1].replace(/\s+/g, ' ').trim()
+  reste = nombre[2]
+  const unite = reste.match(UNITE_LIGNE)
+  if (unite) { quantite += ` ${unite[1]}`; reste = reste.slice(unite[0].length).trim() }
+  reste = reste.replace(/^(de |d')/i, '').trim()
+  return reste ? { quantite, nom: reste } : { quantite: '', nom: quantite }
+}
+
+// Unités que l'ancien formulaire séparait de la quantité (« 400 » + « g Tomates ») ; pas « noix de coco » ni « filets de poulet »
+const UNITE_COUPEE = /^(kg|g|gr|mg|ml|cl|dl|l|c\.s\.?|c\.c\.?|cs|cc|c\. ?[àa] ?(?:s|c)\.?|cuill[eè]res?|pinc[ée]es?)\s/i
+
+/**
+ * Répare un ingrédient abîmé par l'ancien formulaire d'édition (quantité coupée au premier espace) :
+ * { quantite: '400', nom: 'g Tomates' } → { quantite: '400 g', nom: 'Tomates' } ; { quantite: 'Sel', nom: '' } → { quantite: '', nom: 'Sel' }
+ */
+export function reparerIngredient(i) {
+  const quantite = String(i?.quantite ?? '').trim(), nom = String(i?.nom ?? '').trim()
+  if (!nom) return quantite ? lireLigneIngredient(quantite) : { quantite: '', nom: '' }
+  if (/^[\d.,/½¼¾⅓⅔ -]+$/.test(quantite) && UNITE_COUPEE.test(nom)) {
+    const r = lireLigneIngredient(`${quantite} ${nom}`)
+    if (r && r.nom) return r
+  }
+  return { quantite, nom }
+}
+
 // [{ valeur: '200 g', facteur: 1.5 }, …] → '300 g + 1 c.s.' (ajusté aux portions et additionné par unité)
 export function combinerQuantites(quantites, nom = '') {
   const parUnite = new Map()

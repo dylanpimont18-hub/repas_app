@@ -81,3 +81,27 @@ test('separerPlacard : retire les articles du placard, garde les articles libres
   assert.equal(reste.mercredi.Divers.length, 1)
   assert.deepEqual(auPlacard.map(i => i.nom), ['Sel'])
 })
+
+test('lireLigneIngredient sépare quantité, unité et nom', async () => {
+  const { lireLigneIngredient } = await import('../js/utils.js')
+  assert.deepEqual(lireLigneIngredient('400 g Tomates'), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(lireLigneIngredient('2 c.s. huile d\'olive'), { quantite: '2 c.s.', nom: 'huile d\'olive' })
+  assert.deepEqual(lireLigneIngredient('1 pincée de sel'), { quantite: '1 pincée', nom: 'sel' })
+  assert.deepEqual(lireLigneIngredient('3 carottes'), { quantite: '3', nom: 'carottes' })
+  assert.deepEqual(lireLigneIngredient('½ citron'), { quantite: '½', nom: 'citron' })
+  assert.deepEqual(lireLigneIngredient('1,5 kg de pommes de terre'), { quantite: '1,5 kg', nom: 'pommes de terre' })
+  assert.deepEqual(lireLigneIngredient('2 gousses d\'ail'), { quantite: '2 gousses', nom: 'ail' })
+  assert.deepEqual(lireLigneIngredient('- Sel'), { quantite: '', nom: 'Sel' })
+  assert.equal(lireLigneIngredient('  '), null)
+})
+
+test('reparerIngredient recolle l\'unité coupée par l\'ancien formulaire', async () => {
+  const { reparerIngredient } = await import('../js/utils.js')
+  assert.deepEqual(reparerIngredient({ quantite: '400', nom: 'g Tomates' }), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(reparerIngredient({ quantite: '2', nom: 'c.s. huile d\'olive' }), { quantite: '2 c.s.', nom: 'huile d\'olive' })
+  assert.deepEqual(reparerIngredient({ quantite: 'Sel', nom: '' }), { quantite: '', nom: 'Sel' })
+  // Rien à réparer
+  assert.deepEqual(reparerIngredient({ quantite: '400 g', nom: 'Tomates' }), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(reparerIngredient({ quantite: '1', nom: 'noix de coco râpée' }), { quantite: '1', nom: 'noix de coco râpée' })
+  assert.deepEqual(reparerIngredient({ quantite: '2', nom: 'filets de poulet' }), { quantite: '2', nom: 'filets de poulet' })
+})

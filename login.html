@@ -7,8 +7,17 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#3d2b1f">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
   <link rel="manifest" href="manifest.json">
   <title>Repas — Connexion</title>
+  <script>/* Thème posé avant l'affichage (pas de flash clair en mode sombre) */try{var t=JSON.parse(localStorage.getItem('repas_theme'));if(!t&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/components.css">
   <style>
@@ -22,7 +31,7 @@
       font-size: 0.9rem; background: var(--color-bg); color: var(--color-text);
     }
     .login-field input:focus { outline: 2px solid var(--color-primary); border-color: var(--color-primary); }
-    .login-error { color: #c0392b; font-size: 0.85rem; text-align: center; margin-top: 0.75rem; min-height: 1.2rem; }
+    .login-error { color: var(--color-danger); font-size: 0.85rem; text-align: center; margin-top: 0.75rem; min-height: 1.2rem; }
   </style>
 </head>
 <body>
@@ -30,17 +39,19 @@
     <h1 style="font-family:var(--font-serif);font-size:1.6rem;text-align:center;margin-bottom:0.25rem;">Repas</h1>
     <p class="text-muted text-sm" style="text-align:center;margin-bottom:2rem;">Connexion au compte familial</p>
 
+    <form id="formLogin" novalidate>
     <div class="login-field">
       <label for="loginEmail">Email</label>
-      <input type="email" id="loginEmail" placeholder="ton@email.com" autocomplete="email">
+      <input type="email" id="loginEmail" name="email" placeholder="ton@email.com" autocomplete="username" inputmode="email" autocapitalize="off" required>
     </div>
     <div class="login-field" style="margin-bottom:1.5rem;">
       <label for="loginPassword">Mot de passe</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      <input type="password" id="loginPassword" name="password" autocomplete="current-password" required>
     </div>
 
-    <button class="btn btn-primary btn-full" id="btnLogin">Se connecter</button>
-    <p class="login-error" id="loginError"></p>
+    <button type="submit" class="btn btn-primary btn-full" id="btnLogin">Se connecter</button>
+    <p class="login-error" id="loginError" role="alert"></p>
+    </form>
   </div>
 
   <script src="config.js"></script>

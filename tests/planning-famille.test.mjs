@@ -161,15 +161,29 @@ test('decalerEnCascade : le plat prévu glisse au repas suivant compatible, le d
 })
 
 // ── Courses ──────────────────────────────────────────────────────────
-test('repartirCourses : un ingrédient des deux parties va le samedi, en quantité totale', () => {
+test('repartirCourses : un produit sec des deux parties va le samedi, en quantité totale', () => {
+  const r = repartirCourses([
+    { partie: 'samedi', nom: 'Riz basmati', quantite: '300 g', facteur: 1 },
+    { partie: 'mercredi', nom: 'riz basmati', quantite: '200 g', facteur: 1 },
+    { partie: 'mercredi', nom: 'Semoule', quantite: '400 g', facteur: 1 },
+  ])
+  assert.equal(r.samedi['Féculents'][0].quantites.length, 2)
+  assert.equal(r.mercredi['Féculents'][0].nom, 'Semoule')
+  assert.equal(r.mercredi['Féculents'].length, 1)
+})
+
+test('repartirCourses : un produit frais des deux parties est acheté dans chacune (fraîcheur)', () => {
   const r = repartirCourses([
     { partie: 'samedi', nom: 'Carottes', quantite: '3', facteur: 1 },
     { partie: 'mercredi', nom: 'carottes', quantite: '2', facteur: 1 },
-    { partie: 'mercredi', nom: 'Riz', quantite: '400 g', facteur: 1 },
+    { partie: 'mercredi', nom: 'Filet de poulet', quantite: '600 g', facteur: 1 },
   ])
-  assert.equal(r.samedi['Fruits & Légumes'][0].quantites.length, 2)
-  assert.equal(r.mercredi['Féculents'][0].nom, 'Riz')
-  assert.equal(r.mercredi['Fruits & Légumes'], undefined)
+  const [sam] = r.samedi['Fruits & Légumes'], [mer] = r.mercredi['Fruits & Légumes']
+  assert.deepEqual(sam.quantites.map(q => q.valeur), ['3'])
+  assert.deepEqual(mer.quantites.map(q => q.valeur), ['2'])
+  // Deux cases distinctes : cocher les carottes du samedi ne coche pas celles du mercredi
+  assert.notEqual(sam.cleEtat, mer.cleEtat)
+  assert.equal(r.mercredi['Viandes & Poissons'][0].cleEtat, 'filet de poulet')
 })
 
 test('dateDeSemaine retrouve la date d\'un jour ISO', async () => {

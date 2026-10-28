@@ -2,9 +2,10 @@
 import { getProfil }           from './preferences.js'
 import { getAllIngredients }   from './custom-ingredients.js'
 import { dbAppelFonctionIA, dbAjouterUsageIA } from './db.js'
-import { validerVegetarien }   from './utils.js'
-import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
+import { TAGS, consignesFiltres } from './filtres.js'
+import { nettoyerRecette, verifier } from './controle-ia.js'
 import { labelCreneau, dateCourte } from './cycle.js'
+import { construireIndexPrefs } from './selection.js'
 import { TAILLE_LOT, coutImage, coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
 
 // Saison courante (produits de saison)
@@ -25,6 +26,8 @@ async function preferencesTexte() {
   const estLegume = i => i.categorie === 'legumes'
 
   const legumesACacher = liste(femme, 'j_aime_pas', estLegume)
+  // Index des goûts : sert au contrôle des recettes reçues (mêmes règles que la bibliothèque)
+  const indexPrefs = construireIndexPrefs(ingredients, { dylan, femme })
   const lignes = [
     'DYLAN :',
     `  - Adore : ${liste(dylan, 'j_adore').join(', ') || '—'}`,
@@ -36,7 +39,7 @@ async function preferencesTexte() {
     `  - N'aime PAS (exclure absolument dès qu'elle mange) : ${liste(femme, 'j_aime_pas', i => !estLegume(i)).join(', ') || '—'}`,
     `  - Légumes qu'elle n'aime pas mais qu'on veut lui faire manger CACHÉS : ${legumesACacher.join(', ') || '—'}`,
   ]
-  return { texte: lignes.join('\n'), legumesACacher }
+  return { texte: lignes.join('\n'), legumesACacher, indexPrefs }
 }
 
 const FORMAT_RECETTE = `{
@@ -64,8 +67,11 @@ function decrireCreneau(c, i) {
   return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
-async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }) {
-  const prefs = await preferencesTexte()
+// Noms de recettes existantes envoyés à l'IA (les plus récents) : au-delà, le prompt grossit pour peu d'effet
+const MAX_NOMS_EXISTANTS = 60
+
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false, leger = false, prefs = null }) {
+  prefs ||= await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   const intro = variantes && creneaux.length > 1
     ? `Propose ${creneaux.length} idées de recettes AU CHOIX pour un même repas (une seule sera cuisinée) :
@@ -107,7 +113,7 @@ ${ingredientsAReutiliser.length ? `- Ingrédients déjà achetés pour d'autres 
 - Entre les recettes proposées, partage un maximum d'ingrédients frais (légumes, protéines, herbes)
 - Varie quand même les cuisines et les modes de cuisson
 
-${nomsExistants.length ? `Recettes déjà dans la bibliothèque, à NE PAS reproposer : ${nomsExistants.slice(0, 120).join(', ')}` : ''}
+${nomsExistants.length ? `Recettes déjà dans la bibliothèque, à NE PAS reproposer : ${nomsExistants.slice(0, MAX_NOMS_EXISTANTS).join(', ')}` : ''}
 
 "tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
 
@@ -115,15 +121,19 @@ Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans expl
 { "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
 
 Chaque <recette> :
-${FORMAT_RECETTE_ETAPES}`
+${leger ? `${FORMAT_RECETTE_LEGER}
+(pas d'étapes : une description d'une phrase suffit, les étapes seront écrites pour l'idée choisie)` : FORMAT_RECETTE_ETAPES}`
 }
+
+// Idées au choix (⚡) : sans étapes ni nutrition, écrites seulement pour l'idée choisie (sortie ≈ 3 fois plus courte)
+const FORMAT_RECETTE_LEGER = FORMAT_RECETTE.replace(/\n  "nutrition"[^\n]*\n/, '\n')
 
 // Toujours une vraie recette à suivre (planning, envie, livre) : étapes détaillées
 const FORMAT_RECETTE_ETAPES = FORMAT_RECETTE.replace('  "tags"',
   '  "etapes": ["étape précise et complète (températures, temps, réglages de l\'appareil)"],\n  "tags"')
 
-async function buildPromptLivre({ livre, nb, portions, filtres = [], style = '', piste = '', nomsExistants = [] }) {
-  const prefs = await preferencesTexte()
+async function buildPromptLivre({ livre, nb, portions, filtres = [], style = '', piste = '', nomsExistants = [], prefs = null }) {
+  prefs ||= await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   return `Tu es un chef cuisinier familial. Crée ${nb === 1 ? 'UNE recette' : `${nb} recettes différentes`} pour le livre de recettes « ${livre.nom} ».
 ${livre.consigne ? `\nRÈGLE DU LIVRE (prioritaire, à respecter strictement dans chaque recette) : ${livre.consigne}\n` : ''}
@@ -148,7 +158,7 @@ ${piste ? `- D'autres recettes du livre sont écrites en même temps : pour évi
 - Au plus 10 ingrédients par recette (sel, poivre, huile et eau ne comptent pas), faciles à trouver en supermarché
 - Étapes numérotables, précises et complètes : un débutant doit réussir la recette sans autre aide
 
-${nomsExistants.length ? `Recettes qui existent déjà, à NE PAS reproposer (ni variante trop proche) : ${nomsExistants.slice(0, 150).join(', ')}` : ''}
+${nomsExistants.length ? `Recettes qui existent déjà, à NE PAS reproposer (ni variante trop proche) : ${nomsExistants.slice(0, MAX_NOMS_EXISTANTS + 30).join(', ')}` : ''}
 
 "tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
 
@@ -176,23 +186,36 @@ async function journaliser(ligne) {
   try { await dbAjouterUsageIA(ligne) } catch (e) { console.warn('Journal IA', e.message) }
 }
 
+// Délais : réponse attendue en 90 s, puis jamais plus de 60 s sans recevoir de texte (sinon : réponse coupée)
+const DELAI_REPONSE = 90000
+const DELAI_SILENCE = 60000
+
 // Renvoie { texte, fin } avec fin = 'ok' | 'TRONQUEE' | 'COUPEE' ; chaque appel est noté dans ia_usage
 async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk = null } = {}) {
   const base = { action, nb_recettes: nbRecettes }
+  const arret = new AbortController()
+  let minuteur = setTimeout(() => arret.abort(), DELAI_REPONSE)
+  const relancerMinuteur = () => { clearTimeout(minuteur); minuteur = setTimeout(() => arret.abort(), DELAI_SILENCE) }
   let res
   try {
-    res = await dbAppelFonctionIA({ action: 'chat', prompt })
+    res = await dbAppelFonctionIA({ action: 'chat', prompt, nbRecettes, type: action }, { signal: arret.signal })
   } catch (e) {
-    throw new ErreurIA(e.message?.includes('Session') ? 'SESSION' : 'RESEAU')
+    clearTimeout(minuteur)
+    throw new ErreurIA(e.name === 'AbortError' ? 'COUPEE' : e.message?.includes('Session') ? 'SESSION' : 'RESEAU')
   }
+  relancerMinuteur()
 
   if (!res.ok) {
+    clearTimeout(minuteur)
     const corps = await res.json().catch(() => ({}))
     const code = codeErreurHttp(res.status, corps)
-    await journaliser({ ...base, statut: 'erreur', erreur: code }) // refusé avant génération : rien de facturé
+    // Refusé avant génération : rien de facturé (noté par le serveur, ou ici avec une ancienne version de la fonction)
+    if (!corps.journalise) await journaliser({ ...base, statut: 'erreur', erreur: code })
     throw new ErreurIA(code, corps.detail)
   }
 
+  // La fonction note elle-même l'appel dans le journal (version récente) : on ne le refait pas ici
+  const journalServeur = res.headers.get('x-repas-journal') === '1'
   const reader  = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = '', fullText = '', finishReason = null, usage = null, termine = false
@@ -201,6 +224,7 @@ async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk =
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
+      relancerMinuteur()
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -224,12 +248,13 @@ async function callIA(prompt, { action = 'generation', nbRecettes = 0, onChunk =
         } catch { /* ligne SSE invalide, ignorer */ }
       }
     }
-  } catch { /* flux coupé : traité comme une réponse interrompue */ }
+  } catch { /* flux coupé (réseau ou délai dépassé) : traité comme une réponse interrompue */ }
+  clearTimeout(minuteur)
 
   const fin = finishReason === 'length' ? 'TRONQUEE' : (finishReason || termine) ? 'ok' : 'COUPEE'
   const entree = usage?.prompt_tokens ?? estimerTokens(prompt)
   const sortie = usage?.completion_tokens ?? estimerTokens(fullText)
-  await journaliser({
+  if (!journalServeur) await journaliser({
     ...base, tokens_entree: entree, tokens_sortie: sortie, cout: coutTokens(entree, sortie), estime: !usage,
     statut: fin === 'ok' ? 'ok' : fin === 'TRONQUEE' ? 'tronque' : 'erreur', erreur: fin === 'ok' ? null : fin,
   })
@@ -257,49 +282,11 @@ async function enParallele(liste, n, tache) {
   await Promise.all(Array.from({ length: Math.min(n, liste.length) }, travailleur))
 }
 
-// Nettoie une recette IA : champs attendus, tags du vocabulaire, nombres valides
-function nettoyerRecette(r, portionsParDefaut) {
-  const nombre = (v, def = 0) => Number.isFinite(Number(v)) ? Number(v) : def
-  return {
-    nom:                String(r.nom || '').trim(),
-    description:        r.description ? String(r.description) : null,
-    cuisine:            r.cuisine ? String(r.cuisine).toLowerCase() : null,
-    composants: {
-      base:      r.composants?.base || null,
-      principal: r.composants?.principal || null,
-      proteine:  r.composants?.proteine || null,
-      legumes:   Array.isArray(r.composants?.legumes) ? r.composants.legumes : [],
-    },
-    ingredients:        (r.ingredients || []).filter(i => i?.nom).map(i => ({ nom: String(i.nom), quantite: String(i.quantite ?? '') })),
-    legumes_caches:     (r.legumes_caches || []).filter(l => l?.legume && l?.astuce),
-    tags:               (r.tags || []).map(t => String(t).toLowerCase()).filter(t => TAGS.includes(t)),
-    conservation_jours: nombre(r.conservation_jours, 2),
-    portions:           nombre(r.portions, portionsParDefaut) || portionsParDefaut,
-    temps_prep:         nombre(r.temps_prep),
-    temps_cuisson:      nombre(r.temps_cuisson),
-    vegetarien:         !!r.vegetarien,
-    etapes:             Array.isArray(r.etapes) ? r.etapes : [],
-    nutrition:          r.nutrition || null,
-  }
-}
-
-// Vérifie halal + sélecteurs ; renvoie les recettes conformes et les noms rejetés
-function verifier(recettes, filtres) {
-  const ok = [], rejets = []
-  for (const x of recettes) {
-    const r = x.recette
-    const conforme = r.nom && !contientInterdit(r) && passeFiltres(r, filtres.filter(f => !['healthy','budget','reconfortant','bouillon','gras'].includes(f)))
-      && (!filtres.includes('vegetarien') || validerVegetarien(r))
-    ;(conforme ? ok : rejets).push(x)
-  }
-  return { ok, rejets: rejets.map(x => x.recette.nom || '?') }
-}
-
 // ── API publique ─────────────────────────────────────────────────────
 
 // Un lot = un appel IA ; `items[i]` (créneau ou place dans le livre, avec `portions`) ↔ id "c{i+1}"
-async function genererLot(items, construirePrompt, filtres, onRecues, k = 0) {
-  const prompt = await construirePrompt(items, k)
+async function genererLot(items, construirePrompt, filtres, onRecues, k = 0, prefs = null) {
+  const prompt = await construirePrompt(items, k, prefs)
   const onChunk = text => onRecues(Math.max(0, (text.match(/"recette"\s*:/g) || []).length - 1))
   const reponse = await callIA(prompt, { nbRecettes: items.length, onChunk })
   const lignes = lireRepas(reponse).map(x => {
@@ -307,7 +294,7 @@ async function genererLot(items, construirePrompt, filtres, onRecues, k = 0) {
     const creneau = items[i]
     return creneau && x.recette ? { creneau, recette: nettoyerRecette(x.recette, creneau.portions) } : null
   }).filter(Boolean)
-  return { ...verifier(lignes, filtres), alerte: reponse.fin === 'ok' ? null : expliquerErreur(reponse.fin) }
+  return { ...verifier(lignes, filtres, prefs?.indexPrefs), alerte: reponse.fin === 'ok' ? null : expliquerErreur(reponse.fin) }
 }
 
 /**
@@ -318,6 +305,7 @@ async function genererLot(items, construirePrompt, filtres, onRecues, k = 0) {
  */
 async function genererEnLots(items, { construirePrompt, filtres = [], parallele = PARALLELE }, onProgress, onLot) {
   if (!items.length) return { resultats: [], rejets: [], erreurs: [] }
+  const prefs = await preferencesTexte() // une fois pour tous les lots (prompt + contrôle des goûts)
   const lots = decouperLots(items)
   const recues = lots.map(() => 0)
   const signaler = () => onProgress?.(recues.reduce((a, b) => a + b, 0), items.length)
@@ -326,7 +314,7 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 
   await enParallele(lots, parallele, async (lot, k) => {
     try {
-      const { ok, rejets: refusees, alerte } = await genererLot(lot, construirePrompt, filtres, n => { recues[k] = Math.min(n, lot.length); signaler() }, k)
+      const { ok, rejets: refusees, alerte } = await genererLot(lot, construirePrompt, filtres, n => { recues[k] = Math.min(n, lot.length); signaler() }, k, prefs)
       // Les lots parallèles ne se voient pas : on écarte un plat déjà proposé par un autre lot
       const nouveaux = ok.filter(x => {
         const cle = x.recette.nom.toLowerCase()
@@ -350,9 +338,9 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 }
 
 // Une recette par créneau du planning, lots en parallèle
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }, onProgress = null, onLot = null) {
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, variantes }
-  return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false, leger = false }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, variantes, leger }
+  return genererEnLots(creneaux, { construirePrompt: (lot, _k, prefs) => buildPrompt({ creneaux: lot, ...options, prefs }), filtres }, onProgress, onLot)
 }
 
 // Pistes de variété : les lots envoyés en même temps ne se voient pas, chacun part d'une cuisine différente
@@ -371,7 +359,7 @@ export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], 
   const items = Array.from({ length: nb }, () => ({ portions }))
   const crees = []
   const r = await genererEnLots(items, {
-    construirePrompt: (lot, k) => buildPromptLivre({ livre, nb: lot.length, portions, filtres, style,
+    construirePrompt: (lot, k, prefs) => buildPromptLivre({ livre, nb: lot.length, portions, filtres, style, prefs,
       piste: nb > TAILLE_LOT ? PISTES_LIVRE[k % PISTES_LIVRE.length] : '', nomsExistants: [...crees, ...nomsExistants] }),
     filtres,
   }, onProgress, async (lot) => {
@@ -379,6 +367,59 @@ export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], 
     await onLot?.(lot)
   })
   return r
+}
+
+// ── Vider le placard ─────────────────────────────────────────────────
+async function buildPromptPlacard({ lot, inventaire, portions, filtres = [], style = '', nomsExistants = [], prefs = null }) {
+  prefs ||= await preferencesTexte()
+  const consignes = consignesFiltres(filtres)
+  const lib = i => `${i.quantite ? `${i.nom} (${i.quantite})` : i.nom}${i.vite ? ' [À FINIR VITE : en priorité et en grande quantité]' : ''}`
+  return `Tu es un chef cuisinier familial expert en anti-gaspi. Le foyer veut VIDER SON PLACARD en plusieurs repas : écris ${lot.length === 1 ? 'UNE recette' : `${lot.length} recettes différentes`}, chacune construite autour de quelques articles du placard seulement.
+Ce n'est PAS une recette unique qui mélange tout le placard : chaque recette est un vrai plat de tous les jours (6 à 10 ingrédients), qui a du sens seul.
+Pour toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes. ${portions} portion(s) par recette.
+
+ARTICLES DU PLACARD ATTRIBUÉS À CHAQUE RECETTE (utilise-les TOUS, en bonne quantité, idéalement en entier ; les épices et condiments de la liste sont des compléments qui assaisonnent le plat, pas sa base) :
+${lot.map((x, i) => `- "c${i + 1}" : ${x.articles.map(lib).join(', ')}`).join('\n')}
+
+AUTRES ARTICLES DU PLACARD (réservés aux autres recettes : n'en prends AU PLUS qu'un ou deux par recette, seulement s'il manque vraiment quelque chose — sel, huile, épices de base sont libres) :
+${inventaire.filter(i => !lot.some(x => x.articles.some(a => a.id === i.id))).map(lib).join(', ') || '—'}
+
+CONTRAINTES ABSOLUES :
+- Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…). Un article du placard qui ne serait pas halal est ignoré
+- Les ingrédients "N'aime PAS" de Dylan ou de sa femme n'apparaissent JAMAIS, même s'ils sont dans le placard
+- Un légume de la liste "CACHÉS" peut être utilisé SEULEMENT s'il est rendu invisible ; décris alors l'astuce dans "legumes_caches"
+- Les quantités des ingrédients correspondent à ${portions} portion(s) ; quand le placard a une quantité, n'en demande pas plus que ce qu'il y a
+- Le moins possible d'ingrédients à acheter en plus (produits frais courants seulement : œufs, oignons, un légume…)
+- Des associations qui ont du sens et qui donnent envie : si un article ne va vraiment avec rien, utilise-le dans un dessert, une sauce ou un accompagnement
+${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
+${style ? `- Idée ou précision demandée (prioritaire) : "${style}"` : ''}
+
+PRÉFÉRENCES :
+${prefs.texte}
+
+SAISON : ${getSaison()}.
+
+${nomsExistants.length ? `Recettes qui existent déjà, à NE PAS reproposer : ${nomsExistants.slice(0, MAX_NOMS_EXISTANTS).join(', ')}` : ''}
+
+"tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
+{ "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
+
+Chaque <recette> :
+${FORMAT_RECETTE_ETAPES}`
+}
+
+/**
+ * Recettes pour vider le placard : `groupes` = articles attribués à chaque recette (js/placard.js, repartirArticles).
+ * Lots en parallèle ; chaque recette est contrôlée (halal, goûts, légumes cachés) comme les autres.
+ */
+export async function genererPourPlacard({ groupes, inventaire, portions = 4, filtres = [], style = '', nomsExistants = [] }, onProgress = null, onLot = null) {
+  const items = groupes.map(articles => ({ portions, profils: ['dylan', 'femme'], articles }))
+  return genererEnLots(items, {
+    construirePrompt: (lot, _k, prefs) => buildPromptPlacard({ lot, inventaire, portions, filtres, style, nomsExistants, prefs }),
+    filtres,
+  }, onProgress, onLot)
 }
 
 // ── Photo d'une recette ──────────────────────────────────────────────
@@ -400,11 +441,11 @@ export async function genererImageRecette(recette) {
   const corps = await res.json().catch(() => ({}))
   if (!res.ok || !corps.url) {
     const code = res.ok ? 'IMAGE_VIDE' : codeErreurHttp(res.status, corps)
-    await journaliser({ action: 'image', nb_recettes: 1, statut: 'erreur', erreur: code })
+    if (!corps.journalise) await journaliser({ action: 'image', nb_recettes: 1, statut: 'erreur', erreur: code })
     throw new ErreurIA(code, corps.detail)
   }
   const { entree, sortie, cout, estime } = coutImage(corps.usage)
-  await journaliser({ action: 'image', nb_recettes: 1, tokens_entree: entree, tokens_sortie: sortie, cout, estime, statut: 'ok' })
+  if (!corps.journalise) await journaliser({ action: 'image', nb_recettes: 1, tokens_entree: entree, tokens_sortie: sortie, cout, estime, statut: 'ok' })
   return corps.url
 }
 
@@ -415,12 +456,40 @@ export async function genererUneRecette({ creneau, ...options }) {
   return resultats[0].recette
 }
 
-// Plusieurs idées au choix pour un même créneau (⚡ Envie) ; rien n'est enregistré ici
+// Plusieurs idées au choix pour un même créneau (⚡ Envie), en format léger (sans étapes) ; rien n'est enregistré ici.
+// Les étapes de l'idée choisie sont écrites ensuite (completerIdee)
 export async function genererIdees({ creneau, nb = 3, ...options }) {
   const creneaux = Array.from({ length: nb }, () => creneau)
-  const { resultats, rejets } = await genererPourCreneaux({ creneaux, ...options, variantes: nb > 1 })
+  const { resultats, rejets } = await genererPourCreneaux({ creneaux, ...options, variantes: nb > 1, leger: nb > 1 })
   if (!resultats.length) throw rejets.length ? new ErreurIA('REFUSEE', rejets.join(', ')) : new ErreurIA('ILLISIBLE')
   return resultats.map(x => x.recette)
+}
+
+// Idée choisie : on écrit ses étapes avant de l'enregistrer (si l'IA échoue, la recette reste utilisable sans étapes)
+export async function completerIdee(recette) {
+  if (recette.etapes?.length) return recette
+  try { return { ...recette, etapes: await genererEtapes(recette) } } catch (e) { console.warn('Étapes de l\'idée', e); return recette }
+}
+
+// Texte de recette collé (message, page sans données structurées) → recette au format de l'appli, sans rien inventer
+export async function structurerRecette(texte) {
+  const prompt = `Mets en forme cette recette au format JSON demandé. N'invente rien : garde le nom, les ingrédients, les quantités et les étapes du texte.
+Complète seulement ce qui se déduit (cuisine, composants, tags, temps, conservation_jours, vegetarien). Si une quantité manque, laisse "".
+Si un ingrédient est du porc ou de l'alcool, garde-le tel quel : l'appli le signalera.
+
+Texte :
+<<<
+${String(texte).slice(0, 8000)}
+>>>
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown) : { "recette": <recette> }
+<recette> :
+${FORMAT_RECETTE_ETAPES}`
+  const reponse = await callIA(prompt, { action: 'import', nbRecettes: 1 })
+  if (reponse.fin !== 'ok') throw new ErreurIA(reponse.fin)
+  const brute = parseJSON(reponse.texte)?.recette
+  if (!brute?.nom) throw new ErreurIA('ILLISIBLE')
+  return nettoyerRecette(brute, Number(brute.portions) || 4)
 }
 
 // Étapes d'une recette qui n'en a pas (anciennes recettes du planning) ; ne change ni le nom ni les ingrédients

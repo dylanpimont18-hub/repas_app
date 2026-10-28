@@ -33,8 +33,12 @@ export async function setModele(modele) {
 // + repas supprimés { cle: true } (ligne sans recette, source 'absent' : restent vides, hors remplissage et courses)
 export async function chargerCycle(samedi, modele = null) {
   const m = modele || await getModele()
+  return cycleDepuisLignes(samedi, m, await dbGetPlanningSemaines(semainesDuCycle(samedi)))
+}
+
+// Même résultat à partir de lignes déjà chargées (plusieurs cycles en une seule requête)
+export function cycleDepuisLignes(samedi, m, lignes) {
   const creneaux = creneauxDuCycle(samedi, m)
-  const lignes = await dbGetPlanningSemaines(semainesDuCycle(samedi))
   const parCle = Object.fromEntries(lignes.map(l => [`${l.semaine_key}|${l.jour}|${l.moment}`, l]))
   const occupation = {}, absents = {}
   for (const c of creneaux) {

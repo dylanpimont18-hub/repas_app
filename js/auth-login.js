@@ -27,13 +27,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await dbSignIn(email, password)
       window.location.href = 'index.html'
-    } catch {
-      errorEl.textContent  = 'Email ou mot de passe incorrect.'
+    } catch (e) {
+      errorEl.textContent  = navigator.onLine === false || /fetch|network/i.test(e?.message || '')
+        ? 'Pas de connexion internet : réessaie dans un instant.' : 'Email ou mot de passe incorrect.'
       btnLogin.disabled    = false
       btnLogin.textContent = 'Se connecter'
     }
   }
 
-  btnLogin.addEventListener('click', tenterConnexion)
-  document.addEventListener('keydown', e => { if (e.key === 'Enter') tenterConnexion() })
+  // Vrai formulaire : Entrée, et le trousseau iOS propose d'enregistrer le mot de passe
+  document.getElementById('formLogin').addEventListener('submit', e => { e.preventDefault(); tenterConnexion() })
 })

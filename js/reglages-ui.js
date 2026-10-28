@@ -4,8 +4,9 @@ import { MODELE_DEFAUT, normaliserModele } from './cycle.js'
 import { getRecettes } from './recettes.js'
 import { convertirRecettes, genererImageRecette } from './ai.js'
 import { dbGetReserve, dbDeleteReserve, dbUpsertRecettes, dbEcouter, dbSetImageRecette } from './db.js'
-import { esc, debounce } from './utils.js'
+import { esc, debounce, reparerIngredient } from './utils.js'
 import { icone } from './icones.js'
+import { confirmer, signalerErreur, informer } from './dialogue.js'
 import { expliquerErreur, formatDollars, coutImage } from './credit-ia.js'
 import { chargerCredit, setBudget, htmlJauge, htmlErreurIA } from './credit-ia-ui.js'
 import { photosAutoActives, setPhotosAuto, invaliderPhotosAuto, ERREURS_BLOQUANTES } from './photos-auto.js'
@@ -21,6 +22,12 @@ const QUI = [
 const LOT_CONVERSION = 5
 
 const quiDe = profils => (profils.length > 1 ? 'famille' : profils[0])
+
+// Un plat se cuisine le jour même ou jusqu'à 3 jours avant (jamais après le repas)
+function joursDeCuisine(jour) {
+  const i = JOURS.indexOf(jour)
+  return [0, 1, 2, 3].map(n => JOURS[(i - n + 7) % 7])
+}
 
 // Un bloc par jour : lisible sur mobile, en grille sur ordinateur
 function renderModele(modele) {
@@ -40,7 +47,7 @@ function renderModele(modele) {
         <span class="modele-jour-nom">${LABEL_LONG[jour]}</span>
         <label class="modele-cuisine">${icone('marmite')}<span>Cuisiné</span>
           <select data-jour="${jour}" data-champ="cuisineLe" aria-label="${LABEL_LONG[jour]} : jour de cuisine">
-            ${JOURS.map(j => `<option value="${j}" ${modele[jour].cuisineLe === j ? 'selected' : ''}>${j === jour ? 'sur place' : `le ${LABEL_LONG[j].toLowerCase()}`}</option>`).join('')}
+            ${joursDeCuisine(jour).map(j => `<option value="${j}" ${modele[jour].cuisineLe === j ? 'selected' : ''}>${j === jour ? 'sur place' : `le ${LABEL_LONG[j].toLowerCase()}`}</option>`).join('')}
           </select>
         </label>
       </div>
@@ -136,7 +143,7 @@ async function renderPhotos() {
 async function photosManquantes() {
   const sans = await renderPhotos()
   if (!sans.length || photosEnCours) return
-  if (!confirm(`Créer ${sans.length} photo(s) pour ≈ ${formatDollars(coutImage().cout * sans.length)} ? Reste sur cette page pendant la création.`)) return
+  if (!await confirmer(`Coût ≈ ${formatDollars(coutImage().cout * sans.length)}. Reste sur cette page pendant la création.`, { titre: `Créer ${sans.length} photo(s) ?`, ok: 'Créer' })) return
   const btn = document.getElementById('btnPhotosManquantes')
   const status = document.getElementById('photosStatus')
   const zoneErreur = document.getElementById('photosErreur')
@@ -228,6 +235,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       status.textContent = `${err.message} (${faites} déjà faites)`
     }
     await majBoutonConversion()
+  })
+
+  // Recolle les quantités abîmées par l'ancien formulaire (« 400 » + « g Tomates »)
+  document.getElementById('btnReparer').addEventListener('click', async (e) => {
+    const btn = e.currentTarget, status = document.getElementById('reparerStatus')
+    btn.disabled = true
+    status.textContent = 'Vérification…'
+    try {
+      const abimees = (await getRecettes()).map(r => {
+        const ingredients = (r.ingredients || []).map(reparerIngredient).filter(i => i.nom)
+        const pareil = ingredients.length === (r.ingredients || []).length
+          && ingredients.every((i, k) => i.nom === String(r.ingredients[k].nom ?? '').trim() && i.quantite === String(r.ingredients[k].quantite ?? '').trim())
+        return pareil ? null : { ...r, ingredients }
+      }).filter(Boolean)
+      if (!abimees.length) status.textContent = 'Toutes les quantités sont correctes.'
+      else if (await confirmer(abimees.map(r => r.nom).slice(0, 8).join(', ') + (abimees.length > 8 ? '…' : ''),
+        { titre: `Réparer ${abimees.length} recette(s) ?`, ok: 'Réparer' })) {
+        await dbUpsertRecettes(abimees)
+        status.textContent = `${abimees.length} recette(s) réparée(s).`
+      } else status.textContent = ''
+    } catch (err) { signalerErreur(err, 'Réparation') ; status.textContent = '' }
+    btn.disabled = false
   })
 
   dbEcouter(['reserve'], debounce(renderReserve, 300))

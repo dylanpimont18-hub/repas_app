@@ -19,6 +19,10 @@ test('categoriser range par rayon', () => {
   assert.equal(categoriser('Filet de poulet'), 'Viandes & Poissons')
   assert.equal(categoriser("Huile d'olive"), 'Épicerie & Condiments')
   assert.equal(categoriser('Papier cuisson'), 'Divers')
+  assert.equal(categoriser('Semoule fine'), 'Féculents')      // pas « moule »
+  assert.equal(categoriser('Moules de bouchot'), 'Viandes & Poissons')
+  assert.equal(categoriser('Œufs'), 'Laitiers & Œufs')
+  assert.equal(categoriser('Cumin moulu'), 'Épicerie & Condiments')
 })
 
 test('validerVegetarien détecte viande et poisson', () => {
@@ -68,7 +72,7 @@ test('ajouterArticlesLibres : range par partie et rayon, sans doublon avec les r
   const parties = { samedi: { 'Fruits & Légumes': [{ nom: 'Carotte', quantites: [] }] }, mercredi: {} }
   ajouterArticlesLibres(parties, [{ id: '1', nom: 'carottes', partie: 'samedi' }, { id: '2', nom: 'lessive', partie: 'mercredi' }])
   assert.equal(parties.samedi['Fruits & Légumes'].length, 1)
-  assert.deepEqual(parties.mercredi.Divers, [{ nom: 'Lessive', quantites: [], libreId: '2' }])
+  assert.deepEqual(parties.mercredi.Divers, [{ nom: 'Lessive', quantites: [], libreId: '2', cleEtat: 'lessive' }])
 })
 
 test('separerPlacard : retire les articles du placard, garde les articles libres', () => {
@@ -80,4 +84,71 @@ test('separerPlacard : retire les articles du placard, garde les articles libres
   assert.deepEqual(reste.samedi['Épicerie & Condiments'].map(i => i.nom), ['Cumin'])
   assert.equal(reste.mercredi.Divers.length, 1)
   assert.deepEqual(auPlacard.map(i => i.nom), ['Sel'])
+})
+
+test('lireLigneIngredient sépare quantité, unité et nom', async () => {
+  const { lireLigneIngredient } = await import('../js/utils.js')
+  assert.deepEqual(lireLigneIngredient('400 g Tomates'), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(lireLigneIngredient('2 c.s. huile d\'olive'), { quantite: '2 c.s.', nom: 'huile d\'olive' })
+  assert.deepEqual(lireLigneIngredient('1 pincée de sel'), { quantite: '1 pincée', nom: 'sel' })
+  assert.deepEqual(lireLigneIngredient('3 carottes'), { quantite: '3', nom: 'carottes' })
+  assert.deepEqual(lireLigneIngredient('½ citron'), { quantite: '½', nom: 'citron' })
+  assert.deepEqual(lireLigneIngredient('1,5 kg de pommes de terre'), { quantite: '1,5 kg', nom: 'pommes de terre' })
+  assert.deepEqual(lireLigneIngredient('2 gousses d\'ail'), { quantite: '2 gousses', nom: 'ail' })
+  assert.deepEqual(lireLigneIngredient('- Sel'), { quantite: '', nom: 'Sel' })
+  assert.equal(lireLigneIngredient('  '), null)
+})
+
+test('reparerIngredient recolle l\'unité coupée par l\'ancien formulaire', async () => {
+  const { reparerIngredient } = await import('../js/utils.js')
+  assert.deepEqual(reparerIngredient({ quantite: '400', nom: 'g Tomates' }), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(reparerIngredient({ quantite: '2', nom: 'c.s. huile d\'olive' }), { quantite: '2 c.s.', nom: 'huile d\'olive' })
+  assert.deepEqual(reparerIngredient({ quantite: 'Sel', nom: '' }), { quantite: '', nom: 'Sel' })
+  // Rien à réparer
+  assert.deepEqual(reparerIngredient({ quantite: '400 g', nom: 'Tomates' }), { quantite: '400 g', nom: 'Tomates' })
+  assert.deepEqual(reparerIngredient({ quantite: '1', nom: 'noix de coco râpée' }), { quantite: '1', nom: 'noix de coco râpée' })
+  assert.deepEqual(reparerIngredient({ quantite: '2', nom: 'filets de poulet' }), { quantite: '2', nom: 'filets de poulet' })
+})
+
+test('texteCourses : liste à partager, sans les articles cochés', async () => {
+  const { texteCourses } = await import('../js/utils.js')
+  const parties = {
+    samedi: { 'Fruits & Légumes': [{ nom: 'Carottes', quantites: [{ valeur: '3' }], cleEtat: 'carottes' }], Divers: [{ nom: 'Lessive', quantites: [], cleEtat: 'lessive' }] },
+    mercredi: { 'Féculents': [{ nom: 'Riz', quantites: [{ valeur: '400 g' }], cleEtat: 'riz' }] },
+  }
+  const t = texteCourses(parties, { coche: i => i.cleEtat === 'lessive' })
+  assert.equal(t, 'Samedi (magasin)\n\nFruits & Légumes\n- Carottes : 3\n\nMercredi (drive)\n\nFéculents\n- Riz : 400 g')
+  assert.equal(texteCourses(parties, { seulement: 'mercredi' }), 'Mercredi (drive)\n\nFéculents\n- Riz : 400 g')
+})
+
+test('markdownCourses : fichier .md avec parties, rayons et cases cochées', async () => {
+  const { markdownCourses } = await import('../js/utils.js')
+  const parties = {
+    samedi: { 'Fruits & Légumes': [{ nom: 'Carottes', quantites: [{ valeur: '3' }], cleEtat: 'carottes' }], Divers: [{ nom: 'Lessive', quantites: [], cleEtat: 'lessive' }] },
+    mercredi: { 'Féculents': [{ nom: 'Riz *basmati*', quantites: [{ valeur: '400 g' }], cleEtat: 'riz' }] },
+  }
+  const md = markdownCourses(parties, { titre: 'Courses · Sam 24/10 → Sam 31/10', coche: i => i.cleEtat === 'lessive',
+    auPlacard: [{ nom: 'Sel', quantites: [] }] })
+  assert.equal(md, `# Courses · Sam 24/10 → Sam 31/10
+
+## Samedi, au magasin
+
+### Fruits & Légumes
+
+- [ ] Carottes — 3
+
+### Divers
+
+- [x] Lessive
+
+## Mercredi, en drive
+
+### Féculents
+
+- [ ] Riz \\*basmati\\* — 400 g
+
+## Au placard (vérifier qu'il en reste)
+
+- [ ] Sel
+`)
 })

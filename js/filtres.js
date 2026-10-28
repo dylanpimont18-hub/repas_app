@@ -26,9 +26,18 @@ const FECULENTS = ['riz','pates','spaghetti','tagliatelle','penne','macaroni','l
   'boulgour','quinoa','pomme de terre','patate','frite','pain','tortilla','wrap','gnocchi','polenta','ble','orge',
   'vermicelle','ravioli','pita','naan','galette']
 // Halal strict : porc et alcool, y compris dérivés courants
-const INTERDITS = ['porc','lard','lardon','jambon','bacon','chorizo','saucisson','pancetta','coppa','rillette',
-  'gelatine','saindoux','andouille','boudin','vin','biere','rhum','cognac','calvados','kirsch','marsala',
-  'porto','cidre','whisky','vodka','liqueur','mirin','sake','champagne','alcool']
+// Charcuteries et gélatine : interdites sauf si l'origine halal est précisée (« jambon de dinde », « gélatine bovine »)
+const CHARCUTERIES = ['jambon','lardon','bacon','chorizo','saucisson','saucisse','salami','pepperoni','mortadelle',
+  'rosette','boudin','cervelas','knack','knacki','chipolata','rillette','gelatine','pate de campagne','pate en croute','merguez de porc']
+const INTERDITS = [...CHARCUTERIES,
+  'porc','cochon','lard','saindoux','pancetta','coppa','speck','prosciutto','guanciale','porchetta','andouille',
+  'andouillette','vin','biere','rhum','cognac','calvados','kirsch','marsala','porto','cidre','whisky',
+  'vodka','liqueur','mirin','sake','champagne','alcool','gin','brandy','armagnac','xeres','sherry','madere',
+  'pastis','grand marnier','cointreau','triple sec','kahlua','limoncello','amaretto','creme de cassis','tequila',
+  'bourbon','absinthe','prosecco','shaoxing']
+// Précisions qui rendent une charcuterie ou une gélatine acceptable
+const ORIGINE_HALAL = '(?:(?:de |d\'|d )(?:dinde|poulet|volaille|boeuf|veau|agneau|mouton|poisson|canard)|halal|bovine?|vegetale?|vegetarienne?|vegan|de boeuf halal)'
+const RE_CHARCUTERIE_HALAL = new RegExp(`(^|[^a-z])(${CHARCUTERIES.join('|')})(s|x)?(?: (?:blanc|noir|fume|fumee|fumes|cuit|cru|sec|doux|fort|fin|fines|en tranches))? ${ORIGINE_HALAL}`, 'g')
 
 // Texte normalisé décrivant ce que contient la recette (nom + composants + ingrédients)
 export function texteRecette(r) {
@@ -41,9 +50,13 @@ export function texteRecette(r) {
 
 export const contientViande   = r => contientUn(texteRecette(r), VIANDES)
 export const contientPoisson  = r => contientUn(texteRecette(r), POISSONS)
-// Le vinaigre de vin / de cidre n'est pas considéré comme de l'alcool
-export const contientInterdit = r => contientUn(
-  texteRecette(r).replace(/vinaigre (de )?(vin|cidre)( (blanc|rouge|rose))?/g, 'vinaigre'), INTERDITS)
+// Le vinaigre (de vin, de cidre, de xérès…) n'est pas de l'alcool ; une charcuterie d'origine halal précisée est autorisée
+export function contientInterdit(r) {
+  const texte = texteRecette(r)
+    .replace(/vinaigre (de |d')?(vin|cidre|xeres|jerez|sherry|riz|champagne)( (blanc|rouge|rose))?/g, 'vinaigre')
+    .replace(RE_CHARCUTERIE_HALAL, '$1charcuterie-halal')
+  return contientUn(texte, INTERDITS)
+}
 export function contientFeculent(r) {
   if (r.composants?.base) return true
   return contientUn(texteRecette(r), FECULENTS)

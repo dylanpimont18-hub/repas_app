@@ -4,7 +4,7 @@ import { genererImageRecette } from './ai.js'
 
 const CLE = 'photos_auto'
 // Erreurs qui touchent toutes les photos suivantes : inutile d'insister
-export const ERREURS_BLOQUANTES = ['CREDIT_EPUISE', 'CLE_INVALIDE', 'CLE_MANQUANTE', 'SESSION', 'FOYER']
+export const ERREURS_BLOQUANTES = ['BUDGET_ATTEINT', 'CREDIT_EPUISE', 'CLE_INVALIDE', 'CLE_MANQUANTE', 'SESSION', 'FOYER']
 
 let actif = null // cache du réglage (une lecture par page)
 

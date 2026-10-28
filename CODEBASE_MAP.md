@@ -24,6 +24,9 @@ Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ;
 ### courses.html
 Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle, bouton 🖨 Imprimer (mise en page @media print dans components.css).
 
+### placard.html
+« Vider le placard » (mode indépendant du planning et des courses) : inventaire partagé (réglage `inventaire`), recettes existantes puis IA pour tout utiliser, Cuisiner.
+
 ### reglages.html
 Réglages partagés : photos (automatiques, manquantes), crédit IA (jauge, budget, recalage, derniers appels), modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
 
@@ -58,8 +61,20 @@ Table `livres` (nom, consigne IA) + `recettes.livre_id` (un livre au plus, ON DE
 ### supabase/migrations/20261025c_images_recettes.sql
 Colonne `recettes.image_url` + espace de stockage public `recettes-images` (écriture par l'Edge Function).
 
+### supabase/migrations/20261028b_securite_ia.sql
+`ia_usage` en lecture seule pour les téléphones (le journal est écrit par l'Edge Function). À appliquer après le déploiement de la fonction.
+
 ### supabase/functions/ai/index.ts
-Edge Function : proxy Mammouth AI (streaming + décompte des tokens `include_usage`, relance sans si refusé), vérifie membre du foyer, relaie le statut et le message d'erreur de Mammouth. Action `image` : photo via `gemini-3.1-flash-image-preview` (endpoint images, sinon chat), enregistrée dans `recettes-images/{id}`. Secret `MAMMOUTH_API_KEY`.
+Edge Function : proxy Mammouth AI (streaming, décompte `include_usage`), vérifie membre du foyer. Garde-fous serveur : message système halal, journal `ia_usage` écrit ici (copie du flux, `x-repas-journal: 1`), plafond mensuel (`reglages.ia_budget` → 402 `BUDGET_ATTEINT`). Actions `chat` (body `prompt`, `nbRecettes`, `type`), `image` (photo `gemini-3.1-flash-image-preview` dans `recettes-images/{id}`), `importer` (page https publique → blocs JSON-LD ou texte). Secrets : `MAMMOUTH_API_KEY`, optionnel `ORIGINES_AUTORISEES`.
+
+### sw.js
+Service worker : code de l'appli en « réseau d'abord, sinon cache » (délai 4 s), lectures Supabase gardées pour le hors-ligne (cache `repas-donnees`, vidé à la déconnexion). `VERSION` à changer quand la liste `COQUILLE` change (tests/sw.test.mjs vérifie qu'elle est complète).
+
+### js/vendor/supabase-2.118.0.js
+supabase-js épinglé, un seul fichier ESM (voir js/vendor/LISEZMOI.md pour le mettre à jour).
+
+### icons/
+Icônes 180/192/512, versions `maskable` (marge de sécurité), écrans de démarrage iOS `demarrage-*.png`.
 
 ---
 
@@ -221,9 +236,32 @@ Wrapper localStorage (thème uniquement).
 
 ### js/app.js
 Initialisation, navigation, gestion du thème dark/light, vérification auth.
-- `init()` — charge le thème, initialise les listeners, vérifie session
-- `setTheme(theme)` — applique et persiste dark/light
-- `injectBoutonReglages()` — bouton ⚙️ vers reglages.html dans la barre du haut
+- Thème posé dès le `<head>` de chaque page (script en ligne) ; sans choix enregistré, suit le téléphone
+- `initModales()` (modales.js), `initHorsLigne()` (hors-ligne.js), badge des ingrédients non notés du profil connecté
+- `injectBoutonReglages()` — bouton Réglages dans la barre du haut ; déconnexion = vide aussi le cache hors-ligne
+- Minuteurs encore en cours réaffichés sur toutes les pages
+
+### js/dialogue.js
+Remplace `alert` / `confirm` / `prompt` (interdits dans l'appli).
+- `confirmer(message, {titre, ok, danger})` → Promise<boolean>
+- `choisirNombre({titre, valeur, min, max, unite})` → nombre ou null (− / +)
+- `informer(message, {type, duree, action})` — message en bas d'écran (aria-live), bouton « Annuler » possible
+- `signalerErreur(e, contexte)`
+
+### js/modales.js
+Accessibilité de toutes les `.modal-overlay` sans code par page : rôle dialogue + titre, focus à l'ouverture et retour, Échap (clique `.modal-close`), Tab gardé dans la fenêtre ; Entrée / Espace sur `[role="button"]`.
+
+### js/hors-ligne.js
+Enregistre `sw.js`, bandeau « hors connexion ». `estHorsLigne()`.
+
+### js/minuteurs.js
+Minuteurs de cuisine (plusieurs, gardés en localStorage, bip + vibration). `lancerMinuteur(libelle, s)`, `afficherMinuteurs()`.
+
+### js/controle-ia.js
+Contrôle des recettes reçues de l'IA (pur, testé) : `nettoyerRecette`, `raisonRefus(r, creneau, filtres, indexPrefs)` (halal, contraintes, goûts et légumes cachés via `evaluer`, conservation), `verifier`.
+
+### js/import-pur.js / js/import-recette.js
+Import de recette (pur, testé) : `recetteDepuisJsonLd`, `trouverRecette`, `recetteDepuisTexte`, `dureeIso`. Fenêtre « Importer » : lien (action `importer`), texte collé, mise en forme IA en dernier recours ; le résultat s'ouvre dans le formulaire.
 
 ### js/auth-login.js
 Logique de la page de connexion.
@@ -270,8 +308,8 @@ Planificateur hebdomadaire.
 
 ### js/courses.js
 Liste de courses.
-- `genererListeCycle(samedi)` — liste du cycle `{samedi, mercredi}` (ignore les plats du congélo)
-- `getEtatCourses` / `toggleCourse` / `resetCourses` — cases cochées Supabase
+- `listeCourses(samedi, cle)` / `genererListeCycle(samedi)` — liste du cycle `{samedi, mercredi}` (ignore le congélo) ; articles avec `cleEtat`
+- `getEtatCourses` / `toggleCourse` (→ 'envoye' | 'en_attente') / `envoyerFileCourses` / `resetCourses` — cases cochées, file d'attente hors connexion (localStorage `repas_file_courses`)
 
 ### js/ai.js
 Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
@@ -283,16 +321,40 @@ Génération IA via Mammouth AI (Edge Function `ai`) + prompts.
 - `ErreurIA` — erreur avec `info` (titre, explication, conseil) ; chaque appel est journalisé dans `ia_usage`
 - `callIA(prompt, {action, nbRecettes, onChunk})` — flux SSE → `{texte, fin}` (ok / TRONQUEE / COUPEE)
 - `genererUneRecette({creneau, ...})` — une seule recette
+- `genererIdees({creneau, nb})` — idées ⚡ en format léger (sans étapes) ; `completerIdee(r)` écrit les étapes de l'idée choisie
+- `structurerRecette(texte)` — met en forme un texte de recette collé (import)
+- Chaque recette reçue passe `verifier()` de controle-ia.js (goûts, légumes cachés, halal, conservation) ; délai max 90 s puis 60 s sans texte
 - `convertirRecettes(recettes)` — complète les anciennes recettes au nouveau format
 - `getSaison()` — saison courante
 
 ---
 
+### js/placard.js
+Vider le placard (pur, testé).
+- `lireInventaire(texte, {noms})` / `fusionnerInventaire(a, b)` — saisie en vrac (virgule décimale, `2x`, conditionnement, « et », préfixe « épices : »), noms ramenés à ceux de la base
+- `fusionnerModifications(base, local, serveur)` — fusion par article de l'inventaire partagé entre deux téléphones
+- `statutArticle(item, indexPrefs)` — « pas halal » / « … n'aime pas » (exclu), légumes à cacher autorisés
+- `utilise(recette, item)` / `couverture(inventaire, recettes, {portions})` — correspondance par mots, tête du nom obligatoire, synonymes ; `partiels` quand la quantité ne suffit pas à tout utiliser
+- `quantiteEnBase` / `texteQuantite` / `besoinArticle` — quantités comparables (g, ml, unités, conditionnements)
+- `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton (« à finir vite » d'abord), seconde passe à 1 article de base, halal et goûts via `evaluer`
+- `estBase` / `nbBases` / `nbRecettesConseille(n)` / `nbRecettesMinimum(n)` / `repartirArticles(items, nb)` / `recetteFourreTout(r, inv, attribues)` — une base par recette IA, épices en compléments (2 au plus), 4 bases au plus, jamais une recette avec tout le placard
+- `apresCuisson(inventaire, recette, portions, autres)` — retire ou décompte les articles d'une recette cuisinée
+- `ordreConseille(recettes, inventaire)` / `libelleArticle` — recettes « à finir vite » en premier
+- `aAcheter(recette, inventaire)` / `markdownPlacard(inventaire, recettes, {titre, portions})` — export .md
+- `NOM_LIVRE_PLACARD` / `sansRecettesPlacard(recettes, livres)` — les recettes du livre « Vider le placard » ne sont pas proposées au planning (`chargerDonnees(samedi, { avecPlacard })`)
+
+### js/fichier.js
+`exporterFichier(nom, contenu, type)` — feuille de partage avec le fichier sur téléphone (« Enregistrer dans Fichiers »), sinon téléchargement ; `nomDeFichier(texte, ext)`.
+
+### js/placard-ui.js
+Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Trouver les recettes » = recettes existantes puis IA, « Cuisiner » / « Cuisiné » / « Autre recette » par recette, recettes cuisinées gardées dans le réglage `placard_cuisinees`, écritures de l'inventaire en file et fusionnées avec le serveur.
+
 ## JS — Couche UI (rendu et interactions)
 
 ### js/dashboard.js
 Contrôleur du tableau de bord d'accueil.
-- `render()` — nombre de recettes, repas du jour, aperçu du cycle (samedi soir → samedi midi, « pas de repas » affiché) ; rafraîchi en temps réel
+- `render()` — prochain repas, prochaine session, « Comment c'était ? », aperçu du cycle ; 3 requêtes (modèle, planning de toutes les semaines utiles, recettes)
+- « Passer » un avis : retenu 4 jours sur l'appareil
 
 ### js/preferences-ui.js
 Rendu et interactions de la page préférences (cartes + vue liste).
@@ -305,15 +367,18 @@ Rendu et interactions de la page préférences (cartes + vue liste).
 Rendu et interactions de la bibliothèque de recettes.
 - `renderList()` — livres + filtres déduits + cartes recettes filtrées (livre actif, étiquette du livre)
 - `renderFiltres(nb, nbScope)` — panneau « Filtres » (groupes, compteurs) + rappel des filtres actifs
-- `ouvrirDetail(id)` — modale de détail (photo ; Planifier, Imprimer, Générer une photo, Supprimer, Modifier, Dupliquer)
-- `ouvrirFormEdit(recette)` — ouvre la modale d'édition/duplication pré-remplie (choix du livre)
+- `ouvrirDetail(id, portions)` — détail avec nombre de personnes réglable (ingrédients pondérés par `recetteAuxPortions`, cuisiner / imprimer pour ce nombre, « Enregistrer pour N personnes ») ; `?portions=` dans l'URL
+- `ouvrirFormEdit(recette)` — formulaire (nouvelle, modifier, dupliquer, import) : ingrédient = quantité + nom (liste collée découpée), quantités recalculées quand les personnes changent, contrôle halal à l'enregistrement
+- Catalogue gardé en mémoire (invalidé par le temps réel) ; suppression avec « Annuler » (recette + repas prévus)
 - Temps réel sur `recettes`
 
 ### js/planning-ui.js
 Rendu et interactions du planificateur hebdomadaire.
 - `renderGrid()` / `afficher()` — charge puis affiche le cycle : liste par session (mobile) ou frise jours × repas avec bandeaux de session (≥ 1024 px) ; temps réel
 - `htmlCreneau(c)` / `htmlListe()` / `htmlFrise()` — rendu d'un repas (ou « Pas de repas » + Rétablir), de la liste, de la frise (bouton ✕ / ↺ par journée)
-- `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️ (choisir / vider), ⇅ déplacer, portions
+- `actionCreneau(action, cle)` — ↻ (bibliothèque puis IA), ✏️ (choisir / vider), ⇅ déplacer, portions (− / +)
+- `appliquer(changements)` — mise à jour locale sans recharger le cycle ; l'écho temps réel de nos écritures est ignoré (`mesEcritures`)
+- Verrou souple `reglages.ia_en_cours` pendant une génération IA (prévient l'autre téléphone) ; « Annuler » après un remplissage
 - Mode déplacement (toucher ⇅ puis la destination) et glisser-déposer sur ordinateur → `echanger()`
 - `ouvrirSelectRecette()` — choix manuel avec recherche (nom, ingrédient), recettes compatibles en premier ; vider, pas de repas, supprimer / rétablir la journée
 - `creneauxDuJour(c)` — midi et soir d'une même date
@@ -322,7 +387,9 @@ Rendu et interactions du planificateur hebdomadaire.
 
 ### js/courses-ui.js
 Rendu et interactions de la liste de courses.
-- `render()` — deux parties samedi / mercredi groupées par rayon, quantités ajustées ; file de rendu sans perte d'événement temps réel
+- `charger()` (réseau) / `afficher()` (sans requête) — deux parties samedi / mercredi par rayon, « Déjà pris » par partie
+- `basculerCoche()` — coche immédiate, envoi en arrière-plan (file si hors ligne), écho temps réel ignoré
+- `partager(partie)` — « Envoyer le drive » / « Partager » (Web Share, sinon presse-papiers) ; « Exporter .md » (`markdownCourses` dans utils.js)
 
 ---
 
@@ -339,3 +406,9 @@ Tests de js/credit-ia.js : coûts, période, estimation, recalage, codes d'erreu
 
 ### tests/planning-famille.test.mjs
 Tests du cycle, des filtres, de la sélection bibliothèque, du décalage et de la répartition des courses.
+
+### tests/halal.test.mjs · controle-ia.test.mjs · import.test.mjs · cuisine.test.mjs · avis.test.mjs · sw.test.mjs
+Halal (trous et faux positifs), contrôle des recettes IA, import, portions de session / minuteurs / pondération, avis, coquille hors ligne complète.
+
+### tests/e2e/parcours.mjs
+18 parcours réels dans Chromium (Playwright), Supabase simulé en mémoire : `node tests/e2e/parcours.mjs` (option `CAPTURES=dossier`).

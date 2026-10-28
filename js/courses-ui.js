@@ -1,97 +1,117 @@
-// js/courses-ui.js
-import { listeCourses, getEtatCourses, toggleCourse, resetCourses, ajouterArticle, supprimerArticle, basculerPlacard } from './courses.js'
-import { debutCycle, decalerCycle, cleCycle, labelCycle } from './cycle.js'
+// js/courses-ui.js — Liste de courses : coche instantanée (état local), lignes entières tactiles, hors-ligne, partage
+import { listeCourses, getEtatCourses, toggleCourse, envoyerFileCourses, fileCourses, resetCourses,
+         ajouterArticle, supprimerArticle, basculerPlacard } from './courses.js'
+import { debutCycle, decalerCycle, cleCycle, labelCycle, dateIso } from './cycle.js'
 import { dbEcouter } from './db.js'
-import { esc, debounce, combinerQuantites } from './utils.js'
+import { esc, debounce, combinerQuantites, ORDRE_RAYONS, texteCourses, markdownCourses } from './utils.js'
+import { exporterFichier, nomDeFichier } from './fichier.js'
 import { icone } from './icones.js'
+import { confirmer, informer, signalerErreur } from './dialogue.js'
 
-let enCours         = null   // rendu en cours (Promise)
-let aRefaire        = false  // un changement est arrivé pendant le rendu
+let samedi          = debutCycle()
+let liste           = null   // { parties, auPlacard } du cycle affiché
+let etat            = {}     // { cleEtat: true } cases cochées
 let acheteesOuverte = false
 let placardOuvert   = false
 let partieAjout     = 'samedi'   // partie où vont les articles ajoutés à la main
-let samedi          = debutCycle()
+const mesEcritures  = new Map()  // cleEtat → { checked, t } : écho temps réel de nos propres coches, ignoré
 
 const PARTIES = [
-  { id: 'samedi',   icone: 'panier',  titre: 'Samedi, au magasin', sous: 'Samedi soir → mardi (dont la session du dimanche)' },
-  { id: 'mercredi', icone: 'voiture', titre: 'Mercredi, en drive', sous: 'Mercredi → samedi midi (dont la session du mercredi)' },
+  { id: 'samedi',   icone: 'panier',  titre: 'Samedi, au magasin', court: 'Samedi', sous: 'Samedi soir → mardi (dont la session du dimanche)' },
+  { id: 'mercredi', icone: 'voiture', titre: 'Mercredi, en drive', court: 'Mercredi', sous: 'Mercredi → samedi midi (dont la session du mercredi)' },
 ]
 
-// Évite les rendus concurrents sans perdre de mise à jour : si un rendu est en cours,
-// on en programme un nouveau juste après au lieu d'ignorer l'événement
-async function render() {
-  if (enCours) { aRefaire = true; return enCours }
-  enCours = (async () => {
+const cle = () => cleCycle(samedi)
+const coche = item => !!etat[item.cleEtat]
+
+// ── Chargement (réseau) : liste et cases ; l'affichage, lui, ne fait aucune requête ──
+let chargement = null, aRecharger = false
+async function charger({ listeAussi = true } = {}) {
+  if (chargement) { aRecharger = true; return chargement }
+  chargement = (async () => {
     do {
-      aRefaire = false
-      try { await renderUneFois() } catch (e) { console.error('Rendu courses', e) }
-    } while (aRefaire)
+      aRecharger = false
+      try {
+        const k = cle()
+        const [l, e] = await Promise.all([listeAussi || !liste ? listeCourses(samedi, k) : liste, getEtatCourses(k)])
+        liste = l; etat = e
+        afficher()
+      } catch (err) {
+        if (!liste) document.getElementById('coursesList').innerHTML = `<p class="text-muted">Impossible de charger la liste : ${esc(err.message)}</p>`
+        console.error('Courses', err)
+      }
+    } while (aRecharger)
   })()
-  try { await enCours } finally { enCours = null }
+  try { await chargement } finally { chargement = null }
 }
 
-const ORDRE = ['Fruits & Légumes','Viandes & Poissons','Féculents','Laitiers & Œufs','Épicerie & Condiments','Divers']
-
-async function renderUneFois() {
-  const semaineKey = cleCycle(samedi)
-  const labelEl    = document.getElementById('labelSemaineCourses')
-  if (labelEl) labelEl.textContent = labelCycle(samedi)
-
-  const [{ parties, auPlacard }, etat] = await Promise.all([listeCourses(samedi, semaineKey), getEtatCourses(semaineKey)])
-  // Article à la main : on peut le supprimer ; ingrédient de recette : on peut le dire toujours au placard
-  const actionItem = item => item.libreId
+function htmlItem(item, partie) {
+  const id = `c-${partie}-${item.cleEtat}`.replace(/[^\w-]/g, '_')
+  const qte = combinerQuantites(item.quantites, item.nom)
+  const action = item.libreId
     ? `<button class="courses-item-action" data-supprimer="${esc(item.libreId)}" aria-label="Supprimer ${esc(item.nom)}">${icone('croix')}</button>`
     : `<button class="courses-item-action" data-placard="${esc(item.nom)}" aria-label="${esc(item.nom)} : toujours au placard" title="Toujours au placard">${icone('boite')}</button>`
+  return `<div class="courses-item${coche(item) ? ' checked' : ''}" data-cle-etat="${esc(item.cleEtat)}">
+    <label class="courses-item-zone" for="${id}">
+      <input type="checkbox" id="${id}" data-cle-etat="${esc(item.cleEtat)}" ${coche(item) ? 'checked' : ''}>
+      <span class="courses-item-label">${esc(item.nom)}</span>
+      <span class="courses-item-qty">${esc(qte)}</span>
+    </label>
+    ${action}
+  </div>`
+}
 
-  // Séparer les items actifs (par partie puis rayon) des items achetés
-  const achetees = []
+function afficher() {
+  const labelEl = document.getElementById('labelSemaineCourses')
+  if (labelEl) labelEl.textContent = labelCycle(samedi)
+  const list = document.getElementById('coursesList')
+  if (!list || !liste) return
+  const { parties, auPlacard } = liste
+
+  // À acheter (par partie puis rayon) ; achetés : repliés, aussi par partie
+  const achetees = { samedi: [], mercredi: [] }
   const htmlActifs = PARTIES.map(partie => {
-    const groupes = parties[partie.id]
-    const actifs  = {}
-    ORDRE.forEach(cat => (groupes[cat] || []).forEach(item => {
-      if (etat[item.nom.toLowerCase().trim()]) achetees.push(item)
+    const groupes = parties[partie.id] || {}
+    const actifs = {}
+    let total = 0
+    ORDRE_RAYONS.forEach(cat => (groupes[cat] || []).forEach(item => {
+      total++
+      if (coche(item)) achetees[partie.id].push(item)
       else (actifs[cat] ||= []).push(item)
     }))
-    const rayons = ORDRE.filter(cat => actifs[cat]?.length)
-    if (!rayons.length) return ''
-    return `<div class="courses-partie">
-      <div class="courses-partie-titre">${icone(partie.icone)}${partie.titre}<div class="text-xs text-muted">${partie.sous}</div></div>
+    if (!total) return ''
+    const rayons = ORDRE_RAYONS.filter(cat => actifs[cat]?.length)
+    const reste = rayons.reduce((n, cat) => n + actifs[cat].length, 0)
+    return `<section class="courses-partie" aria-labelledby="titre-${partie.id}">
+      <h2 class="courses-partie-titre" id="titre-${partie.id}">${icone(partie.icone)}${partie.titre}
+        <span class="courses-compteur">${reste ? `${reste} à prendre` : `${icone('check')}tout est pris`}</span>
+        <span class="text-xs text-muted courses-partie-sous">${partie.sous}</span></h2>
       ${rayons.map(cat => `
       <div class="courses-group">
-        <div class="courses-group-title">${cat}</div>
-        ${actifs[cat].map(item => `<div class="courses-item">
-            <input type="checkbox" data-nom="${esc(item.nom)}" data-checked="false">
-            <span class="courses-item-label">${esc(item.nom)}</span>
-            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
-            ${actionItem(item)}
-          </div>`).join('')}
+        <h3 class="courses-group-title">${cat}</h3>
+        ${actifs[cat].map(item => htmlItem(item, partie.id)).join('')}
       </div>`).join('')}
-    </div>`
+    </section>`
   }).join('')
 
-  // HTML de la section Achetées (restaure l'état ouvert/fermé)
-  const htmlAchetees = achetees.length ? `
-    <div id="coursesAchetees">
-      <div id="coursesAcheteesHeader">
-        <span>${icone('check')}Achetées (<span id="coursesAcheteesCount">${achetees.length}</span>)</span>
-        <span id="coursesAcheteesToggle">${acheteesOuverte ? '▲' : '▼'}</span>
-      </div>
+  const nbAchetees = achetees.samedi.length + achetees.mercredi.length
+  const htmlAchetees = nbAchetees ? `
+    <section class="courses-achetees">
+      <button class="courses-repli" data-ouvrir-achetees aria-expanded="${acheteesOuverte}" aria-controls="coursesAcheteesBody">
+        <span>${icone('check')}Déjà pris (${nbAchetees})</span>${icone(acheteesOuverte ? 'haut' : 'bas')}
+      </button>
       <div id="coursesAcheteesBody" class="${acheteesOuverte ? '' : 'hidden'}">
-        ${achetees.map(item => `
-          <div class="courses-achetee-item">
-            <input type="checkbox" checked data-nom="${esc(item.nom)}" data-checked="true">
-            <span>${esc(item.nom)}</span>
-            <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
-          </div>`).join('')}
+        ${PARTIES.filter(p => achetees[p.id].length).map(p => `
+          <h3 class="courses-group-title">${icone(p.icone)}${p.court}</h3>
+          ${achetees[p.id].map(item => htmlItem(item, p.id)).join('')}`).join('')}
       </div>
-    </div>` : ''
+    </section>` : ''
 
   // Toujours au placard : hors liste, rappel replié pour vérifier qu'il en reste
   const htmlPlacard = auPlacard.length ? `
-    <div class="courses-placard">
-      <button class="courses-placard-entete" data-ouvrir-placard aria-expanded="${placardOuvert}">
-        <span>${icone('boite')}Au placard (${auPlacard.length}) <span class="text-xs text-muted">vérifie qu'il en reste</span></span>
-        <span>${placardOuvert ? '▲' : '▼'}</span>
+    <section class="courses-placard">
+      <button class="courses-repli" data-ouvrir-placard aria-expanded="${placardOuvert}">
+        <span>${icone('boite')}Au placard (${auPlacard.length}) <span class="text-xs text-muted">vérifie qu'il en reste</span></span>${icone(placardOuvert ? 'haut' : 'bas')}
       </button>
       ${placardOuvert ? `<div class="courses-placard-corps">${auPlacard.map(item => `
         <div class="courses-placard-item">
@@ -99,150 +119,117 @@ async function renderUneFois() {
           <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
           <button class="btn btn-ghost btn-sm" data-deplacard="${esc(item.nom)}">Remettre dans la liste</button>
         </div>`).join('')}</div>` : ''}
-    </div>` : ''
+    </section>` : ''
 
-  const list = document.getElementById('coursesList')
-  if (list) {
-    if (!htmlActifs && !htmlAchetees && !htmlPlacard) {
-      list.innerHTML = '<p class="text-muted">Aucun repas planifié sur ce cycle.</p>'
-    } else {
-      list.innerHTML = htmlActifs + htmlAchetees + htmlPlacard
-    }
+  const enAttente = fileCourses().filter(f => f.cle === cle()).length
+  list.innerHTML = (enAttente ? `<p class="courses-attente" role="status">${icone('horsligne')}${enAttente} coche(s) en attente du réseau</p>` : '')
+    + ((htmlActifs || htmlAchetees || htmlPlacard) ? htmlActifs + htmlAchetees + htmlPlacard
+      : `<div class="etat-vide"><p>Aucun repas planifié sur ce cycle.</p><a class="btn btn-primary btn-sm" href="planning.html">${icone('calendrier')}Remplir le planning</a></div>`)
+  initSwipe()
+}
 
-    // Événements checkbox items actifs
-    list.querySelectorAll('input[type="checkbox"][data-checked="false"]').forEach(cb => {
-      cb.addEventListener('change', async () => {
-        try {
-          await toggleCourse(semaineKey, cb.dataset.nom, true)
-        } catch (e) {
-          alert('Erreur : ' + e.message)
-          cb.checked = false
-          return
-        }
-        await render()
-      })
-    })
-
-    // Événements checkbox items achetés (décocher = remettre en actif)
-    list.querySelectorAll('input[type="checkbox"][data-checked="true"]').forEach(cb => {
-      cb.addEventListener('change', async () => {
-        try {
-          await toggleCourse(semaineKey, cb.dataset.nom, false)
-        } catch (e) {
-          alert('Erreur : ' + e.message)
-          cb.checked = true
-          return
-        }
-        await render()
-      })
-    })
-
-    initSwipeCourses(semaineKey)
-
-    // Toggle section Achetées
-    const header = document.getElementById('coursesAcheteesHeader')
-    if (header) {
-      header.addEventListener('click', () => {
-        acheteesOuverte = !acheteesOuverte
-        const body   = document.getElementById('coursesAcheteesBody')
-        const toggle = document.getElementById('coursesAcheteesToggle')
-        body.classList.toggle('hidden', !acheteesOuverte)
-        toggle.textContent = acheteesOuverte ? '▲' : '▼'
-      })
-    }
+// ── Cocher : mise à jour immédiate à l'écran, envoi en arrière-plan ──
+async function basculerCoche(cleEtat, checked) {
+  const avant = etat[cleEtat]
+  etat[cleEtat] = checked
+  mesEcritures.set(cleEtat, { checked, t: Date.now() })
+  // Le focus passe à l'article suivant de la liste (la ligne cochée part dans « Déjà pris »)
+  const lignes = [...document.querySelectorAll('#coursesList input[type="checkbox"]')]
+  const index = lignes.findIndex(cb => cb.dataset.cleEtat === cleEtat)
+  const avaitFocus = document.activeElement?.dataset?.cleEtat === cleEtat
+  afficher()
+  if (avaitFocus) {
+    const apres = [...document.querySelectorAll('#coursesList input[type="checkbox"]')]
+    ;(apres[Math.min(index, apres.length - 1)] || document.getElementById('champArticle'))?.focus()
+  }
+  try {
+    const r = await toggleCourse(cle(), cleEtat, checked)
+    if (r === 'en_attente') afficher()
+  } catch (e) {
+    etat[cleEtat] = avant
+    afficher()
+    signalerErreur(e, 'Case non enregistrée')
   }
 }
 
-function initSwipeCourses(semaineKey) {
-  const THRESHOLD = 65
-
-  document.querySelectorAll('.courses-item').forEach(item => {
+// Glisser une ligne : à gauche = pris, à droite (dans « Déjà pris ») = à reprendre
+function initSwipe() {
+  const SEUIL = 65
+  document.querySelectorAll('#coursesList .courses-item').forEach(item => {
     const cb = item.querySelector('input[type="checkbox"]')
     if (!cb) return
-
-    // Injecter le fond visuel
     const bg = document.createElement('div')
     bg.className = 'courses-item-swipe-bg'
-    bg.innerHTML = icone(cb.dataset.checked === 'false' ? 'check' : 'annuler')
+    bg.innerHTML = icone(cb.checked ? 'annuler' : 'check')
     item.appendChild(bg)
-
-    let startX = 0, startY = 0, active = false, directionLocked = false, isHorizontal = false
-
+    let x0 = 0, y0 = 0, actif = false, verrouille = false, horizontal = false
     item.addEventListener('touchstart', e => {
-      startX = e.touches[0].clientX
-      startY = e.touches[0].clientY
-      active = true
-      directionLocked = false
-      isHorizontal = false
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY
+      actif = true; verrouille = false; horizontal = false
       item.style.transition = 'none'
     }, { passive: true })
-
     item.addEventListener('touchmove', e => {
-      if (!active) return
-      const dx = e.touches[0].clientX - startX
-      const dy = e.touches[0].clientY - startY
-
-      if (!directionLocked) {
+      if (!actif) return
+      const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0
+      if (!verrouille) {
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return
-        isHorizontal = Math.abs(dx) > Math.abs(dy)
-        directionLocked = true
+        horizontal = Math.abs(dx) > Math.abs(dy); verrouille = true
       }
-      if (!isHorizontal) return
-
-      const isActiveItem = cb.dataset.checked === 'false'
-      // Actif : swipe gauche seulement | Acheté : swipe droite seulement
-      if (isActiveItem && dx >= 0) return
-      if (!isActiveItem && dx <= 0) return
-
-      const clampedDx = isActiveItem
-        ? Math.max(dx * 0.65, -110)
-        : Math.min(dx * 0.65, 110)
-
-      item.style.transform = `translateX(${clampedDx}px)`
-      const progress = Math.min(1, Math.abs(clampedDx) / THRESHOLD)
-      bg.style.opacity = progress
+      if (!horizontal || (!cb.checked && dx >= 0) || (cb.checked && dx <= 0)) return
+      const d = cb.checked ? Math.min(dx * 0.65, 110) : Math.max(dx * 0.65, -110)
+      item.style.transform = `translateX(${d}px)`
+      bg.style.opacity = Math.min(1, Math.abs(d) / SEUIL)
     }, { passive: true })
-
-    item.addEventListener('touchend', async e => {
-      if (!active || !isHorizontal) { active = false; return }
-      active = false
-      const dx = e.changedTouches[0].clientX - startX
-      const isActiveItem = cb.dataset.checked === 'false'
-      const triggered = isActiveItem ? dx < -THRESHOLD : dx > THRESHOLD
-
-      item.style.transition = 'transform 0.22s ease, opacity 0.22s ease'
+    item.addEventListener('touchend', e => {
+      if (!actif || !horizontal) { actif = false; return }
+      actif = false
+      const dx = e.changedTouches[0].clientX - x0
+      const declenche = cb.checked ? dx > SEUIL : dx < -SEUIL
+      item.style.transition = 'transform 0.2s ease'
       bg.style.opacity = 0
-
-      if (triggered) {
-        const outX = isActiveItem ? '-110%' : '110%'
-        item.style.transform = `translateX(${outX})`
-        item.style.opacity = '0'
-        await new Promise(r => setTimeout(r, 220))
-        try {
-          await toggleCourse(semaineKey, cb.dataset.nom, isActiveItem)
-        } catch {}
-        await render()
-      } else {
-        item.style.transform = ''
-      }
+      item.style.transform = ''
+      if (declenche) basculerCoche(cb.dataset.cleEtat, !cb.checked)
     })
   })
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await render()
+// Partager la liste (drive, notes, message) ; sinon copiée dans le presse-papiers
+async function partager(seulement) {
+  if (!liste) return
+  const texte = `Courses · ${labelCycle(samedi)}\n\n${texteCourses(liste.parties, { coche, seulement })}`
+  try {
+    if (navigator.share) await navigator.share({ title: 'Liste de courses', text: texte })
+    else { await navigator.clipboard.writeText(texte); informer('Liste copiée : colle-la dans ton appli de drive ou tes notes.', { type: 'ok' }) }
+  } catch (e) {
+    if (e?.name === 'AbortError') return
+    try { await navigator.clipboard.writeText(texte); informer('Liste copiée.', { type: 'ok' }) } catch { signalerErreur(e, 'Partage') }
+  }
+}
 
-  // Actions sur les articles (délégation : la liste est redessinée à chaque changement)
-  document.getElementById('coursesList')?.addEventListener('click', async e => {
-    const b = e.target.closest('[data-supprimer], [data-placard], [data-deplacard], [data-ouvrir-placard]')
+document.addEventListener('DOMContentLoaded', async () => {
+  await envoyerFileCourses().catch(() => 0)
+  await charger()
+
+  const list = document.getElementById('coursesList')
+  list?.addEventListener('change', e => {
+    const cb = e.target.closest('input[type="checkbox"][data-cle-etat]')
+    if (cb) basculerCoche(cb.dataset.cleEtat, cb.checked)
+  })
+  list?.addEventListener('click', async e => {
+    const b = e.target.closest('[data-supprimer], [data-placard], [data-deplacard], [data-ouvrir-placard], [data-ouvrir-achetees]')
     if (!b) return
+    if (b.dataset.ouvrirAchetees !== undefined) { acheteesOuverte = !acheteesOuverte; afficher(); return list.querySelector('[data-ouvrir-achetees]')?.focus() }
+    if (b.dataset.ouvrirPlacard !== undefined) { placardOuvert = !placardOuvert; afficher(); return list.querySelector('[data-ouvrir-placard]')?.focus() }
     try {
       if (b.dataset.supprimer) await supprimerArticle(b.dataset.supprimer)
-      else if (b.dataset.placard) await basculerPlacard(b.dataset.placard, true)
+      else if (b.dataset.placard) {
+        await basculerPlacard(b.dataset.placard, true)
+        informer(`« ${b.dataset.placard} » ne sera plus dans la liste (rappel dans « Au placard »).`, {
+          action: { label: 'Annuler', faire: async () => { await basculerPlacard(b.dataset.placard, false); await charger() } } })
+      }
       else if (b.dataset.deplacard) await basculerPlacard(b.dataset.deplacard, false)
-      else placardOuvert = !placardOuvert
-    } catch (err) { alert('Erreur : ' + err.message) }
-    await render()
+    } catch (err) { signalerErreur(err, 'Courses') }
+    await charger()
   })
 
   // Ajouter un article à la main dans la partie choisie
@@ -263,18 +250,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noms = champ.value.split(',').map(n => n.trim()).filter(Boolean)
     if (!noms.length) return
     try {
-      for (const nom of noms) await ajouterArticle(cleCycle(samedi), nom, partieAjout)
+      for (const nom of noms) await ajouterArticle(cle(), nom, partieAjout)
       champ.value = ''
-    } catch (err) { alert('Erreur : ' + err.message) }
-    await render()
+    } catch (err) { signalerErreur(err, 'Ajout') }
+    await charger()
   })
 
-  // Bouton réinitialiser
+  // Réinitialiser les cases
   document.getElementById('btnResetCourses')?.addEventListener('click', async () => {
-    if (confirm('Réinitialiser les cases à cocher ?')) {
-      await resetCourses(cleCycle(samedi))
-      await render()
-    }
+    if (!await confirmer('Toutes les cases de ce cycle seront décochées.', { titre: 'Réinitialiser les courses ?', ok: 'Réinitialiser', danger: true })) return
+    try { await resetCourses(cle()); etat = {}; afficher() } catch (err) { signalerErreur(err, 'Réinitialisation') }
   })
 
   // Impression de la liste (mise en page dédiée dans components.css, @media print)
@@ -283,11 +268,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (el) el.textContent = `Cycle du ${labelCycle(samedi)}`
     window.print()
   })
+  document.getElementById('btnPartager')?.addEventListener('click', () => partager(null))
+  // Export .md : toute la liste du cycle, cases cochées comprises, articles « au placard » en fin
+  document.getElementById('btnExporterMd')?.addEventListener('click', () => {
+    if (!liste) return
+    const titre = `Courses · ${labelCycle(samedi)}`
+    exporterFichier(nomDeFichier(`courses ${dateIso(samedi)}`), markdownCourses(liste.parties, { titre, coche, auPlacard: liste.auPlacard }))
+  })
+  document.getElementById('btnPartagerDrive')?.addEventListener('click', () => partager('mercredi'))
 
   // Navigation entre cycles
-  document.getElementById('btnPrevCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, -1); render() })
-  document.getElementById('btnNextCycle')?.addEventListener('click', () => { samedi = decalerCycle(samedi, 1); render() })
+  const changerCycle = n => { samedi = decalerCycle(samedi, n); liste = null; etat = {}; charger() }
+  document.getElementById('btnPrevCycle')?.addEventListener('click', () => changerCycle(-1))
+  document.getElementById('btnNextCycle')?.addEventListener('click', () => changerCycle(1))
 
-  // Temps réel : cases cochées par l'autre, ou planning / recettes modifiés
-  dbEcouter(['courses_etat', 'courses_libres', 'planning', 'recettes', 'reglages'], debounce(render, 300))
+  // Retour du réseau : on envoie les coches en attente
+  window.addEventListener('online', async () => {
+    const n = await envoyerFileCourses().catch(() => 0)
+    if (n) informer(`${n} coche(s) envoyée(s).`, { type: 'ok' })
+    charger({ listeAussi: false })
+  })
+
+  // Temps réel : cases cochées par l'autre (nos propres coches sont ignorées), ou planning / recettes modifiés
+  const rechargerCases = debounce(() => charger({ listeAussi: false }), 300)
+  dbEcouter(['courses_etat'], payload => {
+    const ligne = payload.new || {}
+    const mienne = mesEcritures.get(ligne.ingredient_nom)
+    if (mienne && mienne.checked === ligne.checked && Date.now() - mienne.t < 10000) return
+    rechargerCases()
+  })
+  dbEcouter(['courses_libres', 'planning', 'recettes', 'reglages'], debounce(() => charger(), 400))
 })

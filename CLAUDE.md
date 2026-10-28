@@ -44,7 +44,8 @@ Toutes les recettes sauvegardées (générées par IA ou saisies manuellement).
 - Photos IA (`recettes.image_url`, stockage public `recettes-images`, écrit par l'Edge Function) et impression d'une fiche recette A4
 - Livres de recettes (ex. « Air fryer ») : une règle par livre guide la génération IA ; leurs recettes restent proposées dans le planning
 - Vue liste + modale détail + modale édition complète
-- Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients, étapes
+- Édition : nom, portions, temps prep/cuisson, valeurs nutritionnelles, ingrédients (quantité + nom), étapes ; « Nouvelle » et « Importer » (lien ou texte)
+- Détail : nombre de personnes réglable, ingrédients pondérés (cuisiner, imprimer, ou enregistrer pour ce nombre)
 
 ### 4. Planificateur (`planning.html`)
 Cycle samedi soir → samedi midi, groupé par session de cuisine (spec : docs/superpowers/specs/2026-10-24-planning-famille-batch-design.md).
@@ -61,8 +62,21 @@ Générée automatiquement depuis le planning de la semaine active.
 - Regroupés par catégorie de supermarché
 - Cases à cocher persistées en base (Supabase `courses_etat`)
 - Articles ajoutés à la main par partie (`courses_libres`) ; ingrédients « toujours au placard » (réglage `placard`) sortis de la liste, rappelés dans une section repliée
+- Export : partage texte (drive), impression, fichier `.md` (`markdownCourses`, cases `- [ ]` / `- [x]`)
 
-### 6. Dashboard (`index.html`)
+### 6. Vider le placard (`placard.html`) — mode indépendant
+Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac : « lait 1,5 L », « 2x thon », « épices : cumin, paprika »), partagé (`reglages.inventaire`, fusionné par article entre les deux téléphones, écritures en file), groupé par rayon.
+- Article non halal ou « n'aime pas » signalé et exclu (jauge, groupes IA) ; légumes « à cacher » de Ma femme autorisés
+- « À finir vite » (flamme) : servi en premier aux recettes existantes et à l'IA ; ces recettes sont « À cuisiner en premier » (`ordreConseille`)
+- Correspondance article ↔ ingrédient par mots, tête du nom obligatoire (« riz » ≠ « vinaigre de riz »), petite table de synonymes ; quantités comparées (« 300 g sur 1 kg » → partiellement utilisé)
+- « Trouver les recettes » : toutes les recettes existantes d'abord (celles qui utilisent le plus d'articles, halal et goûts respectés), puis l'IA pour les articles restants, répartis entre plusieurs recettes (≈ 3 par recette, 4 au plus, rayons variés), rangées dans le livre « Vider le placard »
+- **Jamais une recette fourre-tout** : nombre de recettes IA ≥ articles restants ÷ 4 (le − s'arrête là), prompt « plusieurs vrais plats », recette qui utilise trop d'articles du placard écartée à la réception (`recetteFourreTout`) ; au-delà de 15 recettes × 4 articles, le surplus attend un second passage
+- Groupes IA : une base par recette (féculent, protéine, légume, conserve), épices et condiments en compléments (2 au plus, hors limite de 4)
+- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Cuisiner » (mode cuisine), « Cuisiné » **par recette** (`apresCuisson` : retire ses articles ou décompte les quantités, recette notée dans `reglages.placard_cuisinees` et plus reproposée), « Autre recette » (bibliothèque puis IA), « Tout est cuisiné »
+- Export `.md` (`markdownPlacard`) : inventaire, recettes retenues (ingrédients pour N personnes, étapes), articles restants
+- **Indépendant** : les recettes du livre « Vider le placard » ne sont jamais proposées par le planning ni ⚡ Envie (`sansRecettesPlacard` dans `chargerDonnees`), rien n'est mis au planning, l'inventaire ne change pas la liste de courses
+
+### 7. Dashboard (`index.html`)
 Prochain repas (cuisiner / voir la recette / ⚡ si vide), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.
 
 ## Structure de fichiers
@@ -74,7 +88,9 @@ Repas/
 ├── recettes.html           # Bibliothèque de recettes
 ├── planning.html           # Planificateur hebdomadaire
 ├── courses.html            # Liste de courses
-├── manifest.json           # PWA manifest (icônes à compléter)
+├── placard.html            # Vider le placard (inventaire → recettes)
+├── manifest.json           # PWA manifest (icônes normales + maskable)
+├── sw.js                   # Service worker : hors-ligne (code + dernières données)
 ├── config.js               # Non versionné : SUPABASE_URL, SUPABASE_ANON_KEY (publiques)
 ├── supabase/
 │   ├── functions/ai/       # Edge Function : proxy Mammouth AI
@@ -102,6 +118,17 @@ Repas/
     ├── cuisine.js          # Plats d'une session et quantités ajustées (pur, testé)
     ├── mode-cuisine.js     # Mode cuisine plein écran
     ├── avis.js             # Plats à noter après le repas (pur, testé)
+    ├── dialogue.js         # Confirmations, nombres, messages (remplace alert/confirm/prompt)
+    ├── modales.js          # Accessibilité de toutes les modales (dialogue, focus, Échap, Tab)
+    ├── hors-ligne.js       # Service worker + bandeau hors connexion
+    ├── minuteurs.js        # Minuteurs du mode cuisine
+    ├── controle-ia.js      # Contrôle des recettes IA : halal, goûts, légumes cachés (pur, testé)
+    ├── import-pur.js       # Import de recette : JSON-LD, texte collé (pur, testé)
+    ├── import-recette.js   # Fenêtre « Importer une recette »
+    ├── placard.js          # Vider le placard : inventaire, couverture, choix des recettes (pur, testé)
+    ├── placard-ui.js       # Page « Vider le placard »
+    ├── fichier.js          # Export de fichier (.md) : partage iPhone ou téléchargement
+    ├── vendor/             # supabase-js épinglé (copie locale)
     └── data/
         └── ingredients.js  # Base de données statique des ingrédients (150+)
 ```
@@ -148,7 +175,11 @@ repas_theme   // "light" | "dark" — seule donnée encore en localStorage
 - Nommage : camelCase JS, kebab-case CSS et fichiers HTML
 - Commentaires en français
 - `config.js` (non versionné) ne contient que des valeurs publiques ; les secrets vont dans Supabase
-- Tests : `node --test tests/*.test.mjs` (fonctions pures de `js/utils.js`)
+- Tests : `node --test tests/*.test.mjs` (fonctions pures) et `node tests/e2e/parcours.mjs` (parcours dans Chromium, Supabase simulé)
+- Jamais d'`alert` / `confirm` / `prompt` : `js/dialogue.js` (`confirmer`, `choisirNombre`, `informer`, `signalerErreur`)
+- Nouveau fichier JS ou page : l'ajouter à `COQUILLE` dans `sw.js` (tests/sw.test.mjs le vérifie) et changer `VERSION`
+- Après une écriture, mettre à jour l'état local plutôt que tout recharger ; ignorer l'écho temps réel de ses propres écritures
+- Déploiement Supabase : fonction `ai` d'abord, puis les migrations (20261028b rend `ia_usage` en lecture seule)
 
 ## Prompt IA (règles de base)
 Chaque appel IA inclut toujours :

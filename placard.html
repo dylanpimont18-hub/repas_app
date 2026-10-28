@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#3d2b1f">
+  <meta name="apple-mobile-web-app-title" content="Repas">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="icons/demarrage-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="manifest" href="manifest.json">
+  <title>Repas — Vider le placard</title>
+  <script>/* Thème posé avant l'affichage (pas de flash clair en mode sombre) */try{var t=JSON.parse(localStorage.getItem('repas_theme'));if(!t&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-marmite"/></svg><span>Repas</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="planning.html">Planning</a>
+      <a href="recettes.html">Recettes</a>
+      <a href="preferences.html">Préférences</a>
+      <a href="courses.html">Courses</a>
+      <a href="placard.html" class="active">Placard</a>
+      <a href="reglages.html">Réglages</a>
+    </div>
+    <span class="nav-spacer"></span>
+    <button class="nav-flash" id="btnFlash" aria-label="Envie du moment"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-eclair"/></svg><span class="nav-flash-label">Envie</span></button>
+    <button class="nav-theme" id="btnTheme" title="Changer le thème" aria-label="Changer le thème"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lune"/></svg></button>
+    <button class="nav-theme" id="btnLogout" title="Se déconnecter" aria-label="Se déconnecter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-sortie"/></svg></button>
+  </nav>
+
+  <div class="modal-overlay hidden" id="modalFlash">
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-croix"/></svg></button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <main class="main">
+    <h1 class="page-title">Vider le placard</h1>
+    <p class="page-subtitle">Note ce que tu as à la maison, puis l'appli trouve les recettes qui l'utilisent : tes recettes existantes d'abord, l'IA pour le reste. Indépendant du planning et des courses.</p>
+
+    <section class="card placard-bloc" aria-labelledby="titreInventaire">
+      <div class="placard-tete">
+        <h2 class="section-title" id="titreInventaire">Mon placard <span class="placard-compte" id="placardCompte"></span></h2>
+        <button class="btn btn-ghost btn-sm" id="btnExporterPlacard" aria-label="Exporter le placard et les recettes retenues en fichier .md"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-importer"/></svg>Exporter .md</button>
+        <button class="btn btn-ghost btn-sm hidden" id="btnViderInventaire"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-poubelle"/></svg>Tout effacer</button>
+      </div>
+      <form id="formPlacard" autocomplete="off">
+        <label class="form-label" for="champPlacard">Ajouter (une ligne ou une virgule par article, quantité si tu l'as)</label>
+        <p class="text-xs text-muted placard-aide">Touche la flamme d'un article pour le marquer « à finir vite » : il passe en premier dans les recettes.</p>
+        <textarea id="champPlacard" class="form-input" rows="3" placeholder="2 boîtes de pois chiches&#10;riz basmati 500 g&#10;lentilles corail, thon x3, farine"></textarea>
+        <button type="submit" class="btn btn-primary btn-sm placard-ajouter"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg>Ajouter au placard</button>
+      </form>
+      <ul class="placard-liste" id="placardListe" aria-label="Articles du placard"></ul>
+    </section>
+
+    <section class="card placard-bloc" aria-labelledby="titreGenerer">
+      <h2 class="section-title" id="titreGenerer">Recettes pour tout utiliser</h2>
+      <div class="placard-options">
+        <label class="form-label">Personnes
+          <select id="placardPortions" class="form-input"><option>2</option><option selected>4</option><option>6</option></select>
+        </label>
+        <div>
+          <span class="form-label">Recettes avec l'IA</span>
+          <div class="pas-a-pas" role="group" aria-label="Nombre de recettes écrites par l'IA">
+            <button type="button" data-nb="-1" aria-label="Une recette de moins"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-moins"/></svg></button>
+            <output id="placardNbIA" aria-live="polite">0</output>
+            <button type="button" data-nb="1" aria-label="Une recette de plus"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div id="placardFiltres" class="gen-chips-wrap" role="group" aria-label="Contraintes"></div>
+      <input id="placardIdee" class="form-input" type="text" placeholder="Idée ou précision : plats du soir, rien de sucré…" aria-label="Idée ou précision">
+      <p class="text-sm" id="placardPlan" role="status" aria-live="polite"></p>
+      <div id="placardEstimation"></div>
+      <div class="placard-actions">
+        <button class="btn btn-primary" id="btnPlacardIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Trouver les recettes</button>
+        <button class="btn btn-secondary" id="btnPlacardBiblio"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Seulement mes recettes</button>
+      </div>
+      <p class="text-xs text-muted">« Trouver les recettes » regarde d'abord tes recettes existantes, puis l'IA écrit le nombre de recettes indiqué pour ce qui reste.</p>
+    </section>
+
+    <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
+
+    <section class="placard-bloc hidden" id="placardResultats" aria-labelledby="titreResultats">
+      <div class="placard-tete">
+        <h2 class="section-title" id="titreResultats">Recettes retenues</h2>
+        <span class="text-sm text-muted" id="placardCouverture"></span>
+      </div>
+      <div class="placard-barre" role="meter" aria-label="Part du placard utilisée" aria-valuemin="0" aria-valuemax="100" id="placardJauge"><div class="placard-barre-rempli"></div></div>
+      <div id="placardRecettes" class="placard-recettes"></div>
+      <div id="placardRestants"></div>
+      <div class="placard-actions">
+        <button class="btn btn-secondary btn-sm" id="btnPlacardUtilises"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>Tout est cuisiné</button>
+        <button class="btn btn-ghost btn-sm" id="btnPlacardOublier">Effacer la sélection</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/placard-ui.js"></script>
+</body>
+</html>

@@ -6,7 +6,9 @@ import { expliquerErreur, coutImage, formatDollars } from './credit-ia.js'
 import { photosAutoActives, ERREURS_BLOQUANTES } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { esc } from './utils.js'
+import { NOM_LIVRE_PLACARD } from './placard.js'
 import { icone } from './icones.js'
+import { confirmer, signalerErreur } from './dialogue.js'
 
 const NB_MAX = 20
 
@@ -40,6 +42,7 @@ export function renderLivres(recettes) {
   document.getElementById('livreEntete').innerHTML = livre ? `<section class="card livre-entete">
       <div class="livre-entete-titre">${icone('livre')}<h2>${esc(livre.nom)}</h2></div>
       ${livre.consigne ? `<p class="text-sm text-muted">${esc(livre.consigne)}</p>` : ''}
+      ${livre.nom === NOM_LIVRE_PLACARD ? `<p class="text-sm">${icone('info')}Recettes de « Vider le placard » : elles ne sont pas proposées dans le planning. <a href="placard.html">Ouvrir le placard</a></p>` : ''}
       <div class="livre-entete-actions">
         <button class="btn btn-accent btn-sm" data-gen-livre ${iaEnCours ? 'disabled' : ''}>${icone('etincelle')}${iaEnCours ? 'Génération en cours…' : 'Générer des recettes'}</button>
         ${sansPhoto.length ? `<button class="btn btn-ghost btn-sm" data-photos-livre ${iaEnCours ? 'disabled' : ''}
@@ -72,13 +75,13 @@ async function enregistrerLivre(e) {
     document.getElementById('modalLivre').classList.add('hidden')
     await chargerLivres()
     await onChange()
-  } catch (err) { alert(`Erreur : ${err.message}`) }
+  } catch (err) { signalerErreur(err, 'Livre') }
 }
 
 async function supprimerLivre() {
   const livre = livres.find(l => l.id === livreActif)
-  if (!livre || !confirm(`Supprimer le livre « ${livre.nom} » ? Ses recettes restent dans la bibliothèque.`)) return
-  await dbDeleteLivre(livre.id)
+  if (!livre || !await confirmer('Ses recettes restent dans la bibliothèque.', { titre: `Supprimer le livre « ${livre.nom} » ?`, ok: 'Supprimer', danger: true })) return
+  try { await dbDeleteLivre(livre.id) } catch (e) { return signalerErreur(e, 'Livre') }
   livreActif = null
   await chargerLivres()
   await onChange()

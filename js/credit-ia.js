@@ -133,6 +133,11 @@ const ERREURS = {
     explication: 'Mammouth ne reconnaît pas la clé API (révoquée ou mal copiée).',
     conseil: 'Crée une nouvelle clé sur mammouth.ai et remplace le secret MAMMOUTH_API_KEY.',
   },
+  BUDGET_ATTEINT: {
+    titre: 'Budget IA du mois atteint',
+    explication: 'Le budget fixé dans Réglages → Crédit IA est utilisé : l\'appli n\'envoie plus de demandes à l\'IA ce mois-ci.',
+    conseil: 'Augmente le budget ou recale le crédit dans Réglages si Mammouth en a encore. « Mes recettes » marche sans IA.',
+  },
   CREDIT_EPUISE: {
     titre: 'Crédit IA épuisé',
     explication: 'Le crédit API Mammouth de ce mois est entièrement utilisé.',
@@ -204,6 +209,7 @@ export function codeErreurHttp(status, corps = {}) {
   if (corps.error === 'MAMMOUTH_INJOIGNABLE') return 'MAMMOUTH_INJOIGNABLE'
   if (corps.error === 'IMAGE_VIDE') return 'IMAGE_VIDE'
   if (corps.error === 'STOCKAGE') return 'STOCKAGE'
+  if (corps.error === 'BUDGET_ATTEINT') return 'BUDGET_ATTEINT'
   if (corps.error === 'ERREUR_IA') {
     if (status === 402 || MOTS_CREDIT.test(detail)) return 'CREDIT_EPUISE'
     if (status === 401 || status === 403) return 'CLE_INVALIDE'

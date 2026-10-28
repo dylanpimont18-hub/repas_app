@@ -1,7 +1,9 @@
 // js/app.js
 import { load, save, KEYS } from './storage.js'
-import { dbGetSession, dbSignOut } from './db.js'
+import { dbGetSession, dbSignOut, dbGetMonProfil } from './db.js'
 import { icone, injecterSprite } from './icones.js'
+import { initModales } from './modales.js'
+import { initHorsLigne } from './hors-ligne.js'
 
 injecterSprite()
 
@@ -11,8 +13,9 @@ function applyTheme(theme) {
   if (btn) btn.innerHTML = icone(theme === 'dark' ? 'soleil' : 'lune')
 }
 
+// Thème déjà posé dans <head> (pas de flash) ; sans choix enregistré, on suit le réglage du téléphone
 function initTheme() {
-  applyTheme(load(KEYS.theme, 'light'))
+  applyTheme(load(KEYS.theme, null) || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
   document.getElementById('btnTheme')?.addEventListener('click', () => {
     const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
     save(KEYS.theme, next)
@@ -57,7 +60,6 @@ function initModalFlash() {
   })
   closeBtn?.addEventListener('click', () => overlay.classList.add('hidden'))
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden') })
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.add('hidden') })
 }
 
 // Bouton ⚙️ Réglages dans la barre du haut (le menu texte est masqué sur mobile)
@@ -77,6 +79,9 @@ function injectBoutonReglages() {
 function initLogout() {
   document.getElementById('btnLogout')?.addEventListener('click', async () => {
     await dbSignOut()
+    // Les données gardées pour le hors-ligne ne restent pas sur l'appareil après déconnexion
+    try { await caches?.delete('repas-donnees') } catch { /* pas de cache */ }
+    try { Object.keys(localStorage).filter(k => k.startsWith('repas_profil_') || k === 'repas_file_courses').forEach(k => localStorage.removeItem(k)) } catch { /* navigation privée */ }
     window.location.href = 'login.html'
   })
 }
@@ -102,12 +107,13 @@ function injectBottomNav() {
   document.body.appendChild(nav)
 }
 
+// Badge : ingrédients que la personne connectée n'a pas encore notés (pas ceux de l'autre profil)
 async function initPrefsBadge() {
-  // Cible tous les liens vers preferences.html (top nav + bottom nav)
   try {
+    const profil = await dbGetMonProfil()
+    if (!profil) return
     const { getTotalANoter } = await import('./preferences.js')
-    const [nd, nf] = await Promise.all([getTotalANoter('dylan'), getTotalANoter('femme')])
-    const total = nd + nf
+    const total = await getTotalANoter(profil)
     if (total > 0) {
       document.querySelectorAll('a[href="preferences.html"]').forEach(link => {
         const badge = document.createElement('span')
@@ -117,7 +123,7 @@ async function initPrefsBadge() {
         link.appendChild(badge)
       })
     }
-  } catch { /* silently ignore */ }
+  } catch (e) { console.warn('Badge préférences', e) }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -126,6 +132,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!session) { window.location.href = 'login.html'; return }
 
   initTheme()
+  initModales()
+  initHorsLigne()
   initBurger()
   highlightActiveLink()
   initModalFlash()
@@ -133,4 +141,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   injectBoutonReglages()
   injectBottomNav()
   initPrefsBadge()
+  // Minuteurs de cuisine encore en cours (lancés depuis une autre page)
+  try { if (JSON.parse(localStorage.getItem('repas_minuteurs') || '[]').length) import('./minuteurs.js').then(m => m.afficherMinuteurs()) } catch { /* rien */ }
 })

@@ -6,6 +6,7 @@ import { expliquerErreur, coutImage, formatDollars } from './credit-ia.js'
 import { photosAutoActives, ERREURS_BLOQUANTES } from './photos-auto.js'
 import { chargerCredit, htmlEstimation, htmlErreurIA, majBandeau } from './credit-ia-ui.js'
 import { esc } from './utils.js'
+import { NOM_LIVRE_PLACARD } from './placard.js'
 import { icone } from './icones.js'
 import { confirmer, signalerErreur } from './dialogue.js'
 
@@ -41,6 +42,7 @@ export function renderLivres(recettes) {
   document.getElementById('livreEntete').innerHTML = livre ? `<section class="card livre-entete">
       <div class="livre-entete-titre">${icone('livre')}<h2>${esc(livre.nom)}</h2></div>
       ${livre.consigne ? `<p class="text-sm text-muted">${esc(livre.consigne)}</p>` : ''}
+      ${livre.nom === NOM_LIVRE_PLACARD ? `<p class="text-sm">${icone('info')}Recettes de « Vider le placard » : elles ne sont pas proposées dans le planning. <a href="placard.html">Ouvrir le placard</a></p>` : ''}
       <div class="livre-entete-actions">
         <button class="btn btn-accent btn-sm" data-gen-livre ${iaEnCours ? 'disabled' : ''}>${icone('etincelle')}${iaEnCours ? 'Génération en cours…' : 'Générer des recettes'}</button>
         ${sansPhoto.length ? `<button class="btn btn-ghost btn-sm" data-photos-livre ${iaEnCours ? 'disabled' : ''}

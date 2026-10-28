@@ -63,12 +63,11 @@ Générée automatiquement depuis le planning de la semaine active.
 - Cases à cocher persistées en base (Supabase `courses_etat`)
 - Articles ajoutés à la main par partie (`courses_libres`) ; ingrédients « toujours au placard » (réglage `placard`) sortis de la liste, rappelés dans une section repliée
 
-### 6. Vider le placard (`placard.html`)
+### 6. Vider le placard (`placard.html`) — mode indépendant
 Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac), partagé (`reglages.inventaire`).
-- Bibliothèque d'abord : recettes enregistrées qui utilisent le plus d'articles (choix glouton, halal et goûts respectés)
-- L'IA écrit des recettes pour les articles restants, répartis entre elles (≈ 3 articles par recette, rayons variés), rangées dans le livre « Vider le placard »
-- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Mettre au planning » (repas libres à venir), « C'est cuisiné : retirer du placard »
-- Les articles de l'inventaire sortent de la liste de courses (rappelés « à la maison : … »)
+- « Trouver les recettes » : toutes les recettes existantes d'abord (celles qui utilisent le plus d'articles, halal et goûts respectés), puis l'IA pour les articles restants, répartis entre ses recettes (≈ 3 par recette, rayons variés), rangées dans le livre « Vider le placard »
+- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Cuisiner » (mode cuisine), « C'est cuisiné : retirer du placard »
+- **Indépendant** : les recettes du livre « Vider le placard » ne sont jamais proposées par le planning ni ⚡ Envie (`sansRecettesPlacard` dans `chargerDonnees`), rien n'est mis au planning, l'inventaire ne change pas la liste de courses
 
 ### 7. Dashboard (`index.html`)
 Prochain repas (cuisiner / voir la recette / ⚡ si vide), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.

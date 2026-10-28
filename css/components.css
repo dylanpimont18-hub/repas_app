@@ -1308,6 +1308,5 @@ button.recipe-card .recipe-name, button.recipe-card .recipe-meta { display: flex
 .placard-recette h3 a { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-border); text-underline-offset: 3px; display: inline-block; min-height: 32px; }
 .placard-recette p { display: flex; gap: 0.35rem; align-items: baseline; }
 .placard-restants { margin-top: 0.75rem; display: flex; gap: 0.35rem; align-items: baseline; color: var(--color-info); }
-.courses-stock { display: block; }
 .dash-lien-placard { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; color: var(--color-text); }
 .dash-lien-placard > .ic { width: 28px; height: 28px; color: var(--color-primary); flex-shrink: 0; }

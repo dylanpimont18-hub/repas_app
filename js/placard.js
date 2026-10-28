@@ -5,6 +5,15 @@ import { lireLigneIngredient, cleIngredient, categoriser } from './utils.js'
 import { motsDe, evaluer } from './selection.js'
 
 const FAMILLE = { profils: ['dylan', 'femme'], portions: 4 }
+
+// Les recettes écrites pour vider le placard vivent dans ce livre : le reste de l'appli (planning, ⚡ Envie) les ignore
+export const NOM_LIVRE_PLACARD = 'Vider le placard'
+
+/** Recettes sans celles du livre « Vider le placard » (pour les propositions du planning) */
+export function sansRecettesPlacard(recettes, livres = []) {
+  const ids = new Set(livres.filter(l => l.nom === NOM_LIVRE_PLACARD).map(l => l.id))
+  return ids.size ? recettes.filter(r => !ids.has(r.livre_id)) : recettes
+}
 // Mots qui ne disent pas quel ingrédient c'est (« boîte de pois chiches » → pois chiches)
 const MOTS_NEUTRES = new Set(['boite', 'conserve', 'paquet', 'sachet', 'pot', 'bocal', 'brique', 'bouteille', 'tube', 'fine',
   'moyen', 'gros', 'petit', 'entier', 'surgele', 'frais', 'sec', 'seche', 'bio', 'nature', 'reste', 'demi', 'cuit', 'cru'])
@@ -134,26 +143,3 @@ export function repartirArticles(items, nb) {
 /** « 2 boîtes de pois chiches » pour le prompt et l'affichage */
 export const libelleArticle = i => (i.quantite ? `${i.nom} (${i.quantite})` : i.nom)
 
-/**
- * Liste de courses : les articles déjà dans le placard en sortent (rappelés avec la quantité à la maison).
- * Les articles ajoutés à la main restent dans la liste.
- * @returns { parties, aLaMaison: [{ ...item, stock }] }
- */
-export function retirerCeQuiEstALaMaison(parties, inventaire = []) {
-  if (!inventaire.length) return { parties, aLaMaison: [] }
-  const res = {}, aLaMaison = []
-  for (const [partie, rayons] of Object.entries(parties)) {
-    res[partie] = {}
-    for (const [rayon, items] of Object.entries(rayons)) {
-      const gardes = items.filter(item => {
-        if (item.libreId) return true
-        const stock = inventaire.find(i => utilise({ ingredients: [{ nom: item.nom }] }, i))
-        if (!stock) return true
-        aLaMaison.push({ ...item, stock: libelleArticle(stock) })
-        return false
-      })
-      if (gardes.length) res[partie][rayon] = gardes
-    }
-  }
-  return { parties: res, aLaMaison }
-}

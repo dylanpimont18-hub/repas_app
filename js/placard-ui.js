@@ -1,11 +1,12 @@
-// js/placard-ui.js — Page « Vider le placard » : inventaire partagé, recettes qui l'utilisent, mise au planning
+// js/placard-ui.js — Page « Vider le placard » : inventaire partagé, recettes qui l'utilisent (mode indépendant :
+// ni le planning ni les courses n'en dépendent ; ses recettes ne sont pas proposées ailleurs)
 // Inventaire : réglage partagé `inventaire` [{ id, nom, quantite }] ; recettes retenues : réglage `placard_selection`
 import { dbGetReglage, dbSetReglage, dbEcouter, dbGetLivres, dbUpsertLivre, dbUpsertRecettes } from './db.js'
-import { chargerDonnees, remplirDepuisBibliotheque, annulerRemplissage } from './propositions.js'
-import { lireInventaire, fusionnerInventaire, couverture, choisirDansBibliotheque, nbRecettesConseille,
+import { chargerDonnees } from './propositions.js'
+import { NOM_LIVRE_PLACARD, lireInventaire, fusionnerInventaire, couverture, choisirDansBibliotheque, nbRecettesConseille,
          repartirArticles, libelleArticle, utilise } from './placard.js'
 import { FILTRES, estEnvie } from './filtres.js'
-import { debutCycle, decalerCycle } from './cycle.js'
+import { debutCycle } from './cycle.js'
 import { esc, debounce, cleIngredient } from './utils.js'
 import { icone } from './icones.js'
 import { confirmer, informer, signalerErreur } from './dialogue.js'
@@ -15,7 +16,6 @@ import { apresCreation } from './photos-auto.js'
 
 const CLE_INVENTAIRE = 'inventaire'
 const CLE_SELECTION = 'placard_selection'
-const NOM_LIVRE = 'Vider le placard'
 
 let inventaire = []      // [{ id, nom, quantite }]
 let selection = []       // ids des recettes retenues
@@ -26,6 +26,7 @@ let iaEnCours = false
 let credit = null
 const mesEcritures = { inventaire: 0, selection: 0 }   // écho temps réel de nos écritures, ignoré
 
+const portionsChoisies = () => Number(document.getElementById('placardPortions')?.value) || 4
 const recettesRetenues = () => selection.map(id => donnees?.recettesMap[id]).filter(Boolean)
 const filtresChoisis = () => [...document.querySelectorAll('#placardFiltres .chip.active')].map(c => c.dataset.filtre)
 
@@ -67,9 +68,10 @@ function afficherPlan() {
   const plan = document.getElementById('placardPlan')
   if (!inventaire.length) plan.textContent = ''
   else if (!restants.length) plan.innerHTML = `${icone('check')}Tous les articles du placard sont utilisés par les recettes retenues.`
-  else plan.textContent = `${restants.length} article(s) pas encore utilisé(s)` + (nbIA ? ` : l'IA écrira ${nbIA} recette(s) qui se les partagent.` : '.')
+  else plan.textContent = `${restants.length} article(s) pas encore utilisé(s) : tes recettes existantes d'abord`
+    + (nbIA ? `, puis l'IA en écrira jusqu'à ${nbIA} pour le reste.` : ' (aucune recette demandée à l\'IA).')
   document.getElementById('placardEstimation').innerHTML = credit && nbIA && restants.length ? htmlEstimation(nbIA, credit) : ''
-  document.getElementById('btnPlacardIA').disabled = iaEnCours || !restants.length || !nbIA
+  document.getElementById('btnPlacardIA').disabled = iaEnCours || !restants.length
   document.getElementById('btnPlacardBiblio').disabled = !inventaire.length || !restants.length
 }
 
@@ -96,15 +98,16 @@ function afficherResultats() {
     const achats = aAcheter(r)
     return `<article class="card placard-recette">
       <div class="placard-recette-tete">
-        <h3><a href="recettes.html?id=${encodeURIComponent(r.id)}">${esc(r.nom)}</a></h3>
+        <h3><a href="recettes.html?id=${encodeURIComponent(r.id)}&portions=${portionsChoisies()}">${esc(r.nom)}</a></h3>
         <button class="courses-item-action" data-oublier="${esc(r.id)}" aria-label="Retirer « ${esc(r.nom)} » de la sélection">${icone('croix')}</button>
       </div>
       <p class="text-sm">${icone('boite')}Utilise : <b>${esc((parRecette[r.id] || []).map(nomArticle).filter(Boolean).join(', ') || '—')}</b></p>
       ${achats.length ? `<p class="text-xs text-muted">À acheter : ${esc(achats.join(', '))}</p>` : '<p class="text-xs text-muted">Rien à acheter.</p>'}
+      <button class="btn btn-secondary btn-sm placard-cuisiner" data-cuisiner="${esc(r.id)}">${icone('marmite')}Cuisiner pour ${portionsChoisies()}</button>
     </article>`
   }).join('')
   document.getElementById('placardRestants').innerHTML = restants.length
-    ? `<p class="text-sm placard-restants">${icone('info')}Pas encore utilisés : ${esc(restants.map(i => i.nom).join(', '))}. « Compléter avec l'IA » écrit des recettes pour eux.</p>`
+    ? `<p class="text-sm placard-restants">${icone('info')}Pas encore utilisés : ${esc(restants.map(i => i.nom).join(', '))}. « Trouver les recettes » en fera écrire par l'IA.</p>`
     : ''
 }
 
@@ -114,30 +117,46 @@ function afficher() {
   afficherResultats()
 }
 
-// ── Bibliothèque d'abord ──
-function chercherDansBibliotheque() {
+// ── Bibliothèque d'abord : toutes les recettes existantes (y compris celles déjà écrites pour le placard) ──
+// Renvoie le nombre de recettes ajoutées à la sélection
+async function chercherDansBibliotheque({ silencieux = false } = {}) {
   const { restants } = couverture(inventaire, recettesRetenues())
   const candidates = donnees.recettes.filter(r => !selection.includes(r.id))
   const choix = choisirDansBibliotheque(restants, candidates, { indexPrefs: donnees.indexPrefs, filtres: filtresChoisis() })
-  if (!choix.length) return informer('Aucune de tes recettes n\'utilise au moins 2 de ces articles : « Compléter avec l\'IA » en écrira.')
+  if (!choix.length) {
+    if (!silencieux) informer('Aucune de tes recettes n\'utilise au moins 2 de ces articles : « Trouver les recettes » en fera écrire par l\'IA.')
+    return 0
+  }
   const nb = new Set(choix.flatMap(c => c.articles)).size
-  sauverSelection([...selection, ...choix.map(c => c.recette.id)])
-  informer(`${choix.length} recette(s) de ta bibliothèque utilisent ${nb} article(s) du placard.`, { type: 'ok' })
+  nbIAChoisi = false
+  await sauverSelection([...selection, ...choix.map(c => c.recette.id)])
+  informer(`${choix.length} recette(s) déjà enregistrée(s) utilisent ${nb} article(s) du placard.`, { type: 'ok' })
+  return choix.length
+}
+
+// « Trouver les recettes » : recettes existantes d'abord, puis l'IA seulement pour ce qui reste
+async function trouverRecettes() {
+  if (iaEnCours) return
+  await chercherDansBibliotheque({ silencieux: true })
+  const { restants } = couverture(inventaire, recettesRetenues())
+  if (!restants.length) return informer('Tes recettes existantes suffisent : tout le placard est utilisé.', { type: 'ok' })
+  if (!nbIA) return informer(`${restants.length} article(s) restent : augmente le nombre de recettes IA pour les utiliser.`)
+  await completerParIA()
 }
 
 // ── IA pour les articles restants ──
 async function livrePlacard() {
   const livres = await dbGetLivres().catch(() => [])
-  const existant = livres.find(l => l.nom === NOM_LIVRE)
+  const existant = livres.find(l => l.nom === NOM_LIVRE_PLACARD)
   if (existant) return existant.id
-  return dbUpsertLivre({ nom: NOM_LIVRE, consigne: 'Recettes anti-gaspi construites autour de ce qu\'il y a dans le placard.' })
+  return dbUpsertLivre({ nom: NOM_LIVRE_PLACARD, consigne: 'Recettes anti-gaspi construites autour de ce qu\'il y a dans le placard.' })
 }
 
 async function completerParIA() {
   const { restants } = couverture(inventaire, recettesRetenues())
   if (!restants.length || !nbIA || iaEnCours) return
   const groupes = repartirArticles(restants, nbIA)
-  const portions = Number(document.getElementById('placardPortions').value) || 4
+  const portions = portionsChoisies()
   const bandeau = etat => majBandeau(document.getElementById('bandeauIA'), etat)
   iaEnCours = true
   afficherPlan()
@@ -171,40 +190,6 @@ async function completerParIA() {
   }
 }
 
-// ── Mettre les recettes retenues au planning (repas libres à venir, cycle en cours puis suivants) ──
-async function mettreAuPlanning() {
-  const retenues = recettesRetenues()
-  if (!retenues.length) return
-  const bouton = document.getElementById('btnPlacardPlanning')
-  bouton.disabled = true
-  const annulations = []   // [{ d, resultat }]
-  let places = 0
-  try {
-    let restantes = [...retenues]
-    for (let k = 0; k < 3 && restantes.length; k++) {
-      const d = await chargerDonnees(decalerCycle(debutCycle(), k))
-      const maintenant = Date.now()
-      const libres = d.creneaux.filter(c => !d.occupation[c.cle] && !d.absents[c.cle]
-        && c.date.getTime() + (c.moment === 'soir' ? 20 : 13) * 3600000 > maintenant)
-      if (!libres.length) continue
-      const resultat = await remplirDepuisBibliotheque({ ...d, recettes: restantes, reserve: [] }, libres.map(c => c.cle), { filtres: filtresChoisis() })
-      annulations.push({ d, resultat })
-      const utilisees = new Set(resultat.propositions.map(p => p.recette.id))
-      places += utilisees.size
-      restantes = restantes.filter(r => !utilisees.has(r.id))
-    }
-    if (!places) return informer('Aucun repas libre à venir (ou recettes qui ne se conservent pas assez pour les sessions). Libère des repas dans le planning.')
-    informer(`${places} recette(s) du placard au planning` + (restantes.length ? ` · ${restantes.length} sans place` : '') + '.', {
-      type: 'ok', duree: 10000,
-      action: { label: 'Annuler', faire: async () => {
-        try { for (const a of annulations) await annulerRemplissage(a.d, a.resultat); informer('Planning remis comme avant.') }
-        catch (e) { signalerErreur(e, 'Annulation') }
-      } },
-    })
-  } catch (e) { signalerErreur(e, 'Planning') }
-  finally { bouton.disabled = false }
-}
-
 // Retire du placard les articles utilisés par les recettes retenues (une fois cuisinées)
 async function retirerUtilises() {
   const { utilises } = couverture(inventaire, recettesRetenues())
@@ -218,7 +203,7 @@ async function retirerUtilises() {
 // ── Initialisation ──
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const [inv, sel, d] = await Promise.all([dbGetReglage(CLE_INVENTAIRE), dbGetReglage(CLE_SELECTION), chargerDonnees(debutCycle())])
+    const [inv, sel, d] = await Promise.all([dbGetReglage(CLE_INVENTAIRE), dbGetReglage(CLE_SELECTION), chargerDonnees(debutCycle(), { avecPlacard: true })])
     inventaire = Array.isArray(inv) ? inv : []
     donnees = d
     selection = (Array.isArray(sel) ? sel : []).filter(id => d.recettesMap[id])
@@ -274,16 +259,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     chip.classList.toggle('active')
     chip.setAttribute('aria-pressed', chip.classList.contains('active'))
   })
-  document.getElementById('btnPlacardBiblio').addEventListener('click', chercherDansBibliotheque)
-  document.getElementById('btnPlacardIA').addEventListener('click', completerParIA)
-  document.getElementById('btnPlacardPlanning').addEventListener('click', mettreAuPlanning)
+  document.getElementById('btnPlacardBiblio').addEventListener('click', () => chercherDansBibliotheque())
+  document.getElementById('btnPlacardIA').addEventListener('click', trouverRecettes)
   document.getElementById('btnPlacardUtilises')?.addEventListener('click', retirerUtilises)
   document.getElementById('btnPlacardOublier').addEventListener('click', async () => {
     const avant = selection
     await sauverSelection([])
     informer('Sélection effacée (les recettes restent dans la bibliothèque).', { action: { label: 'Annuler', faire: () => sauverSelection(avant) } })
   })
-  document.getElementById('placardRecettes').addEventListener('click', e => {
+  document.getElementById('placardPortions').addEventListener('change', afficherResultats)
+  document.getElementById('placardRecettes').addEventListener('click', async e => {
+    const cuisiner = e.target.closest('[data-cuisiner]')
+    if (cuisiner) {
+      const r = donnees.recettesMap[cuisiner.dataset.cuisiner]
+      const { ouvrirModeCuisine } = await import('./mode-cuisine.js')
+      return ouvrirModeCuisine([{ recette: r, portions: portionsChoisies() }], r.nom)
+    }
     const b = e.target.closest('[data-oublier]'); if (!b) return
     nbIAChoisi = false
     sauverSelection(selection.filter(id => id !== b.dataset.oublier))
@@ -300,14 +291,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const v = await dbGetReglage(CLE_SELECTION).catch(() => null)
       selection = Array.isArray(v) ? v : []
       // Recettes créées sur l'autre téléphone : catalogue rechargé
-      if (selection.some(id => !donnees.recettesMap[id])) donnees = await chargerDonnees(debutCycle()).catch(() => donnees)
+      if (selection.some(id => !donnees.recettesMap[id])) donnees = await chargerDonnees(debutCycle(), { avecPlacard: true }).catch(() => donnees)
       selection = selection.filter(id => donnees.recettesMap[id])
       afficher()
     }
   })
   dbEcouter(['recettes'], debounce(async () => {
     if (iaEnCours) return
-    donnees = await chargerDonnees(debutCycle()).catch(() => donnees)
+    donnees = await chargerDonnees(debutCycle(), { avecPlacard: true }).catch(() => donnees)
     afficher()
   }, 800))
 })

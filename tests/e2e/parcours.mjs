@@ -372,30 +372,34 @@ await etape('Placard : inventaire saisi en vrac, quantités modifiables', async 
   assert.equal(inv.find(i => i.nom === 'Riz basmati').quantite, '500 g')
 })
 
-await etape('Placard : mes recettes d\'abord, puis l\'IA pour tout le reste', async () => {
-  await page.getByRole('button', { name: 'Chercher dans mes recettes' }).click()
-  await page.locator('#placardResultats:not(.hidden)').waitFor()
-  assert.match(await page.locator('#placardRecettes').textContent(), /Curry de poulet/)   // riz + lait de coco
+await etape('Placard : recettes existantes d\'abord, puis l\'IA pour tout le reste (un seul bouton)', async () => {
   const avant = appelsIA
-  await page.getByRole('button', { name: 'Compléter avec l\'IA' }).click()
+  await page.getByRole('button', { name: 'Trouver les recettes' }).click()
   await page.waitForFunction(() => /tout le placard est utilisé/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
+  assert.match(await page.locator('#placardRecettes').textContent(), /Curry de poulet/)   // existante : riz + lait de coco
   assert.ok(appelsIA > avant, 'IA non appelée')
+  // L'IA n'a reçu que les articles que les recettes existantes n'utilisaient pas
   assert.match(await page.locator('#placardCouverture').textContent(), /6 \/ 6/)
   assert.ok(tables.recettes.some(r => r.nom.startsWith('Plat du placard')), 'recettes IA non enregistrées')
   assert.ok(tables.livres.some(l => l.nom === 'Vider le placard'), 'livre non créé')
+  assert.equal(await page.getByRole('button', { name: 'Mettre au planning' }).count(), 0)
 })
 
-await etape('Placard : recettes mises au planning, puis ce qui est à la maison sort des courses', async () => {
-  const avant = tables.planning.filter(l => l.recette_id).length
-  await page.getByRole('button', { name: 'Mettre au planning' }).click()
-  await page.getByText(/recette\(s\) du placard au planning/).waitFor()
-  assert.ok(tables.planning.filter(l => l.recette_id).length > avant, 'rien de planifié')
+await etape('Placard : indépendant — ses recettes ne sont pas proposées au planning, les courses ne changent pas', async () => {
+  const livre = tables.livres.find(l => l.nom === 'Vider le placard')
+  const placard = tables.recettes.filter(r => r.livre_id === livre.id).map(r => r.nom)
+  assert.ok(placard.length >= 2)
+  await page.goto(`${BASE}/planning.html`)
+  await page.waitForSelector('.slot-vide')
+  await page.locator('.slot-vide').first().click()
+  await page.locator('#modalRecetteSelect:not(.hidden)').waitFor()
+  const proposees = await page.locator('#recetteSelectList').textContent()
+  for (const nom of placard) assert.ok(!proposees.includes(nom), `${nom} proposée dans le planning`)
+  assert.match(proposees, /Curry de poulet/)  // les recettes normales, elles, restent proposées
+  await page.keyboard.press('Escape')
   await page.goto(`${BASE}/courses.html`)
   await page.waitForSelector('.courses-item')
-  await page.locator('[data-ouvrir-placard]').click()
-  const placard = await page.locator('.courses-placard-corps').textContent()
-  assert.match(placard, /à la maison : Pois chiches \(2 boîtes\)/)
-  assert.doesNotMatch(await page.locator('.courses-partie').allTextContents().then(t => t.join(' ')), /Pois chiches|Thon/)
+  assert.doesNotMatch(await page.locator('#coursesList').textContent(), /à la maison/)
 })
 
 await etape('Mode sombre : aucun flash clair (thème posé avant le rendu)', async () => {

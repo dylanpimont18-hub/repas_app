@@ -22,7 +22,7 @@ Légende : **[Constat]** vérifié dans le code ou par script · **[Hypothèse]*
 | m1–m18 | ✅ sauf : avis par profil (arbitrage), plan de session entrelacé (conseil simple seulement), mini-inventaire (vague 3) | |
 | Taille des lots IA | ⏸ gardée à 3 (lots parallèles plus rapides ; gain de coût marginal) | |
 
-Nouveau : « Vider le placard » (inventaire → recettes de la bibliothèque puis IA, couverture, planning, courses sans ce qui est à la maison). Nouveau : nombre de personnes réglable dans le détail d'une recette, ingrédients pondérés (cuisiner, imprimer, enregistrer).
+Nouveau : « Vider le placard », mode indépendant (inventaire → recettes existantes puis IA, couverture, Cuisiner ; ni planning ni courses). Nouveau : nombre de personnes réglable dans le détail d'une recette, ingrédients pondérés (cuisiner, imprimer, enregistrer).
 
 ---
 

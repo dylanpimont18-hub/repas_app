@@ -49,7 +49,7 @@
 
   <main class="main">
     <h1 class="page-title">Vider le placard</h1>
-    <p class="page-subtitle">Note ce que tu as à la maison, puis l'appli trouve les recettes qui l'utilisent : tes recettes d'abord, l'IA pour le reste.</p>
+    <p class="page-subtitle">Note ce que tu as à la maison, puis l'appli trouve les recettes qui l'utilisent : tes recettes existantes d'abord, l'IA pour le reste. Indépendant du planning et des courses.</p>
 
     <section class="card placard-bloc" aria-labelledby="titreInventaire">
       <div class="placard-tete">
@@ -84,9 +84,10 @@
       <p class="text-sm" id="placardPlan" role="status" aria-live="polite"></p>
       <div id="placardEstimation"></div>
       <div class="placard-actions">
-        <button class="btn btn-primary" id="btnPlacardBiblio"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Chercher dans mes recettes</button>
-        <button class="btn btn-accent" id="btnPlacardIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Compléter avec l'IA</button>
+        <button class="btn btn-primary" id="btnPlacardIA"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-etincelle"/></svg>Trouver les recettes</button>
+        <button class="btn btn-secondary" id="btnPlacardBiblio"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-livre"/></svg>Seulement mes recettes</button>
       </div>
+      <p class="text-xs text-muted">« Trouver les recettes » regarde d'abord tes recettes existantes, puis l'IA écrit le nombre de recettes indiqué pour ce qui reste.</p>
     </section>
 
     <div id="bandeauIA" class="bandeau-ia hidden" role="status" aria-live="polite"></div>
@@ -100,7 +101,6 @@
       <div id="placardRecettes" class="placard-recettes"></div>
       <div id="placardRestants"></div>
       <div class="placard-actions">
-        <button class="btn btn-primary" id="btnPlacardPlanning"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-calendrier"/></svg>Mettre au planning</button>
         <button class="btn btn-secondary btn-sm" id="btnPlacardUtilises"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>C'est cuisiné : retirer du placard</button>
         <button class="btn btn-ghost btn-sm" id="btnPlacardOublier">Effacer la sélection</button>
       </div>

@@ -3,7 +3,8 @@ import { chargerCycle, chargerHistorique, enregistrerCreneaux, viderCreneaux, im
 import { getRecettes, addRecette } from './recettes.js'
 import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
-import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
+import { dbGetReserve, dbAddReserve, dbDeleteReserve, dbGetLivres } from './db.js'
+import { sansRecettesPlacard } from './placard.js'
 import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
 import { genererPourCreneaux, genererUneRecette, genererIdees, completerIdee } from './ai.js'
 import { apresCreation } from './photos-auto.js'
@@ -19,13 +20,16 @@ export function memoriserFiltres(f) {
   try { localStorage.setItem(CLE_FILTRES, JSON.stringify(f)) } catch { /* navigation privée */ }
 }
 
-// Tout ce qu'il faut pour proposer des plats sur un cycle
-export async function chargerDonnees(samedi) {
-  const [cycle, recettes, reserveBrute, historique, dylan, femme, ingredients] = await Promise.all([
+// Tout ce qu'il faut pour proposer des plats sur un cycle.
+// Les recettes du livre « Vider le placard » ne sont pas proposées (mode indépendant), sauf `avecPlacard` ;
+// `recettesMap` les garde toutes pour afficher un repas déjà prévu.
+export async function chargerDonnees(samedi, { avecPlacard = false } = {}) {
+  const [cycle, toutes, reserveBrute, historique, dylan, femme, ingredients, livres] = await Promise.all([
     chargerCycle(samedi), getRecettes(), dbGetReserve(), chargerHistorique(samedi),
-    getProfil('dylan'), getProfil('femme'), getAllIngredients(),
+    getProfil('dylan'), getProfil('femme'), getAllIngredients(), dbGetLivres().catch(() => []),
   ])
-  const recettesMap = Object.fromEntries(recettes.map(r => [r.id, r]))
+  const recettesMap = Object.fromEntries(toutes.map(r => [r.id, r]))
+  const recettes = avecPlacard ? toutes : sansRecettesPlacard(toutes, livres)
   return {
     samedi, ...cycle, recettes, recettesMap, historique,
     reserve:    reserveBrute.filter(x => x.recette).map(x => ({ id: x.id, recette: x.recette, portions: x.portions })),

@@ -114,10 +114,9 @@ function afficher() {
       </button>
       ${placardOuvert ? `<div class="courses-placard-corps">${auPlacard.map(item => `
         <div class="courses-placard-item">
-          <span>${esc(item.nom)}${item.stock ? `<span class="text-xs text-muted courses-stock">à la maison : ${esc(item.stock)}</span>` : ''}</span>
+          <span>${esc(item.nom)}</span>
           <span class="courses-item-qty">${esc(combinerQuantites(item.quantites, item.nom))}</span>
-          ${item.stock ? '<a class="btn btn-ghost btn-sm" href="placard.html">Placard</a>'
-            : `<button class="btn btn-ghost btn-sm" data-deplacard="${esc(item.nom)}">Remettre dans la liste</button>`}
+          <button class="btn btn-ghost btn-sm" data-deplacard="${esc(item.nom)}">Remettre dans la liste</button>
         </div>`).join('')}</div>` : ''}
     </section>` : ''
 

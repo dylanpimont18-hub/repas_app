@@ -25,7 +25,7 @@ Planning par cycle samedi soir → samedi midi, groupé par session de cuisine ;
 Liste de courses du cycle en deux parties (🛒 samedi magasin / 🚗 mercredi drive), navigation ← → par cycle, bouton 🖨 Imprimer (mise en page @media print dans components.css).
 
 ### placard.html
-« Vider le placard » : inventaire partagé (réglage `inventaire`), recettes de la bibliothèque puis IA pour tout utiliser, mise au planning.
+« Vider le placard » (mode indépendant du planning et des courses) : inventaire partagé (réglage `inventaire`), recettes existantes puis IA pour tout utiliser, Cuisiner.
 
 ### reglages.html
 Réglages partagés : photos (automatiques, manquantes), crédit IA (jauge, budget, recalage, derniers appels), modèle de semaine (portions, qui mange, jour de cuisine), réserve congélo, conversion des anciennes recettes.
@@ -335,10 +335,10 @@ Vider le placard (pur, testé).
 - `utilise(recette, item)` / `couverture(inventaire, recettes)` — correspondance par mots (« riz » ↔ « riz basmati », « lait » ≠ « lait de coco »)
 - `choisirDansBibliotheque(inventaire, recettes, {indexPrefs, filtres})` — glouton, halal et goûts via `evaluer`
 - `nbRecettesConseille(n)` / `repartirArticles(items, nb)` — articles restants répartis entre les recettes IA
-- `retirerCeQuiEstALaMaison(parties, inventaire)` — sort de la liste de courses ce qui est déjà à la maison
+- `NOM_LIVRE_PLACARD` / `sansRecettesPlacard(recettes, livres)` — les recettes du livre « Vider le placard » ne sont pas proposées au planning (`chargerDonnees(samedi, { avecPlacard })`)
 
 ### js/placard-ui.js
-Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Mettre au planning » via `remplirDepuisBibliotheque` (avec « Annuler »).
+Page « Vider le placard » ; IA via `genererPourPlacard` (ai.js), recettes rangées dans le livre « Vider le placard », sélection partagée (réglage `placard_selection`), « Trouver les recettes » = recettes existantes puis IA, « Cuisiner » par recette.
 
 ## JS — Couche UI (rendu et interactions)
 

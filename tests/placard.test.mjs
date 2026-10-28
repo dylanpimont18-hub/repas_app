@@ -74,17 +74,10 @@ test('nbRecettesConseille et repartirArticles : tout est réparti, rayons varié
   assert.equal(libelleArticle({ nom: 'Riz', quantite: '500 g' }), 'Riz (500 g)')
 })
 
-test('retirerCeQuiEstALaMaison : la liste de courses ne redemande pas ce qui est dans le placard', async () => {
-  const { retirerCeQuiEstALaMaison } = await import('../js/placard.js')
-  const parties = {
-    samedi: { 'Féculents': [{ nom: 'Riz', quantites: [{ valeur: '300 g' }] }, { nom: 'Pâtes', quantites: [] }],
-      'Laitiers & Œufs': [{ nom: 'Lait', quantites: [] }] },
-    mercredi: { Divers: [{ nom: 'Pois chiches', quantites: [], libreId: 'x' }] },
-  }
-  const inv = lireInventaire('riz basmati 500 g\nlait de coco\npois chiches')
-  const { parties: reste, aLaMaison } = retirerCeQuiEstALaMaison(parties, inv)
-  assert.deepEqual(reste.samedi['Féculents'].map(i => i.nom), ['Pâtes'])
-  assert.equal(reste.samedi['Laitiers & Œufs'].length, 1)        // « lait » ≠ « lait de coco »
-  assert.equal(reste.mercredi.Divers.length, 1)                   // ajouté à la main : reste
-  assert.deepEqual(aLaMaison.map(i => [i.nom, i.stock]), [['Riz', 'Riz basmati (500 g)']])
+test('sansRecettesPlacard : le planning ne propose pas les recettes du livre « Vider le placard »', async () => {
+  const { sansRecettesPlacard } = await import('../js/placard.js')
+  const livres = [{ id: 'l1', nom: 'Vider le placard' }, { id: 'l2', nom: 'Air fryer' }]
+  const r = [{ id: 'a', livre_id: 'l1' }, { id: 'b', livre_id: 'l2' }, { id: 'c', livre_id: null }]
+  assert.deepEqual(sansRecettesPlacard(r, livres).map(x => x.id), ['b', 'c'])
+  assert.equal(sansRecettesPlacard(r, []).length, 3)
 })

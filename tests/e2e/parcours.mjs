@@ -75,11 +75,29 @@ function filtrer(lignes, params) {
 const CLES = { planning: ['semaine_key', 'jour', 'moment'], courses_etat: ['semaine_key', 'ingredient_nom'], reglages: ['cle'],
   preferences: ['profil_nom', 'ingredient_id'], recettes: ['id'], livres: ['id'], reserve: ['id'], courses_libres: ['id'], ingredients_custom: ['id'] }
 
+// IA simulée (comme Mammouth en flux SSE) : une recette par ligne « - "cN" : articles » du prompt « Vider le placard »
+let appelsIA = 0
+async function iaSimulee(route) {
+  const corps = JSON.parse(route.request().postData() || '{}')
+  if (corps.action !== 'chat') return route.fulfill({ status: 503, json: { error: 'CLE_MANQUANTE' } })
+  appelsIA++
+  const lignes = [...String(corps.prompt).matchAll(/^- "c(\d+)" : (.+)$/gm)]
+  const repas = lignes.map(([, n, articles]) => ({ id: `c${n}`, recette: {
+    nom: `Plat du placard ${appelsIA}-${n}`, description: 'Recette anti-gaspi.', cuisine: 'française',
+    ingredients: [...articles.split(', ').map(a => ({ nom: a.replace(/ \(.*\)$/, ''), quantite: '200 g' })), { nom: 'Oignon', quantite: '1' }],
+    etapes: ['Tout mélanger.', 'Cuire 20 min.'], tags: ['économique'], conservation_jours: 3, portions: 4, temps_prep: 10, temps_cuisson: 20,
+    vegetarien: false, legumes_caches: [], composants: { base: null, principal: 'plat', proteine: null, legumes: [] } } }))
+  const texte = JSON.stringify({ repas })
+  const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: texte } }] })}\n\n`
+    + `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 2000, completion_tokens: 1500 } })}\n\ndata: [DONE]\n\n`
+  return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream', 'x-repas-journal': '1', 'Access-Control-Expose-Headers': 'x-repas-journal' }, body: sse })
+}
+
 async function supabaseSimule(route) {
   const req = route.request()
   const url = new URL(req.url())
   if (url.pathname.startsWith('/auth/v1/')) return route.fulfill({ status: 200, json: { id: 'u1', email: 'test@exemple.fr' } })
-  if (url.pathname.startsWith('/functions/v1/')) return route.fulfill({ status: 503, json: { error: 'CLE_MANQUANTE' } })
+  if (url.pathname.startsWith('/functions/v1/')) return iaSimulee(route)
   const table = url.pathname.replace('/rest/v1/', '')
   const lignes = tables[table] ||= []
   const methode = req.method()
@@ -336,6 +354,48 @@ await etape('Grand écran : frise du planning, sans erreur', async () => {
   await page.goto(`${BASE}/planning.html`)
   await page.waitForSelector('.frise')
   assert.ok(await page.locator('.frise-bande-session').count() > 0)
+})
+
+await etape('Placard : inventaire saisi en vrac, quantités modifiables', async () => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${BASE}/placard.html`)
+  await page.locator('#champPlacard').waitFor()
+  await page.locator('#champPlacard').fill('2 boîtes de pois chiches\nriz basmati 500 g\nthon x3, pâtes 1 kg\ncurry\nlait de coco')
+  await page.getByRole('button', { name: 'Ajouter au placard' }).click()
+  await page.waitForFunction(() => document.querySelectorAll('.placard-item').length === 6)
+  await page.locator('[aria-label="Quantité de Curry"]').fill('1 pot')
+  await page.locator('[aria-label="Quantité de Curry"]').press('Tab')
+  await page.waitForFunction(() => true)
+  const inv = tables.reglages.find(r => r.cle === 'inventaire').valeur
+  assert.equal(inv.length, 6)
+  assert.equal(inv.find(i => i.nom === 'Curry').quantite, '1 pot')
+  assert.equal(inv.find(i => i.nom === 'Riz basmati').quantite, '500 g')
+})
+
+await etape('Placard : mes recettes d\'abord, puis l\'IA pour tout le reste', async () => {
+  await page.getByRole('button', { name: 'Chercher dans mes recettes' }).click()
+  await page.locator('#placardResultats:not(.hidden)').waitFor()
+  assert.match(await page.locator('#placardRecettes').textContent(), /Curry de poulet/)   // riz + lait de coco
+  const avant = appelsIA
+  await page.getByRole('button', { name: 'Compléter avec l\'IA' }).click()
+  await page.waitForFunction(() => /tout le placard est utilisé/.test(document.querySelector('#bandeauIA')?.textContent || ''), null, { timeout: 15000 })
+  assert.ok(appelsIA > avant, 'IA non appelée')
+  assert.match(await page.locator('#placardCouverture').textContent(), /6 \/ 6/)
+  assert.ok(tables.recettes.some(r => r.nom.startsWith('Plat du placard')), 'recettes IA non enregistrées')
+  assert.ok(tables.livres.some(l => l.nom === 'Vider le placard'), 'livre non créé')
+})
+
+await etape('Placard : recettes mises au planning, puis ce qui est à la maison sort des courses', async () => {
+  const avant = tables.planning.filter(l => l.recette_id).length
+  await page.getByRole('button', { name: 'Mettre au planning' }).click()
+  await page.getByText(/recette\(s\) du placard au planning/).waitFor()
+  assert.ok(tables.planning.filter(l => l.recette_id).length > avant, 'rien de planifié')
+  await page.goto(`${BASE}/courses.html`)
+  await page.waitForSelector('.courses-item')
+  await page.locator('[data-ouvrir-placard]').click()
+  const placard = await page.locator('.courses-placard-corps').textContent()
+  assert.match(placard, /à la maison : Pois chiches \(2 boîtes\)/)
+  assert.doesNotMatch(await page.locator('.courses-partie').allTextContents().then(t => t.join(' ')), /Pois chiches|Thon/)
 })
 
 await etape('Mode sombre : aucun flash clair (thème posé avant le rendu)', async () => {

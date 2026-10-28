@@ -1281,3 +1281,33 @@ button.recipe-card .recipe-name, button.recipe-card .recipe-meta { display: flex
 /* Préférences : boutons du tableau à 44 px, sans glyphe */
 .pref-radio-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .pref-radio-btn .ic { width: 18px; height: 18px; }
+
+/* ══ Vider le placard ══ */
+.placard-bloc { margin-bottom: 1.25rem; }
+.placard-tete { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.placard-compte { color: var(--color-text-muted); font-family: var(--font-sans); font-size: 0.9rem; font-weight: 400; }
+.placard-ajouter { margin-top: 0.5rem; }
+.placard-liste { margin-top: 1rem; }
+.placard-item { display: grid; grid-template-columns: 1fr minmax(5.5rem, 34%) 44px; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0; border-bottom: 1px solid var(--color-border-light); }
+.placard-nom { display: flex; align-items: center; gap: 0.35rem; min-width: 0; overflow-wrap: anywhere; }
+.placard-utilise .placard-nom .ic { color: var(--color-accent); }
+.placard-qte { min-height: 44px; padding: 0.4rem 0.6rem; }
+.placard-options { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0.75rem; }
+.placard-options select { min-height: 44px; }
+#placardFiltres { margin-bottom: 0.6rem; }
+#placardIdee { margin-bottom: 0.6rem; }
+#placardPlan { margin: 0.25rem 0 0.5rem; display: flex; align-items: center; gap: 0.35rem; }
+.placard-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.placard-barre { height: 10px; border-radius: 999px; background: var(--color-border); overflow: hidden; margin-bottom: 0.9rem; }
+.placard-barre-rempli { height: 100%; width: 0; background: var(--color-accent); transition: width 0.3s; }
+.placard-recettes { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.placard-recette { display: flex; flex-direction: column; gap: 0.3rem; }
+.placard-recette-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
+.placard-recette h3 { font-size: 1rem; margin: 0; }
+.placard-recette h3 a { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-border); text-underline-offset: 3px; display: inline-block; min-height: 32px; }
+.placard-recette p { display: flex; gap: 0.35rem; align-items: baseline; }
+.placard-restants { margin-top: 0.75rem; display: flex; gap: 0.35rem; align-items: baseline; color: var(--color-info); }
+.courses-stock { display: block; }
+.dash-lien-placard { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; color: var(--color-text); }
+.dash-lien-placard > .ic { width: 28px; height: 28px; color: var(--color-primary); flex-shrink: 0; }

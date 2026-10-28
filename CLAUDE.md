@@ -63,7 +63,14 @@ Générée automatiquement depuis le planning de la semaine active.
 - Cases à cocher persistées en base (Supabase `courses_etat`)
 - Articles ajoutés à la main par partie (`courses_libres`) ; ingrédients « toujours au placard » (réglage `placard`) sortis de la liste, rappelés dans une section repliée
 
-### 6. Dashboard (`index.html`)
+### 6. Vider le placard (`placard.html`)
+Inventaire de ce qu'il y a à la maison (quantités facultatives, saisi en vrac), partagé (`reglages.inventaire`).
+- Bibliothèque d'abord : recettes enregistrées qui utilisent le plus d'articles (choix glouton, halal et goûts respectés)
+- L'IA écrit des recettes pour les articles restants, répartis entre elles (≈ 3 articles par recette, rayons variés), rangées dans le livre « Vider le placard »
+- Recettes retenues (`reglages.placard_selection`) : couverture du placard, ce qu'il reste à acheter, « Mettre au planning » (repas libres à venir), « C'est cuisiné : retirer du placard »
+- Les articles de l'inventaire sortent de la liste de courses (rappelés « à la maison : … »)
+
+### 7. Dashboard (`index.html`)
 Prochain repas (cuisiner / voir la recette / ⚡ si vide), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.
 
 ## Structure de fichiers
@@ -75,6 +82,7 @@ Repas/
 ├── recettes.html           # Bibliothèque de recettes
 ├── planning.html           # Planificateur hebdomadaire
 ├── courses.html            # Liste de courses
+├── placard.html            # Vider le placard (inventaire → recettes)
 ├── manifest.json           # PWA manifest (icônes normales + maskable)
 ├── sw.js                   # Service worker : hors-ligne (code + dernières données)
 ├── config.js               # Non versionné : SUPABASE_URL, SUPABASE_ANON_KEY (publiques)
@@ -111,6 +119,8 @@ Repas/
     ├── controle-ia.js      # Contrôle des recettes IA : halal, goûts, légumes cachés (pur, testé)
     ├── import-pur.js       # Import de recette : JSON-LD, texte collé (pur, testé)
     ├── import-recette.js   # Fenêtre « Importer une recette »
+    ├── placard.js          # Vider le placard : inventaire, couverture, choix des recettes (pur, testé)
+    ├── placard-ui.js       # Page « Vider le placard »
     ├── vendor/             # supabase-js épinglé (copie locale)
     └── data/
         └── ingredients.js  # Base de données statique des ingrédients (150+)

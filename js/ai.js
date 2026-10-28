@@ -369,6 +369,58 @@ export async function genererPourLivre({ livre, nb, portions = 4, filtres = [], 
   return r
 }
 
+// ── Vider le placard ─────────────────────────────────────────────────
+async function buildPromptPlacard({ lot, inventaire, portions, filtres = [], style = '', nomsExistants = [], prefs = null }) {
+  prefs ||= await preferencesTexte()
+  const consignes = consignesFiltres(filtres)
+  const lib = i => (i.quantite ? `${i.nom} (${i.quantite})` : i.nom)
+  return `Tu es un chef cuisinier familial expert en anti-gaspi. Le foyer veut VIDER SON PLACARD : écris ${lot.length === 1 ? 'UNE recette' : `${lot.length} recettes différentes`} qui utilisent ce qu'il a déjà à la maison.
+Pour toute la famille (Dylan, sa femme, 2 enfants qui mangent comme les adultes) — préférences des DEUX adultes. ${portions} portion(s) par recette.
+
+ARTICLES À UTILISER (chaque recette a les siens ; utilise-les TOUS, en grande quantité, idéalement en entier) :
+${lot.map((x, i) => `- "c${i + 1}" : ${x.articles.map(lib).join(', ')}`).join('\n')}
+
+TOUT LE PLACARD (tu peux aussi y piocher pour compléter, c'est déjà acheté) :
+${inventaire.map(lib).join(', ')}
+
+CONTRAINTES ABSOLUES :
+- Halal strict : ZÉRO porc, ZÉRO alcool (vin, bière, mirin, saké…), ni aucun dérivé (lardons, gélatine porcine…). Un article du placard qui ne serait pas halal est ignoré
+- Les ingrédients "N'aime PAS" de Dylan ou de sa femme n'apparaissent JAMAIS, même s'ils sont dans le placard
+- Un légume de la liste "CACHÉS" peut être utilisé SEULEMENT s'il est rendu invisible ; décris alors l'astuce dans "legumes_caches"
+- Les quantités des ingrédients correspondent à ${portions} portion(s) ; quand le placard a une quantité, n'en demande pas plus que ce qu'il y a
+- Le moins possible d'ingrédients à acheter en plus (produits frais courants seulement : œufs, oignons, un légume…)
+- Des associations qui ont du sens et qui donnent envie : si un article ne va vraiment avec rien, utilise-le dans un dessert, une sauce ou un accompagnement
+${consignes.length ? consignes.map(c => `- ${c}`).join('\n') : ''}
+${style ? `- Idée ou précision demandée (prioritaire) : "${style}"` : ''}
+
+PRÉFÉRENCES :
+${prefs.texte}
+
+SAISON : ${getSaison()}.
+
+${nomsExistants.length ? `Recettes qui existent déjà, à NE PAS reproposer : ${nomsExistants.slice(0, MAX_NOMS_EXISTANTS).join(', ')}` : ''}
+
+"tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
+{ "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
+
+Chaque <recette> :
+${FORMAT_RECETTE_ETAPES}`
+}
+
+/**
+ * Recettes pour vider le placard : `groupes` = articles attribués à chaque recette (js/placard.js, repartirArticles).
+ * Lots en parallèle ; chaque recette est contrôlée (halal, goûts, légumes cachés) comme les autres.
+ */
+export async function genererPourPlacard({ groupes, inventaire, portions = 4, filtres = [], style = '', nomsExistants = [] }, onProgress = null, onLot = null) {
+  const items = groupes.map(articles => ({ portions, profils: ['dylan', 'femme'], articles }))
+  return genererEnLots(items, {
+    construirePrompt: (lot, _k, prefs) => buildPromptPlacard({ lot, inventaire, portions, filtres, style, nomsExistants, prefs }),
+    filtres,
+  }, onProgress, onLot)
+}
+
 // ── Photo d'une recette ──────────────────────────────────────────────
 function promptImage(r) {
   const ingredients = (r.ingredients || []).slice(0, 8).map(i => i.nom).filter(Boolean).join(', ')

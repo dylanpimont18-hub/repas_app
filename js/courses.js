@@ -2,14 +2,19 @@
 import { chargerCycle }     from './planning.js'
 import { getRecettesByIds } from './recettes.js'
 import { repartirCourses, ajouterArticlesLibres, separerPlacard, cleIngredient } from './utils.js'
+import { retirerCeQuiEstALaMaison } from './placard.js'
 import { dbGetCoursesEtat, dbToggleCourse, dbResetCourses, dbGetCoursesLibres, dbAddCourseLibre,
          dbDeleteCourseLibre, dbGetReglage, dbSetReglage } from './db.js'
 
 // Liste complète du cycle : recettes + articles ajoutés à la main, moins ce qui est toujours au placard
-// → { parties: { samedi: { rayon: [item] }, mercredi: {…} }, auPlacard: [item] } ; item = { nom, quantites, cleEtat, libreId? }
+// et ce qui est déjà à la maison (inventaire de « Vider le placard », rappelé avec la quantité en stock)
+// → { parties: { samedi: { rayon: [item] }, mercredi: {…} }, auPlacard: [item] } ; item = { nom, quantites, cleEtat, libreId?, stock? }
 export async function listeCourses(samedi, cleCycle) {
-  const [parties, libres, placard] = await Promise.all([genererListeCycle(samedi), dbGetCoursesLibres(cleCycle), getPlacard()])
-  return separerPlacard(ajouterArticlesLibres(parties, libres), placard)
+  const [parties, libres, placard, inventaire] = await Promise.all([genererListeCycle(samedi), dbGetCoursesLibres(cleCycle), getPlacard(),
+    dbGetReglage('inventaire').catch(() => null)])
+  const { parties: reste, auPlacard } = separerPlacard(ajouterArticlesLibres(parties, libres), placard)
+  const { parties: aAcheter, aLaMaison } = retirerCeQuiEstALaMaison(reste, Array.isArray(inventaire) ? inventaire : [])
+  return { parties: aAcheter, auPlacard: [...aLaMaison, ...auPlacard].sort((a, b) => a.nom.localeCompare(b.nom)) }
 }
 
 // → { samedi: { rayon: [{ nom, quantites, cleEtat }] }, mercredi: { ... } }

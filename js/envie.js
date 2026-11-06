@@ -1,7 +1,7 @@
 // js/envie.js — « ⚡ Envie ce soir » : remplacer ponctuellement un repas sans casser le cycle
 import { debutCycle, creneauCourant, labelCreneau, dateIso, ajouterJours } from './cycle.js'
 import { FILTRES } from './filtres.js'
-import { chargerDonnees, proposerPourCreneau, ideesIA, enregistrerIdee, placer } from './propositions.js'
+import { chargerDonnees, proposerPourCreneau, ideesIA, ideesPlacard, enregistrerIdee, placer } from './propositions.js'
 import { recettesAvecIngredients, recettesPlacard, aAcheter } from './selection.js'
 import { getPlacard } from './courses.js'
 import { dbGetReglage, dbSetReglage } from './db.js'
@@ -13,7 +13,7 @@ import { icone } from './icones.js'
 const ENVIES_RAPIDES = ['reconfortant', 'bouillon', 'gras', 'healthy', 'rapide', 'sansViande', 'sansFeculents']
 const NB_IDEES = [2, 3, 4, 5]
 
-const MAX_ACHATS = 3   // « Vider le placard » : au plus 3 ingrédients à acheter
+const CHOIX_ACHATS = [0, 1, 2, 3]   // « Vider le placard » : nombre d'ingrédients à acheter au plus
 
 // mode 'placard' : un repas du soir avec un maximum de ce qu'on a, le moins d'achats possible
 export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {}) {
@@ -37,6 +37,7 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
   // Vider le placard : les soirs uniquement (ce soir, ou demain soir passé 21 h) ; le fond du placard
   // saisi la dernière fois est partagé entre les deux téléphones (réglage `fond_placard`)
   let placard = []
+  let maxAchats = 1
   async function passerEnPlacard() {
     const soirs = tousCibles.filter(c => c.moment === 'soir')
     if (soirs.length) ciblesPossibles = soirs
@@ -44,10 +45,13 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
     cible = soirs.find(c => maintenant.getHours() < 21 || dateIso(c.date) !== aujourdHui) || soirs[0] || cible
     const [p, fond] = await Promise.all([getPlacard(), dbGetReglage('fond_placard').catch(() => null)])
     placard = p
-    if (!ingredients.trim() && typeof fond === 'string') ingredients = fond
+    // Ancien format : texte seul ; nouveau : { texte, maxAchats }
+    const texte = typeof fond === 'string' ? fond : fond?.texte
+    if (!ingredients.trim() && typeof texte === 'string') ingredients = texte
+    if (CHOIX_ACHATS.includes(fond?.maxAchats)) maxAchats = fond.maxAchats
   }
   if (mode === 'placard') await passerEnPlacard()
-  const enregistrerFond = () => dbSetReglage('fond_placard', ingredients).catch(() => {})
+  const enregistrerFond = () => dbSetReglage('fond_placard', { texte: ingredients, maxAchats }).catch(() => {})
 
   const nomRecette = id => d.recettesMap[id]?.nom || '?'
   const memoriserIdees = () => idees.forEach(r => { d.recettesMap[r.id] = r })
@@ -140,8 +144,8 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
   function drawPlacard() {
     const occ = d.occupation[cible.cle]
     const pret = ingredients.trim()
-    const biblio = pret ? recettesPlacard(d.recettes, ingredients, placard, 3, MAX_ACHATS) : []
-    // Idées IA : celles qui demandent le moins d'achats d'abord
+    const biblio = pret ? recettesPlacard(d.recettes, ingredients, placard, 3, maxAchats) : []
+    // Idées IA : déjà vérifiées à la génération ; recalculées si la liste a changé depuis
     const ideesTriees = idees.map(r => ({ ...r, aAcheter: aAcheter(r, ingredients, placard) }))
       .sort((a, b) => a.aAcheter.length - b.aAcheter.length)
     content.innerHTML = `
@@ -153,7 +157,11 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
       <label class="form-label" for="envieIngredients">Ce que tu as (placard, frigo, congélo)</label>
       <textarea id="envieIngredients" class="form-input" rows="3"
         placeholder="Pâtes, pois chiches, boîte de thon, 2 courgettes, crème, riz…">${esc(ingredients)}</textarea>
-      <p class="text-xs text-muted" style="margin:0.3rem 0 0.75rem;">Sel, huile, épices et tes articles « toujours au placard » sont comptés d'office. Au plus ${MAX_ACHATS} choses à acheter.</p>
+      <p class="text-xs text-muted" style="margin:0.3rem 0 0.6rem;">Sel, poivre, huile, sucre et tes articles « toujours au placard » sont comptés d'office.</p>
+      <div class="envie-nb-idees" role="group" aria-label="Nombre d'ingrédients à acheter au plus" style="margin-bottom:0.75rem;">
+        <span class="text-xs text-muted">À acheter au plus :</span>
+        ${CHOIX_ACHATS.map(n => `<button class="chip ${n === maxAchats ? 'active' : ''}" data-achats="${n}" aria-pressed="${n === maxAchats}">${n === 0 ? 'Rien' : n}</button>`).join('')}
+      </div>
       ${erreur ? (erreur.titre ? htmlErreurIA(erreur) : `<p class="text-sm" style="color:var(--color-danger);margin-bottom:0.5rem;">${esc(erreur)}</p>`) : ''}
       ${pret ? `<div class="text-xs text-muted" style="margin-bottom:0.4rem;">Dans tes recettes :</div>
         ${biblio.length ? biblio.map(r => carte(r, 'biblio')).join('')
@@ -175,6 +183,9 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
     content.querySelectorAll('[data-nb]').forEach(b => b.addEventListener('click', () => {
       nbIdees = Number(b.dataset.nb); draw()
     }))
+    content.querySelectorAll('[data-achats]').forEach(b => b.addEventListener('click', () => {
+      maxAchats = Number(b.dataset.achats); idees = []; enregistrerFond(); draw()
+    }))
     content.querySelectorAll('[data-recette]').forEach(b => b.addEventListener('click', () =>
       choisir(b.dataset.recette, b.dataset.source)))
     const zone = content.querySelector('#envieIngredients')
@@ -191,8 +202,7 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
       enregistrerFond()
       attente = true; erreur = null; draw()
       try {
-        idees = await ideesIA(d, cible, { envie: true, avecIngredients: ingredients,
-          placard: { maxAchats: MAX_ACHATS, basiques: placard } }, nbIdees)
+        idees = await ideesPlacard(d, cible, { dispo: ingredients, maxAchats, basiques: placard }, nbIdees)
         memoriserIdees()
       } catch (e) { erreur = e.info || expliquerErreur('INCONNUE', e.message) }
       attente = false; draw()

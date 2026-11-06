@@ -318,17 +318,20 @@ export function decalerEnCascade(creneaux, plan, cleCible, nouveau) {
 // ── Vider le placard : ce qu'il faudrait acheter en plus de ce qu'on a ──
 // Un ingrédient est « à la maison » s'il est saisi (mots en commun dans un sens ou l'autre),
 // toujours au placard (réglage `placard`) ou basique (sel, huile…)
+const MOTS_BASIQUES = new Set(['sel', 'fin', 'gros', 'poivre', 'noir', 'moulu', 'huile', 'olive', 'tournesol', 'neutre',
+  'eau', 'chaude', 'froide', 'sucre', 'et', 'pincee', 'filet'])
 export function aAcheter(recette, texteDispo, placard = []) {
-  const items = ingredientsSaisis(texteDispo)
-  const auPlacard = new Set(placard)
+  // Les articles « toujours au placard » comptent comme saisis
+  const items = [...ingredientsSaisis(texteDispo), ...placard.map(motsDe).filter(m => m.length)]
   const vus = new Set()
   return (recette.ingredients || []).map(i => i.nom || '').filter(nom => {
     const k = cleIngredient(nom)
-    if (!k || vus.has(k) || BASIQUES.has(k) || auPlacard.has(k)) return false
+    if (!k || vus.has(k) || BASIQUES.has(k)) return false
     vus.add(k)
-    const mots = new Set(motsDe(nom))
-    if (!mots.size) return false
-    return !items.some(item => item.every(m => mots.has(m)) || [...mots].every(m => item.includes(m)))
+    const mots = motsDe(nom)
+    if (!mots.length || mots.every(m => MOTS_BASIQUES.has(m))) return false // « Sel et poivre », « Huile d'olive »…
+    const ens = new Set(mots)
+    return !items.some(item => item.every(m => ens.has(m)) || mots.every(m => item.includes(m)))
   })
 }
 

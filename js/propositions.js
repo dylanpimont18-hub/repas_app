@@ -5,7 +5,7 @@ import { getProfil } from './preferences.js'
 import { getAllIngredients } from './custom-ingredients.js'
 import { dbGetReserve, dbAddReserve, dbDeleteReserve } from './db.js'
 import { construireIndexPrefs, nouveauContexte, candidats, remplirCycle, decalerEnCascade, repartirEnvies } from './selection.js'
-import { genererPourCreneaux, genererUneRecette, genererIdees } from './ai.js'
+import { genererPourCreneaux, genererUneRecette, genererIdees, genererIdeesPlacard } from './ai.js'
 import { apresCreation } from './photos-auto.js'
 
 const CLE_FILTRES = 'repas_filtres_cycle'
@@ -103,6 +103,13 @@ export async function ideeIA(d, creneau, options = {}) {
 // Plusieurs idées IA pour un créneau, NON enregistrées : id provisoire jusqu'au choix (enregistrerIdee)
 export async function ideesIA(d, creneau, options = {}, nb = 3) {
   const recettes = await genererIdees({ creneau, nb, ...options, ...contexteIA(d, [creneau.cle]) })
+  const lot = Date.now()
+  return recettes.map((r, i) => ({ ...r, id: `idee-${lot}-${i}`, provisoire: true }))
+}
+
+// « Vider le placard » : idées simples avec ce qu'on a, vérifiées (au plus `maxAchats` achats)
+export async function ideesPlacard(d, creneau, { dispo, maxAchats, basiques }, nb = 3) {
+  const recettes = await genererIdeesPlacard({ creneau, nb, dispo, maxAchats, basiques, nomsExistants: d.recettes.map(r => r.nom) })
   const lot = Date.now()
   return recettes.map((r, i) => ({ ...r, id: `idee-${lot}-${i}`, provisoire: true }))
 }

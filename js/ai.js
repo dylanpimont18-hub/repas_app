@@ -5,6 +5,7 @@ import { dbAppelFonctionIA, dbAjouterUsageIA } from './db.js'
 import { validerVegetarien }   from './utils.js'
 import { TAGS, consignesFiltres, contientInterdit, passeFiltres } from './filtres.js'
 import { labelCreneau, dateCourte } from './cycle.js'
+import { aAcheter } from './selection.js'
 import { TAILLE_LOT, coutImage, coutTokens, estimerTokens, decouperLots, codeErreurHttp, expliquerErreur, extraireRepasComplets } from './credit-ia.js'
 
 // Saison courante (produits de saison)
@@ -64,7 +65,7 @@ function decrireCreneau(c, i) {
   return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
-async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', placard = null, variantes = false }) {
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }) {
   const prefs = await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   const intro = variantes && creneaux.length > 1
@@ -91,11 +92,6 @@ CE QU'IL Y A À LA MAISON (prioritaire) : « ${avecIngredients} »
 - S'il s'agit de restes déjà cuisinés (ex. bœuf bourguignon, poulet rôti, riz cuit), transforme-les en un plat nouveau (effiloché, hachis, wrap, gratin, croquettes, sauté…) sans les recuire inutilement, et rappelle-le dans les étapes
 - Complète avec le moins possible d'ingrédients à acheter, de préférence du placard
 - Ces ingrédients restent soumis aux contraintes halal et aux goûts (ignore ceux qui seraient interdits)
-${placard ? `
-OBJECTIF « VIDER LE PLACARD » (priorité la plus forte, avant la liste de courses courte) :
-- Utilise un MAXIMUM des ingrédients ci-dessus (au moins 3 si possible) : c'est le but du repas
-- AU PLUS ${placard.maxAchats} ingrédient(s) à acheter en plus, idéalement aucun ; tout le reste vient de la liste ci-dessus ou des basiques
-- Basiques toujours disponibles (ne comptent pas comme achats) : sel, poivre, huile, eau, sucre${placard.basiques?.length ? `, ${placard.basiques.join(', ')}` : ''}
 - Dans "description", termine par « À acheter : … » ou « Rien à acheter »
 ` : ''}
 ` : ''}
@@ -357,8 +353,8 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 }
 
 // Une recette par créneau du planning, lots en parallèle
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', placard = null, variantes = false }, onProgress = null, onLot = null) {
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, placard, variantes }
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, variantes }
   return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
 }
 
@@ -471,4 +467,75 @@ Réponds UNIQUEMENT avec du JSON valide :
     return { ...parId[x.id], description: n.description, cuisine: n.cuisine, composants: n.composants,
              legumes_caches: n.legumes_caches, tags: n.tags, conservation_jours: n.conservation_jours }
   })
+}
+
+// ── Vider le placard : recettes TRÈS simples, avec ce qu'on a et au plus `maxAchats` achats ──
+const BASIQUES_PLACARD = ['sel', 'poivre', 'huile', 'eau', 'sucre']
+
+async function buildPromptPlacard({ creneau, nb, dispo, maxAchats, basiques, nomsExistants, trop = [] }) {
+  const prefs = await preferencesTexte()
+  const tousBasiques = [...BASIQUES_PLACARD, ...basiques]
+  const regleAchats = maxAchats === 0
+    ? 'AUCUN ingrédient à acheter : uniquement la liste ci-dessus et les basiques'
+    : `AU PLUS ${maxAchats} ingrédient${maxAchats > 1 ? 's' : ''} à acheter en plus (idéalement aucun)`
+  return `Tu es un parent qui cuisine vite fait un soir de semaine avec ce qu'il reste à la maison.
+Propose ${nb === 1 ? 'UNE recette' : `${nb} recettes au choix`} pour ${labelCreneau(creneau)} : ${creneau.portions} portion(s), toute la famille (2 adultes, 2 enfants qui mangent comme des adultes).
+
+CE QU'IL Y A À LA MAISON : « ${dispo} »
+BASIQUES TOUJOURS LÀ : ${tousBasiques.join(', ')}
+
+RÈGLE N°1 — INGRÉDIENTS (la plus importante, vérifie-la avant de répondre) :
+- Chaque ingrédient de la recette est SOIT dans la liste « à la maison » (recopie son nom tel qu'il est écrit), SOIT un basique, SOIT un achat
+- ${regleAchats}
+- Ail, oignon, échalote, épices, herbes, bouillon, beurre, crème, lait, fromage, citron, sauce… comptent comme des ACHATS s'ils ne sont ni dans la liste ni dans les basiques : ne les ajoute pas « pour le goût »
+- Il n'est PAS obligatoire d'utiliser toute la liste : 2 à 4 ingrédients de la liste suffisent pour un plat
+${trop.length ? `- Les idées précédentes ont été refusées car elles demandaient trop d'achats (${trop.join(', ')}) : reste STRICTEMENT dans la liste\n` : ''}
+RÈGLE N°2 — TRÈS SIMPLE :
+- Un plat de tous les jours, comme on le fait à la maison (pâtes au thon, omelette, riz sauté, gratin, soupe, croque…), pas un plat de restaurant
+- Au plus 4 étapes courtes, 30 minutes maximum au total, une seule casserole ou poêle si possible
+- Aucune technique : pas de marinade, de pâte maison, de sauce élaborée, de réduction ni de cuisson en plusieurs temps
+- S'il s'agit de restes déjà cuisinés, réchauffe-les ou transforme-les simplement
+${nb > 1 ? '- Les idées sont différentes entre elles (autre plat, autre cuisson), mais TOUTES respectent la règle n°1\n' : ''}
+CONTRAINTES ABSOLUES :
+- Halal strict : ZÉRO porc, ZÉRO alcool, ni aucun dérivé ; ignore un ingrédient de la liste qui serait interdit
+- Les ingrédients "N'aime PAS" n'apparaissent JAMAIS ; un légume "CACHÉS" seulement s'il est rendu invisible (astuce dans "legumes_caches")
+
+PRÉFÉRENCES (n'ajoute AUCUN ingrédient pour les satisfaire) :
+${prefs.texte}
+
+${nomsExistants.length ? `Recettes déjà dans la bibliothèque, à NE PAS reproposer : ${nomsExistants.slice(0, 120).join(', ')}` : ''}
+
+"tags" : uniquement des valeurs parmi ${TAGS.join(', ')}.
+
+Réponds UNIQUEMENT avec du JSON valide (sans markdown, sans backtick, sans explication) :
+{ "repas": [ { "id": "c1", "recette": <recette> }, ... ] }
+
+Chaque <recette> :
+${FORMAT_RECETTE_ETAPES}`
+}
+
+/**
+ * Idées « Vider le placard » pour un créneau. Chaque idée est vérifiée ici : celles qui demandent plus de
+ * `maxAchats` achats sont écartées ; si aucune ne passe, un second essai plus strict est fait.
+ * Chaque recette renvoyée porte `aAcheter` (noms des ingrédients à acheter).
+ */
+export async function genererIdeesPlacard({ creneau, nb = 3, dispo, maxAchats = 1, basiques = [], nomsExistants = [] }) {
+  const essai = async (trop = []) => {
+    const items = Array.from({ length: nb }, () => creneau)
+    const { resultats } = await genererEnLots(items, {
+      construirePrompt: lot => buildPromptPlacard({ creneau, nb: lot.length, dispo, maxAchats, basiques, nomsExistants, trop }),
+    })
+    return resultats.map(x => ({ ...x.recette, aAcheter: aAcheter(x.recette, dispo, basiques) }))
+  }
+  let recettes = await essai()
+  let bonnes = recettes.filter(r => r.aAcheter.length <= maxAchats)
+  if (!bonnes.length) {
+    const trop = [...new Set(recettes.flatMap(r => r.aAcheter))].slice(0, 12)
+    recettes = await essai(trop)
+    bonnes = recettes.filter(r => r.aAcheter.length <= maxAchats)
+  }
+  if (!bonnes.length) {
+    throw new ErreurIA('REFUSEE', `trop d'ingrédients à acheter (${[...new Set(recettes.flatMap(r => r.aAcheter))].join(', ')})`)
+  }
+  return bonnes.sort((a, b) => a.aAcheter.length - b.aAcheter.length)
 }

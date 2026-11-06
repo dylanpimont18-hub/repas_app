@@ -25,3 +25,8 @@ test('recettesPlacard : le moins d’achats d’abord, trop d’achats exclus', 
   assert.deepEqual(res.map(r => r.id), ['b', 'a'])
   assert.deepEqual(res[0].aAcheter, ['Oeuf'])
 })
+
+test('aAcheter : « Sel et poivre » et « Huile d’olive » sont des basiques, le placard est reconnu par ses mots', () => {
+  const r = { nom: 'X', ingredients: ing('Sel et poivre', "Huile d'olive", 'Cumin moulu', 'Thon en boîte', 'Pâtes (coquillettes)') }
+  assert.deepEqual(aAcheter(r, 'boîte de thon, pâtes', ['cumin']), [])
+})

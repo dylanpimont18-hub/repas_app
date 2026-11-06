@@ -92,8 +92,6 @@ CE QU'IL Y A À LA MAISON (prioritaire) : « ${avecIngredients} »
 - S'il s'agit de restes déjà cuisinés (ex. bœuf bourguignon, poulet rôti, riz cuit), transforme-les en un plat nouveau (effiloché, hachis, wrap, gratin, croquettes, sauté…) sans les recuire inutilement, et rappelle-le dans les étapes
 - Complète avec le moins possible d'ingrédients à acheter, de préférence du placard
 - Ces ingrédients restent soumis aux contraintes halal et aux goûts (ignore ceux qui seraient interdits)
-- Dans "description", termine par « À acheter : … » ou « Rien à acheter »
-` : ''}
 ` : ''}
 PRÉFÉRENCES :
 ${prefs.texte}

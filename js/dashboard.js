@@ -8,6 +8,7 @@ import { ouvrirModeCuisine } from './mode-cuisine.js'
 import { repasANoter }       from './avis.js'
 import { esc, debounce, getSemaineKey } from './utils.js'
 import { icone }             from './icones.js'
+import { ouvrirVidePlacard } from './app.js'
 
 const JOURS_LABEL = {
   lundi: 'Lun', mardi: 'Mar', mercredi: 'Mer', jeudi: 'Jeu',
@@ -73,6 +74,20 @@ function htmlProchainRepas() {
     <div class="dash-actions">
       ${boutonCuisiner(plats, r.nom)}
       <a href="recettes.html?id=${encodeURIComponent(r.id)}&from=dashboard" class="btn btn-secondary btn-sm">Voir la recette</a>
+    </div>
+  </section>`
+}
+
+// ── Vider le placard : un repas du soir avec ce qu'on a, le moins d'achats possible ──
+function htmlVidePlacard() {
+  return `<section class="card dash-carte dash-placard">
+    <span class="dash-icone">${icone('boite')}</span>
+    <div class="dash-corps">
+      <div class="dash-nom">Vider le placard</div>
+      <div class="dash-info">Un repas du soir avec ce que tu as, presque rien à acheter</div>
+    </div>
+    <div class="dash-actions">
+      <button class="btn btn-secondary btn-sm" data-placard>${icone('etincelle')}Trouver un repas</button>
     </div>
   </section>`
 }
@@ -154,7 +169,7 @@ async function render() {
   cycles = await chargerCycles()
   actions = {}
   const avis = await htmlAvis().catch(() => '')
-  document.getElementById('dashCeSoir').innerHTML = htmlProchainRepas() + htmlProchaineSession() + avis
+  document.getElementById('dashCeSoir').innerHTML = htmlProchainRepas() + htmlVidePlacard() + htmlProchaineSession() + avis
   const dashSemaine = document.getElementById('dashSemaine')
   dashSemaine.className = 'apercu-cycle'
   dashSemaine.innerHTML = htmlCycle()
@@ -166,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('dashCeSoir').addEventListener('click', async e => {
     const cuisiner = e.target.closest('[data-cuisiner]')
     if (cuisiner) { const a = actions[cuisiner.dataset.cuisiner]; return ouvrirModeCuisine(a.plats, a.titre) }
+    if (e.target.closest('[data-placard]')) return ouvrirVidePlacard()
     if (e.target.closest('[data-envie]')) return document.getElementById('btnFlash')?.click()
     const passer = e.target.closest('[data-passer]')
     if (passer) { avisMasques.add(passer.dataset.passer); return render() }

@@ -39,11 +39,19 @@ function highlightActiveLink() {
 }
 
 // « ⚡ Envie ce soir » (chargé à la demande : n'alourdit pas les autres pages)
-export async function renderModalFlash() {
+export async function renderModalFlash(options = {}) {
   const content = document.getElementById('modalContent')
   if (!content) return
   const { renderModalEnvie } = await import('./envie.js')
-  await renderModalEnvie(content, () => document.getElementById('modalFlash').classList.add('hidden'))
+  await renderModalEnvie(content, () => document.getElementById('modalFlash').classList.add('hidden'), options)
+}
+
+// « Vider le placard » : la même fenêtre, ouverte sur un repas du soir avec ce qu'on a
+export function ouvrirVidePlacard() {
+  const overlay = document.getElementById('modalFlash')
+  if (!overlay) return
+  overlay.classList.remove('hidden')
+  renderModalFlash({ mode: 'placard' })
 }
 
 function initModalFlash() {

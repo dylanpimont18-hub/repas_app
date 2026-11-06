@@ -64,7 +64,7 @@ function decrireCreneau(c, i) {
   return `- "c${i + 1}" : ${labelCreneau(c)} ${dateCourte(c.date)} · ${c.portions} portion(s) · ${qui} · ${cuisson}${envie}`
 }
 
-async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }) {
+async function buildPrompt({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', placard = null, variantes = false }) {
   const prefs = await preferencesTexte()
   const consignes = consignesFiltres(filtres)
   const intro = variantes && creneaux.length > 1
@@ -91,6 +91,13 @@ CE QU'IL Y A À LA MAISON (prioritaire) : « ${avecIngredients} »
 - S'il s'agit de restes déjà cuisinés (ex. bœuf bourguignon, poulet rôti, riz cuit), transforme-les en un plat nouveau (effiloché, hachis, wrap, gratin, croquettes, sauté…) sans les recuire inutilement, et rappelle-le dans les étapes
 - Complète avec le moins possible d'ingrédients à acheter, de préférence du placard
 - Ces ingrédients restent soumis aux contraintes halal et aux goûts (ignore ceux qui seraient interdits)
+${placard ? `
+OBJECTIF « VIDER LE PLACARD » (priorité la plus forte, avant la liste de courses courte) :
+- Utilise un MAXIMUM des ingrédients ci-dessus (au moins 3 si possible) : c'est le but du repas
+- AU PLUS ${placard.maxAchats} ingrédient(s) à acheter en plus, idéalement aucun ; tout le reste vient de la liste ci-dessus ou des basiques
+- Basiques toujours disponibles (ne comptent pas comme achats) : sel, poivre, huile, eau, sucre${placard.basiques?.length ? `, ${placard.basiques.join(', ')}` : ''}
+- Dans "description", termine par « À acheter : … » ou « Rien à acheter »
+` : ''}
 ` : ''}
 PRÉFÉRENCES :
 ${prefs.texte}
@@ -350,8 +357,8 @@ async function genererEnLots(items, { construirePrompt, filtres = [], parallele 
 }
 
 // Une recette par créneau du planning, lots en parallèle
-export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', variantes = false }, onProgress = null, onLot = null) {
-  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, variantes }
+export async function genererPourCreneaux({ creneaux, filtres = [], style = '', ingredientsAReutiliser = [], nomsExistants = [], envie = false, avecIngredients = '', placard = null, variantes = false }, onProgress = null, onLot = null) {
+  const options = { filtres, style, ingredientsAReutiliser, nomsExistants, envie, avecIngredients, placard, variantes }
   return genererEnLots(creneaux, { construirePrompt: lot => buildPrompt({ creneaux: lot, ...options }), filtres }, onProgress, onLot)
 }
 

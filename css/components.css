@@ -1006,6 +1006,9 @@ label.filtres-groupe-titre { display: block; }
 .envie-restes-titre { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
 .envie-restes-titre .ic { width: 16px; height: 16px; color: var(--color-primary); }
 .envie-restes textarea { resize: vertical; min-height: 3.2rem; }
+.envie-achats { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.3rem; font-size: 0.78rem; font-weight: 600; color: var(--color-primary); }
+.envie-achats .ic { width: 14px; height: 14px; flex-shrink: 0; }
+.modal-title .ic { width: 18px; height: 18px; margin-right: 0.35rem; vertical-align: -3px; color: var(--color-primary); }
 
 /* ── Planifier une recette précise (depuis le détail) ── */
 .planif-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }

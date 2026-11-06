@@ -314,3 +314,37 @@ export function decalerEnCascade(creneaux, plan, cleCible, nouveau) {
   }
   return { changements, sortant: null }
 }
+
+// ── Vider le placard : ce qu'il faudrait acheter en plus de ce qu'on a ──
+// Un ingrédient est « à la maison » s'il est saisi (mots en commun dans un sens ou l'autre),
+// toujours au placard (réglage `placard`) ou basique (sel, huile…)
+export function aAcheter(recette, texteDispo, placard = []) {
+  const items = ingredientsSaisis(texteDispo)
+  const auPlacard = new Set(placard)
+  const vus = new Set()
+  return (recette.ingredients || []).map(i => i.nom || '').filter(nom => {
+    const k = cleIngredient(nom)
+    if (!k || vus.has(k) || BASIQUES.has(k) || auPlacard.has(k)) return false
+    vus.add(k)
+    const mots = new Set(motsDe(nom))
+    if (!mots.size) return false
+    return !items.some(item => item.every(m => mots.has(m)) || [...mots].every(m => item.includes(m)))
+  })
+}
+
+// Recettes de la bibliothèque à faire avec le placard : celles qui utilisent au moins 2 ingrédients saisis
+// et demandent le moins d'achats (au plus `maxAchats`), triées par achats croissants puis ingrédients utilisés
+export function recettesPlacard(recettes, texteDispo, placard = [], n = 3, maxAchats = 3) {
+  const items = ingredientsSaisis(texteDispo)
+  if (!items.length) return []
+  return recettes
+    .filter(r => !contientInterdit(r))
+    .map(r => {
+      const mots = motsRecette(r)
+      return { r, utilises: items.filter(item => item.some(m => mots.has(m))).length, achats: aAcheter(r, texteDispo, placard) }
+    })
+    .filter(x => x.utilises >= Math.min(2, items.length) && x.achats.length <= maxAchats)
+    .sort((a, b) => a.achats.length - b.achats.length || b.utilises - a.utilises)
+    .slice(0, n)
+    .map(x => ({ ...x.r, aAcheter: x.achats }))
+}

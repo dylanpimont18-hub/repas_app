@@ -470,7 +470,8 @@ Réponds UNIQUEMENT avec du JSON valide :
 }
 
 // ── Vider le placard : recettes TRÈS simples, avec ce qu'on a et au plus `maxAchats` achats ──
-const BASIQUES_PLACARD = ['sel', 'poivre', 'huile', 'eau', 'sucre']
+const BASIQUES_PLACARD = ['sel', 'poivre', 'huile', 'eau', 'sucre', 'toutes les épices et herbes séchées',
+  'condiments (moutarde, vinaigre, sauce soja, ketchup, mayonnaise, miel, concentré de tomate, bouillon cube)']
 
 async function buildPromptPlacard({ creneau, nb, dispo, maxAchats, basiques, nomsExistants, trop = [] }) {
   const prefs = await preferencesTexte()
@@ -487,8 +488,9 @@ BASIQUES TOUJOURS LÀ : ${tousBasiques.join(', ')}
 RÈGLE N°1 — INGRÉDIENTS (la plus importante, vérifie-la avant de répondre) :
 - Chaque ingrédient de la recette est SOIT dans la liste « à la maison » (recopie son nom tel qu'il est écrit), SOIT un basique, SOIT un achat
 - ${regleAchats}
-- Ail, oignon, échalote, épices, herbes, bouillon, beurre, crème, lait, fromage, citron, sauce… comptent comme des ACHATS s'ils ne sont ni dans la liste ni dans les basiques : ne les ajoute pas « pour le goût »
-- Il n'est PAS obligatoire d'utiliser toute la liste : 2 à 4 ingrédients de la liste suffisent pour un plat
+- Épices, herbes séchées et condiments sont libres : utilise-les pour donner du goût
+- Ail, oignon, échalote, herbes fraîches, beurre, crème, lait, fromage, œufs, citron, viande, légumes… comptent comme des ACHATS s'ils ne sont pas dans la liste : ne les ajoute pas « pour le goût »
+- Utilise BEAUCOUP d'ingrédients de la liste (au moins 4 ou 5, plus si ça reste bon) : le but est de vider le placard
 ${trop.length ? `- Les idées précédentes ont été refusées car elles demandaient trop d'achats (${trop.join(', ')}) : reste STRICTEMENT dans la liste\n` : ''}
 RÈGLE N°2 — TRÈS SIMPLE :
 - Un plat de tous les jours, comme on le fait à la maison (pâtes au thon, omelette, riz sauté, gratin, soupe, croque…), pas un plat de restaurant

@@ -320,6 +320,12 @@ export function decalerEnCascade(creneaux, plan, cleCible, nouveau) {
 // toujours au placard (réglage `placard`) ou basique (sel, huile…)
 const MOTS_BASIQUES = new Set(['sel', 'fin', 'gros', 'poivre', 'noir', 'moulu', 'huile', 'olive', 'tournesol', 'neutre',
   'eau', 'chaude', 'froide', 'sucre', 'et', 'pincee', 'filet'])
+// Épices, herbes séchées et condiments : jamais comptés comme achats
+const CONDIMENTS = /\b(sauce|concentre|coulis|moutarde|vinaigre|ketchup|mayonnaise|bouillon|epice|harissa|pesto|thym|laurier|origan|ras el hanout|herbes de provence|levure|bicarbonate)\b/
+export function estCondiment(nom) {
+  return categoriser(nom) === 'Épicerie & Condiments' || CONDIMENTS.test(normaliser(nom).replace(/-/g, ' '))
+}
+
 export function aAcheter(recette, texteDispo, placard = []) {
   // Les articles « toujours au placard » comptent comme saisis
   const items = [...ingredientsSaisis(texteDispo), ...placard.map(motsDe).filter(m => m.length)]
@@ -330,6 +336,7 @@ export function aAcheter(recette, texteDispo, placard = []) {
     vus.add(k)
     const mots = motsDe(nom)
     if (!mots.length || mots.every(m => MOTS_BASIQUES.has(m))) return false // « Sel et poivre », « Huile d'olive »…
+    if (estCondiment(nom)) return false // épices, sauces, bouillon… : toujours là
     const ens = new Set(mots)
     return !items.some(item => item.every(m => ens.has(m)) || mots.every(m => item.includes(m)))
   })

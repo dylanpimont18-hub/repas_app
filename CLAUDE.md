@@ -63,7 +63,7 @@ Générée automatiquement depuis le planning de la semaine active.
 - Articles ajoutés à la main par partie (`courses_libres`) ; ingrédients « toujours au placard » (réglage `placard`) sortis de la liste, rappelés dans une section repliée
 
 ### 6. Dashboard (`index.html`)
-Prochain repas (cuisiner / voir la recette / ⚡ si vide), « Vider le placard » (repas du soir avec ce qu'on a, au plus 3 achats ; ce qu'on a est mémorisé dans le réglage `fond_placard`), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.
+Prochain repas (cuisiner / voir la recette / ⚡ si vide), « Vider le placard » (repas du soir avec ce qu'on a, sans rien acheter par défaut, épices et condiments libres ; liste mémorisée en texte dans le réglage `fond_placard`, limite d'achats dans `placard_max_achats`), prochaine session de cuisine, « Comment c'était ? » (avis sur les plats des 3 derniers jours), aperçu du cycle.
 
 ## Structure de fichiers
 ```

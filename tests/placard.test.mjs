@@ -30,3 +30,8 @@ test('aAcheter : « Sel et poivre » et « Huile d’olive » sont des basiques,
   const r = { nom: 'X', ingredients: ing('Sel et poivre', "Huile d'olive", 'Cumin moulu', 'Thon en boîte', 'Pâtes (coquillettes)') }
   assert.deepEqual(aAcheter(r, 'boîte de thon, pâtes', ['cumin']), [])
 })
+
+test('aAcheter : épices et condiments ne sont jamais à acheter', () => {
+  const r = { nom: 'X', ingredients: ing('Cumin en poudre', 'Sauce soja', 'Concentré de tomate', 'Thym séché', 'Ras-el-hanout', 'Bouillon cube', 'Oignon', 'Riz') }
+  assert.deepEqual(aAcheter(r, 'riz'), ['Oignon'])
+})

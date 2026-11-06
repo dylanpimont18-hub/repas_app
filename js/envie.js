@@ -37,21 +37,24 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
   // Vider le placard : les soirs uniquement (ce soir, ou demain soir passé 21 h) ; le fond du placard
   // saisi la dernière fois est partagé entre les deux téléphones (réglage `fond_placard`)
   let placard = []
-  let maxAchats = 1
+  let maxAchats = 0
   async function passerEnPlacard() {
     const soirs = tousCibles.filter(c => c.moment === 'soir')
     if (soirs.length) ciblesPossibles = soirs
     const aujourdHui = dateIso(maintenant)
     cible = soirs.find(c => maintenant.getHours() < 21 || dateIso(c.date) !== aujourdHui) || soirs[0] || cible
-    const [p, fond] = await Promise.all([getPlacard(), dbGetReglage('fond_placard').catch(() => null)])
+    const [p, fond, max] = await Promise.all([getPlacard(),
+      dbGetReglage('fond_placard').catch(() => null), dbGetReglage('placard_max_achats').catch(() => null)])
     placard = p
-    // Ancien format : texte seul ; nouveau : { texte, maxAchats }
+    // Texte seul (format lu par toutes les versions de l'app) ; ancien essai : { texte, maxAchats }
     const texte = typeof fond === 'string' ? fond : fond?.texte
     if (!ingredients.trim() && typeof texte === 'string') ingredients = texte
-    if (CHOIX_ACHATS.includes(fond?.maxAchats)) maxAchats = fond.maxAchats
+    const m = Number(max ?? fond?.maxAchats)
+    if (CHOIX_ACHATS.includes(m)) maxAchats = m
   }
   if (mode === 'placard') await passerEnPlacard()
-  const enregistrerFond = () => dbSetReglage('fond_placard', { texte: ingredients, maxAchats }).catch(() => {})
+  const enregistrerFond = () => Promise.all([dbSetReglage('fond_placard', ingredients),
+    dbSetReglage('placard_max_achats', maxAchats)]).catch(() => {})
 
   const nomRecette = id => d.recettesMap[id]?.nom || '?'
   const memoriserIdees = () => idees.forEach(r => { d.recettesMap[r.id] = r })
@@ -157,7 +160,7 @@ export async function renderModalEnvie(content, fermer, { mode = 'envie' } = {})
       <label class="form-label" for="envieIngredients">Ce que tu as (placard, frigo, congélo)</label>
       <textarea id="envieIngredients" class="form-input" rows="3"
         placeholder="Pâtes, pois chiches, boîte de thon, 2 courgettes, crème, riz…">${esc(ingredients)}</textarea>
-      <p class="text-xs text-muted" style="margin:0.3rem 0 0.6rem;">Sel, poivre, huile, sucre et tes articles « toujours au placard » sont comptés d'office.</p>
+      <p class="text-xs text-muted" style="margin:0.3rem 0 0.6rem;">Épices, condiments, sel, huile et tes articles « toujours au placard » sont comptés d'office.</p>
       <div class="envie-nb-idees" role="group" aria-label="Nombre d'ingrédients à acheter au plus" style="margin-bottom:0.75rem;">
         <span class="text-xs text-muted">À acheter au plus :</span>
         ${CHOIX_ACHATS.map(n => `<button class="chip ${n === maxAchats ? 'active' : ''}" data-achats="${n}" aria-pressed="${n === maxAchats}">${n === 0 ? 'Rien' : n}</button>`).join('')}
